@@ -175,6 +175,7 @@ def fetch_weights(force: bool = False) -> list[dict]:
     volumes={MODELS_PATH: models, CLIPS_PATH: clips},
     timeout=1800,
     cpu=4,
+    max_containers=10,  # caps parallel windows (cost stays predictable under the $30 limit)
 )
 class Models:
     @modal.enter()
@@ -370,6 +371,55 @@ class Models:
         log("window.built", **log_event)
         return {"window": window, "persons": persons, "summary": summary}
 
+    def _tracknet(self):
+        from elevate_engine.tracknet.model import from_checkpoint
+
+        if not hasattr(self, "tracknet"):
+            model, self.seq_len = from_checkpoint(self.checkpoints["tracknet"])
+            self.tracknet = model.cuda()
+        return self.tracknet, self.seq_len
+
+    @modal.method()
+    def background(self, clip: str, start_ms: int, end_ms: int):
+        """Shared background for a whole range (pipeline step 2), float32 (3, 288, 512)."""
+        from elevate_engine.tracknet import run as tracknet_run
+
+        return tracknet_run.sample_background(Path(CLIPS_PATH) / clip, start_ms, end_ms)
+
+    @modal.method()
+    def candidates(self, clip: str, decode_ms: list, emit_ms: list, background) -> dict:
+        """One window of the whole-video pipeline: TrackNet candidates (source px) and measured
+        camera motion / blur for the emitted frames, using the shared background."""
+        from elevate_engine import window as win
+        from elevate_engine.log import log
+        from elevate_engine.tracknet import infer
+        from elevate_engine.tracknet import run as tracknet_run
+        from elevate_engine.video import frames_in_range, source_size
+
+        model, seq_len = self._tracknet()
+        path = Path(CLIPS_PATH) / clip
+        decoded = list(frames_in_range(path, *decode_ms, infer.resize_chw_uint8))
+        frames = [f.image for f in decoded]
+        blobs = list(tracknet_run.track(model, seq_len, frames, background))
+        src_w, src_h = source_size(path)
+        sx, sy = src_w / infer.WIDTH, src_h / infer.HEIGHT
+        lo, hi = emit_ms
+        emitted = [i for i, f in enumerate(decoded) if lo <= f.t_ms < hi]
+        q = win.quality([frames[i] for i in emitted], 0, sx)
+        out = {
+            "emit": [lo, hi],
+            "t_ms": [decoded[i].t_ms for i in emitted],
+            "cands": [
+                [[round(b.cx * sx, 1), round(b.cy * sy, 1), round(b.peak, 4)] for b in blobs[i]]
+                for i in emitted
+            ],
+            "camera_motion_px": q["camera_motion_px"],
+            "blur_index": q["blur_index"],
+        }
+        log("window.candidates", emit=[lo, hi], frames=len(emitted),
+            candidates=sum(len(c) for c in out["cands"]))  # fmt: skip
+        return out
+
 
 @app.local_entrypoint()
 def main(clip: str) -> None:
@@ -453,3 +503,42 @@ def window_clip(
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps({"saved": str(out), **result["summary"]}, indent=2))
+
+
+@app.local_entrypoint()
+def run_clip(
+    clip: str, start_s: float, end_s: float, out_dir: str, analysis_id: str = "a_offline"
+) -> None:
+    """Whole-video pipeline on [start_s, end_s) of a clip: parallel windows on T4s, one shared
+    background, tracking across windows; every window validated and saved in order."""
+    import time
+
+    from elevate_engine import pipeline
+    from elevate_engine import window as win
+    from elevate_engine.sports import BADMINTON
+
+    t0 = time.perf_counter()
+    lo, hi = int(start_s * 1000), int(end_s * 1000)
+    plans = pipeline.plan_windows(lo, hi)
+    models_ = Models()
+    bg = models_.background.remote(clip, lo, hi)
+    t_bg = time.perf_counter() - t0
+    args = [(clip, list(p.decode), list(p.emit), bg) for p in plans]
+    per_window = list(models_.candidates.starmap(args))
+    t_win = time.perf_counter() - t0 - t_bg
+    windows, stats = pipeline.assemble(analysis_id, plans, per_window, BADMINTON)
+    out = Path(out_dir) / "windows"
+    out.mkdir(parents=True, exist_ok=True)
+    for w in windows:
+        win.validate(w)
+        (out / f"{w['window_seq']}.json").write_text(json.dumps(w) + "\n")
+    summary = {
+        "clip": clip, "range_ms": [lo, hi], "windows": len(windows),
+        "frames": sum(len(r["t_ms"]) for r in per_window),
+        "ball_rows": sum(len(w["ball"]) for w in windows), "tracker": stats,
+        "background_s": round(t_bg, 1), "windows_s": round(t_win, 1),
+        "total_s": round(time.perf_counter() - t0, 1),
+        "realtime_factor": round((time.perf_counter() - t0) / ((hi - lo) / 1000), 2),
+    }  # fmt: skip
+    (Path(out_dir) / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    print(json.dumps(summary, indent=2))
