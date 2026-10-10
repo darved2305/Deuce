@@ -95,7 +95,7 @@ const uploadParts = createRoute({
   },
   responses: {
     200: {
-      description: "presigned PUT URLs (900 s), in the order requested",
+      description: "presigned PUT URLs (600 s), in the order requested",
       content: {
         "application/json": { schema: uploadPartsResponseSchema },
       },
@@ -444,6 +444,23 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
           "the uploaded object is missing",
         );
       }
+      // G1/G2 bind the declared size, so the stored object must not exceed what the declared
+      // parts could hold (and never the 300 MiB cap). Otherwise a client could declare a small
+      // file and upload far more; the object is deleted and the upload closed.
+      const cap = Math.min(count * PART_SIZE, BUDGET.maxVideoBytes);
+      if (head.bytes > cap) {
+        await r2.deleteObject(up.r2_key).catch((e) =>
+          console.error("r2 delete oversize failed", (e as Error).message)
+        );
+        await admin.from("uploads").update({ status: "aborted" })
+          .eq("session_id", id).eq("owner_id", c.var.userId)
+          .eq("status", "initiated");
+        throw new ApiFailure(
+          413,
+          "upload_too_large",
+          "uploaded object exceeds the declared size",
+        );
+      }
       const upd = await admin.from("uploads").update({
         status: "completed",
         parts: sorted,
@@ -484,7 +501,11 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
             200,
           );
         }
-        if (cur.status === "initiated" && await r2.head(up.r2_key)) {
+        const exists = cur.status === "initiated"
+          ? await r2.head(up.r2_key)
+          : null;
+        if (cur.status === "initiated") await addUsage(admin, 0, 1);
+        if (exists) {
           return await finalize();
         }
         throw new ApiFailure(

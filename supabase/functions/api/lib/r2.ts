@@ -37,6 +37,7 @@ export type R2 = {
   ): Promise<void>;
   abortMultipart(key: string, uploadId: string): Promise<void>;
   head(key: string): Promise<{ bytes: number } | null>;
+  deleteObject(key: string): Promise<void>;
   presignPart(key: string, uploadId: string, n: number): Promise<string>;
   presignGet(key: string): Promise<string>;
 };
@@ -157,6 +158,11 @@ export function createR2(cfg: R2Config): R2 {
     async abortMultipart(key, uploadId) {
       const url = `${objectUrl(key)}?uploadId=${encodeURIComponent(uploadId)}`;
       const { res, text } = await send(url, "DELETE");
+      check(res, text);
+    },
+    async deleteObject(key) {
+      const { res, text } = await send(objectUrl(key), "DELETE");
+      if (res.status === 404) return;
       check(res, text);
     },
     async head(key) {

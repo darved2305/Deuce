@@ -839,3 +839,38 @@ Deno.test("complete recovers when R2 already completed but the row is still init
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { status: "completed", bytes: 20 * MIB });
 });
+
+Deno.test("complete rejects an object larger than the declared parts can hold, deletes it and closes the upload", async () => {
+  const { app, r2Seen, adminLog } = build({
+    // 20 MiB declared = 3 parts = 24 MiB at most
+    r2: (req) =>
+      req.method === "HEAD"
+        ? xml(200, "", { "content-length": String(200 * MIB) })
+        : req.method === "DELETE"
+        ? new Response(null, { status: 204 })
+        : xml(200, "<Ok/>"),
+  });
+  const res = await call(app, "POST", "/v1/sessions/s_1/upload/complete", {
+    parts: PARTS,
+  });
+  assert.equal(res.status, 413);
+  assert.equal(await errCode(res), "upload_too_large");
+  assert.deepEqual(r2Seen.map((r) => r.method), ["POST", "HEAD", "DELETE"]);
+  const closed = adminLog.find((c) =>
+    c.kind === "from" && c.table === "uploads" && c.op === "update"
+  ) as { payload: unknown };
+  assert.deepEqual(closed.payload, { status: "aborted" });
+});
+
+Deno.test("an object within the declared parts is accepted", async () => {
+  const { app } = build({
+    r2: (req) =>
+      req.method === "HEAD"
+        ? xml(200, "", { "content-length": String(24 * MIB) })
+        : xml(200, "<Ok/>"),
+  });
+  const res = await call(app, "POST", "/v1/sessions/s_1/upload/complete", {
+    parts: PARTS,
+  });
+  assert.equal(res.status, 200);
+});
