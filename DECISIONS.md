@@ -313,7 +313,7 @@ Template (copy to the end of the file):
 
 ## D-261010-NP2 · Dispatch RPC spec corrections
 - **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @nikhilpravinpise (Person 3) · **Supersedes:** none
-- **In one line:** In the context of the analyses-dispatch slice, facing three defects in the
+- **In one line:** In the context of the analyses-dispatch slice, facing four defects in the
   `person-3-spec.md` section 7.1 SQL and flow, we decided to ship the migration with the corrected
   SQL and rejected implementing the spec text as written, to avoid a function that does not
   compile, a 23505 on a legitimate retry and an undispatched run, accepting that the spec text and
@@ -333,17 +333,24 @@ Template (copy to the end of the file):
      state; a winning claim means dispatch and return 202. This resolves the conflict between spec
      section 7.1 step 2 ("existing run, no dispatch") and section 13 (a dead dispatcher's lease is
      reclaimed by the next request).
+  4. `claim_dispatch` only claims runs with `state = 'queued'`. Without the predicate, a same-key
+     replay against a run that failed at dispatch (`modal_call_id` still null) would win the claim
+     and fire a Modal submit for a dead run, burning GPU spend and returning 202 `queued` while the
+     stored state is `failed`. The route appends `analysis.queued` before claiming, so every
+     legitimate claim sees `queued`.
 - **Alternatives:** (a) add an `is_new` column or return flag, rejected because it adds schema for
   what the claim lease already expresses; (b) keep plpgsql with `return query`, rejected as more
   code for the same behaviour.
 - **Blast radius:**
   - Contracts: none; version bump none
   - People and folders: Person 3 `supabase/` only. Person 1 is unaffected because `/internal` submit
-    is idempotent on `analysis_id`. `docs/lanes/person-3-spec.md` (Person 4's `docs/` lane) is not
-    edited here; its text is superseded by the migration for these three points.
+    is idempotent on `analysis_id`. Person 4 (@HetanshWaghela): `docs/lanes/person-3-spec.md`
+    (Person 4's `docs/` lane) is not edited here, but its section 7.1 text is superseded by the
+    migration for these four points, so Person 4 must sync the spec text.
   - Data/infra: one new migration, additive (new functions only), no env or secrets
-  - Containment: additive-only; Person 3 only
+  - Containment: additive-only code change in Person 3's `supabase/` only; Person 4's approval is
+    required before merge because this supersedes text in Person 4's lane
 - **Exit:** a follow-up migration with `create or replace function`; no data is changed by this one.
 - **Proof / evidence:** local `supabase db reset`, `supabase db lint` and `supabase test db`
   (`supabase/tests/dispatch_test.sql`) in the PR; live proof comes with the dispatch routes slice.
-- **PRs:** (this PR)
+- **PRs:** #8
