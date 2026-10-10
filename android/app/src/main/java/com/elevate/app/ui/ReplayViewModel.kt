@@ -9,6 +9,9 @@ import com.elevate.app.BuildConfig
 import com.elevate.app.data.DefaultMatchRepository
 import com.elevate.app.data.api.ApiSource
 import com.elevate.app.data.fixture.FixtureSource
+import com.elevate.app.data.media.MediaProbe
+import com.elevate.app.domain.media.Preflight
+import com.elevate.app.domain.media.PreflightState
 import com.elevate.app.domain.model.AnnotationState
 import com.elevate.app.domain.repository.BackendStatus
 import com.elevate.app.domain.repository.MatchRepository
@@ -32,6 +35,7 @@ sealed interface Screen {
         val info: VideoInspector.Info,
         val annotations: AnnotationState = AnnotationState.Checking,
         val overlayVisible: Boolean = true,
+        val preflight: PreflightState = PreflightState.Checking,
     ) : Screen
 }
 
@@ -40,6 +44,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     val controller = PlayerController(app)
     private val inspector = VideoInspector(app.contentResolver)
+    private val probe = MediaProbe(app.contentResolver)
     private val repository: MatchRepository = DefaultMatchRepository(
         fixtures = FixtureSource {
             val assets = app.assets
@@ -84,8 +89,20 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             controller.open(uri, withOverlay = !info.isHdr)
             controller.setOverlayVisible(true)
             _screen.value = Screen.Replay(uri, info.displayName ?: "Your video", info)
+            // Preflight runs beside the fingerprint below: its sample walk can take longer than the sha256.
+            launch {
+                val preflight = try {
+                    val facts = withContext(Dispatchers.IO) { probe.probe(uri) }
+                    PreflightState.Done(facts, Preflight.assess(facts))
+                } catch (e: IOException) {
+                    PreflightState.Failed(e.message ?: "could not read the file")
+                } catch (e: SecurityException) {
+                    PreflightState.Failed("access to the file was revoked")
+                }
+                _screen.update { s -> if (s is Screen.Replay && s.uri == uri) s.copy(preflight = preflight) else s }
+            }
             if (info.isHdr) {
-                _screen.value = Screen.Replay(uri, info.displayName ?: "Your video", info, AnnotationState.UnsupportedHdr)
+                _screen.update { s -> if (s is Screen.Replay && s.uri == uri) s.copy(annotations = AnnotationState.UnsupportedHdr) else s }
                 return@launch
             }
 
