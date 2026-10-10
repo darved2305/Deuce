@@ -6,6 +6,9 @@ Clip audit (CPU):
 Weights (once, CPU), then verify + load on a T4:
     modal run -m elevate_engine.modal_app::fetch_weights
     modal run -m elevate_engine.modal_app::check_models
+Submit endpoint (contracts §3; needs Modal Secret `elevate-submit` with MODAL_SUBMIT_TOKEN):
+    modal serve elevate_engine/modal_app.py    (temporary URL)
+    modal deploy -m elevate_engine.modal_app   (from main only)
 """
 
 from __future__ import annotations
@@ -14,6 +17,7 @@ import json
 from pathlib import Path
 
 import modal
+from fastapi import Request
 
 ENGINE_DIR = Path(__file__).resolve().parent.parent
 CLIPS_PATH = "/clips"
@@ -35,7 +39,50 @@ gpu_image = _source(
 )
 clips = modal.Volume.from_name("elevate-clips", create_if_missing=True)
 models = modal.Volume.from_name("elevate-models", create_if_missing=True)
+# analysis_id -> {"state": "claimed"|"spawned", "call_id"?, "at"}: one job per analysis.
+submits = modal.Dict.from_name("elevate-submits", create_if_missing=True)
+submit_secret = modal.Secret.from_name("elevate-submit")  # MODAL_SUBMIT_TOKEN
 app = modal.App("elevate-engine", image=image)
+
+
+@app.function(region="ap", timeout=600)
+def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
+    """Stub until Phase 2: records that the job ran. CPU only, so no GPU is billed yet."""
+    from elevate_engine.log import log
+
+    log("analyze.start", analysis_id=analysis_id, r2_key=r2_key, sport=session_spec.get("sport"))
+    log("analyze.done", analysis_id=analysis_id, stub=True)
+    return {"analysis_id": analysis_id, "stub": True}
+
+
+@app.function(region="ap", secrets=[submit_secret], timeout=60)
+@modal.fastapi_endpoint(method="POST")
+async def submit(request: Request):
+    """contracts §3: Person 3 dispatches one analysis. The URL is public: token checked first."""
+    import asyncio
+    import os
+    import time
+
+    from fastapi.responses import JSONResponse
+
+    from elevate_engine.submit import handle
+
+    raw = await request.body()
+
+    def spawn(r) -> str:
+        return analyze.spawn(r.analysis_id, r.r2_key, r.session_spec).object_id
+
+    # Modal's sync Dict/spawn calls run in a worker thread, off the event loop.
+    status, payload = await asyncio.to_thread(
+        handle,
+        raw,
+        request.headers.get("authorization"),
+        os.environ.get("MODAL_SUBMIT_TOKEN", ""),
+        submits,
+        spawn,
+        time.time(),
+    )
+    return JSONResponse(payload, status_code=status)
 
 
 # CPU only: the audit reads packet timestamps and never touches a GPU.
