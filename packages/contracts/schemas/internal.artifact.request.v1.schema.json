@@ -8,6 +8,14 @@
       "type": "integer"
     },
     "kind": {
+      "enum": [
+        "window_result",
+        "ball_track",
+        "player_tracks",
+        "match_vision",
+        "clip",
+        "poster"
+      ],
       "type": "string"
     },
     "r2_key": {

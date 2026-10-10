@@ -9,12 +9,17 @@ import {
   reviewEstimateSchema,
 } from "../src/api.ts";
 import {
+  artifactKindSchema,
+  builtSportSchema,
+  matchFormatSchema,
+  sessionModeSchema,
   canonicalModelIdSchema,
   capabilityStatusSchema,
   capabilityTierSchema,
   idSchemas,
   provenanceStateSchema,
 } from "../src/common.ts";
+import { readdirSync } from "node:fs";
 import { schemaRegistry, type ContractName } from "../src/registry.ts";
 import { cloneExample, getDocExamples, getGeneratedValidator } from "./doc-examples.ts";
 
@@ -123,6 +128,7 @@ test("the court template matches the format (§2)", () => {
 test("a free-play floor rectangle needs its four tapped corners (§2)", () => {
   const session = example("session.create.request.v1");
   session.sport = "free_play";
+  session.format = "none";
   session.free_play_seed = { t_ms: 2400, image_xy: [812, 431] };
   session.calibration_input = { method: "tap", plane: "floor", frame_ms: 1200 };
   assert.equal(zodAccepts("session.create.request.v1", session), false);
@@ -148,4 +154,45 @@ test("airborne match events stay in image space; surface events need their plane
   const noPlane = example("match.v1");
   delete noPlane.events[0].plane;
   assert.equal(zodAccepts("match.v1", noPlane), false);
+});
+
+// Person 3's migrations hold the database's CHECK constraints. The contracts must accept exactly
+// what the database accepts, or the API returns a 500 instead of a clear 4xx.
+function databaseChecks(): Record<string, string[]> {
+  const dir = resolve(repoRoot, "supabase/migrations");
+  const sql = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()
+    .map((f) => readFileSync(resolve(dir, f), "utf8")).join("\n");
+  const checks: Record<string, string[]> = {};
+  const re = /\b(\w+)\s+text\s+not\s+null(?:\s+default\s+'[^']*')?\s+check\s*\(\s*\1\s+in\s*\(([^)]*)\)\s*\)/g;
+  for (const m of sql.matchAll(re)) {
+    checks[m[1]] = [...m[2].matchAll(/'([^']*)'/g)].map((v) => v[1]);
+  }
+  return checks;
+}
+
+test("enums match the database CHECK constraints in supabase/migrations", () => {
+  const db = databaseChecks();
+  const same: Array<[string, readonly string[]]> = [
+    ["sport", builtSportSchema.options],
+    ["format", matchFormatSchema.options],
+    ["mode", sessionModeSchema.options],
+    ["kind", artifactKindSchema.options],
+    ["state", analysisStateSchema.options],
+    ["type", analysisEventTypeSchema.options],
+  ];
+  for (const [column, options] of same) {
+    assert.ok(db[column], `no CHECK constraint found for ${column}; update this test with the migration`);
+    assert.deepEqual([...options].sort(), [...db[column]].sort(), `${column}: contracts vs database`);
+  }
+  assert.ok(db.upload_mode?.includes("multipart"), "upload_mode: the database must accept multipart");
+});
+
+test("free play has format none and racket sports never do", () => {
+  const session = example("session.create.request.v1");
+  session.format = "none";
+  assert.equal(zodAccepts("session.create.request.v1", session), false);
+  session.sport = "squash";
+  session.format = "singles";
+  assert.equal(zodAccepts("session.create.request.v1", session), false, "squash is not a built pack");
+  assert.equal(jsonAccepts("session.create.request.v1", session), false);
 });

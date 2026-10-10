@@ -203,7 +203,8 @@
     "format": {
       "enum": [
         "singles",
-        "doubles"
+        "doubles",
+        "none"
       ],
       "type": "string"
     },
@@ -244,6 +245,11 @@
       ]
     },
     "mode": {
+      "enum": [
+        "match",
+        "practice",
+        "free_play"
+      ],
       "type": "string"
     },
     "rally_candidates": {
@@ -408,10 +414,7 @@
         "badminton",
         "table_tennis",
         "tennis",
-        "free_play",
-        "squash",
-        "padel",
-        "pickleball"
+        "free_play"
       ],
       "type": "string"
     },
