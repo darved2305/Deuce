@@ -287,3 +287,14 @@ test("segments: register needs no gaps in shape, keys are typed, the engine page
   assert.equal(zodAccepts("internal.segments.page.v1", page), true);
   assert.equal(zodAccepts("internal.segments.page.v1", { ...page, segments: [{ ...reg, r2_key: "orig/s_doc/source.mp4" }] }), false, "segment keys only");
 });
+
+test("1.7.0: engine reviews are unconfirmed; confirmations are all-or-none; match-level metrics", () => {
+  const m = example("match.v1");
+  const engine = { ...m, reviews: [{ ...m.reviews[0], confirmed_point_winner: null, confirmed_by: null, confirmed_at: null }] };
+  assert.equal(zodAccepts("match.v1", engine), true, "engine estimate with null confirmation");
+  assert.equal(jsonAccepts("match.v1", engine), true);
+  const half = { ...m, reviews: [{ ...m.reviews[0], confirmed_by: null }] };
+  assert.equal(zodAccepts("match.v1", half), false, "partial confirmation");
+  const matchLevel = { ...m, metrics: [{ ...m.metrics[0], player_id: null }] };
+  assert.equal(zodAccepts("match.v1", matchLevel), true, "match-level metric");
+});
