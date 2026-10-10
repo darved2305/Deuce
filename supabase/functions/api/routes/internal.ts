@@ -29,24 +29,6 @@ const ARTIFACT_KINDS = new Set([
 
 const Params = z.object({ id: z.string().regex(/^a_[A-Za-z0-9_-]+$/) });
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-// Issue #20: engine estimates lack required confirmation fields, so omit those rows.
-function omitUnconfirmedReviewEstimates(input: unknown): unknown {
-  if (!isRecord(input) || !isRecord(input.vision_result)) return input;
-  const vision = input.vision_result;
-  if (!Array.isArray(vision.reviews)) return input;
-  const reviews = vision.reviews.filter((value) => {
-    if (!isRecord(value)) return true;
-    return value.confirmed_point_winner != null && value.confirmed_by != null &&
-      value.confirmed_at != null;
-  });
-  if (reviews.length === vision.reviews.length) return input;
-  return { ...input, vision_result: { ...vision, reviews } };
-}
-
 const postEvent = createRoute({
   method: "post",
   path: "/internal/analyses/{id}/events",
@@ -196,9 +178,7 @@ export function registerInternal(api: OpenAPIHono<AppEnv>): void {
 
   internal.openapi(postFinalize, async (c) => {
     const { id } = c.req.valid("param");
-    const parsed = analysisFinalizeRequestSchema.safeParse(
-      omitUnconfirmedReviewEstimates(c.req.valid("json")),
-    );
+    const parsed = analysisFinalizeRequestSchema.safeParse(c.req.valid("json"));
     if (!parsed.success) {
       await c.var.deps.admin().rpc("append_event", {
         p_analysis_id: id,

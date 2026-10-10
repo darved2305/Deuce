@@ -1,5 +1,5 @@
 begin;
-select plan(30);
+select plan(37);
 
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values ('00000000-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111',
@@ -68,7 +68,7 @@ select is((select count(*)::integer from public.analysis_events
   where analysis_id = 'a_ingest' and event_id = 'e_engine_11'),
   0, 'vision events are not inserted as analysis events');
 select is((select count(*)::integer from public.reviews where match_id = 'm_ingest'),
-  0, 'review estimates without required contract confirmations are skipped');
+  1, 'engine review estimate is persisted');
 select is((select (roles#>>'{focal,xy_m,0}')::numeric from public.shots
   where match_id = 'm_ingest' and id = 'sh_engine_09'), 4.18::numeric,
   'far-side focal x is rotated by court width');
@@ -168,6 +168,53 @@ select is((select count(*)::integer from information_schema.role_routine_grants
   where routine_schema = 'public' and routine_name = 'run_insights'
     and grantee = 'service_role' and privilege_type = 'EXECUTE'), 1,
   'service_role can execute run_insights');
+
+select ok((select confirmed_point_winner is null and confirmed_by is null and confirmed_at is null
+  from public.reviews where match_id = 'm_ingest' and id = 'rv_engine_13'),
+  'engine review estimate retains null confirmation fields');
+
+select pg_temp.ready_run('m_review_set', 's_review_set', 'a_review_set');
+select public.ingest_vision_result('a_review_set',
+  pg_temp.finalize_payload('m_review_set', 'a_review_set', '[]'::jsonb, '[]'::jsonb,
+    '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb) ||
+  jsonb_build_object('reviews', jsonb_build_array(jsonb_build_object(
+    'review_id', 'rv_confirmed', 'match_id', 'm_review_set', 'rally_id', 'r_confirmed',
+    'event_id', 'e_confirmed', 't_ms', 1200, 'evidence_frames', '[1190,1200,1210]'::jsonb,
+    'contact_xy_m', '[1,2]'::jsonb, 'cov_m2', '[[0,0],[0,0]]'::jsonb,
+    'line_id', 'left_sideline_singles', 'margin_m', 0.1, 'sigma_m', 0.02,
+    'estimate', 'IN', 'visibility', 'visible', 'model_ids', '[]'::jsonb,
+    'calibration_id', 'cal_1', 'confirmed_point_winner', 'p_opponent',
+    'confirmed_by', 'p_me', 'confirmed_at', '2026-10-11T12:00:00Z'
+  ))));
+select is((select count(*)::integer from public.reviews
+  where match_id = 'm_review_set' and id = 'rv_confirmed'), 1,
+  'review with all confirmations is persisted');
+select ok((select confirmed_point_winner = 'p_opponent' and confirmed_by = 'p_me'
+    and confirmed_at = '2026-10-11T12:00:00Z'::timestamptz
+  from public.reviews where match_id = 'm_review_set' and id = 'rv_confirmed'),
+  'review confirmation values are retained');
+select throws_ok(
+  $$insert into public.reviews (match_id, id, owner_id, analysis_id, t_ms, estimate, confirmed_point_winner)
+    values ('m_review_set', 'rv_partial', '11111111-1111-1111-1111-111111111111',
+      'a_review_set', 1300, 'IN', 'p_opponent')$$,
+  '23514', null, 'review constraint rejects a partial confirmation');
+
+insert into public.metrics (match_id, owner_id, analysis_id, key, definition_version,
+                            player_id, numerator, denominator, unit, tier)
+values ('m_review_set', '11111111-1111-1111-1111-111111111111', 'a_review_set',
+        'match_level_rate', 1, null, 1, 1, 'ratio', 'core');
+select ok((select player_id is null from public.metrics
+  where match_id = 'm_review_set' and key = 'match_level_rate'),
+  'match-level metric with null player id is stored');
+select throws_ok(
+  $$insert into public.metrics (match_id, owner_id, analysis_id, key, definition_version,
+      player_id, numerator, denominator, unit, tier)
+    values ('m_review_set', '11111111-1111-1111-1111-111111111111', 'a_review_set',
+      'match_level_rate', 1, null, 1, 1, 'ratio', 'core')$$,
+  '23505', null, 'duplicate null-player metric key is rejected');
+select is((select is_nullable from information_schema.columns
+  where table_schema = 'public' and table_name = 'metrics' and column_name = 'player_id'),
+  'YES', 'metrics.player_id is nullable');
 
 select * from finish();
 rollback;

@@ -151,14 +151,8 @@ begin
     );
   end loop;
 
-  -- Contract issue #20 requires confirmed fields; skip estimate-only reviews without inventing them.
   for v_row in select value from jsonb_array_elements(coalesce(p_result->'reviews', '[]'::jsonb))
   loop
-    if nullif(v_row->>'confirmed_point_winner', '') is null
-       or nullif(v_row->>'confirmed_by', '') is null
-       or nullif(v_row->>'confirmed_at', '') is null then
-      continue;
-    end if;
     insert into public.reviews (
       match_id, id, owner_id, analysis_id, rally_id, event_id, t_ms,
       evidence_frames, contact_xy_m, cov_m2, line_id, margin_m, sigma_m,

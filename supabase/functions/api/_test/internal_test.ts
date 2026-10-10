@@ -194,30 +194,32 @@ Deno.test("finalize persists summary; a retry -> 409 conflict", async () => {
   assert.equal((await second.json()).error.code, "conflict");
 });
 
-Deno.test("finalize skips review estimates without contract confirmations", async () => {
+const estimateReview = {
+  review_id: "rv_estimate",
+  match_id: "m_1",
+  rally_id: "r_1",
+  event_id: "e_1",
+  t_ms: 100,
+  evidence_frames: [90, 100, 110],
+  contact_xy_m: [1, 2],
+  cov_m2: [[0, 0], [0, 0]],
+  line_id: "left_sideline_singles",
+  margin_m: 0.1,
+  sigma_m: 0.02,
+  estimate: "IN",
+  visibility: "visible",
+  model_ids: [],
+  calibration_id: "cal_1",
+  confirmed_point_winner: null,
+  confirmed_by: null,
+  confirmed_at: null,
+};
+
+Deno.test("finalize forwards engine review estimates with null confirmations", async () => {
   const t = build();
   const body = {
     ...finalizeBody,
-    vision_result: {
-      ...finalizeBody.vision_result,
-      reviews: [{
-        review_id: "rv_estimate",
-        match_id: "m_1",
-        rally_id: "r_1",
-        event_id: "e_1",
-        t_ms: 100,
-        evidence_frames: [90, 100, 110],
-        contact_xy_m: [1, 2],
-        cov_m2: [[0, 0], [0, 0]],
-        line_id: "left_sideline_singles",
-        margin_m: 0.1,
-        sigma_m: 0.02,
-        estimate: "IN",
-        visibility: "visible",
-        model_ids: [],
-        calibration_id: "cal_1",
-      }],
-    },
+    vision_result: { ...finalizeBody.vision_result, reviews: [estimateReview] },
   };
   const res = await call(t.app, "finalize", body);
   assert.equal(res.status, 200);
@@ -226,7 +228,30 @@ Deno.test("finalize skips review estimates without contract confirmations", asyn
   );
   assert.ok(ingest && ingest.kind === "rpc");
   const result = ingest.args.p_result as { reviews: unknown[] };
-  assert.deepEqual(result.reviews, []);
+  assert.deepEqual(result.reviews, [estimateReview]);
+});
+
+Deno.test("finalize forwards reviews with all player confirmations", async () => {
+  const t = build();
+  const review = {
+    ...estimateReview,
+    review_id: "rv_confirmed",
+    confirmed_point_winner: "p_me",
+    confirmed_by: "p_me",
+    confirmed_at: "2026-10-11T12:00:00Z",
+  };
+  const body = {
+    ...finalizeBody,
+    vision_result: { ...finalizeBody.vision_result, reviews: [review] },
+  };
+  const res = await call(t.app, "finalize", body);
+  assert.equal(res.status, 200);
+  const ingest = t.log.find((entry) =>
+    entry.kind === "rpc" && entry.name === "ingest_vision_result"
+  );
+  assert.ok(ingest && ingest.kind === "rpc");
+  const result = ingest.args.p_result as { reviews: unknown[] };
+  assert.deepEqual(result.reviews, [review]);
 });
 
 Deno.test("internal event type whitelist -> 422", async () => {
