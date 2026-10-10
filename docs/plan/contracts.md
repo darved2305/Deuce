@@ -244,13 +244,18 @@ moments and comparisons and serves the whole record.
 ```
 
 Review estimate enum `IN | OUT | TOO_CLOSE | UNOBSERVED`; `TOO_CLOSE` renders as
-"TOO CLOSE TO CALL". Score changes only from `confirmed_points`.
+"TOO CLOSE TO CALL". Score changes only from `confirmed_points`. An engine estimate carries
+`confirmed_point_winner`, `confirmed_by`, `confirmed_at` as `null`; a confirmation sets all three, and
+`confirmed_by` is the match player mapped to the signed-in account (`who_is_me`). Metric `player_id` is
+`null` for match-level metrics (D-261011-HW12).
 
 ## 8. Other endpoints (full list in `08-developer-platform.md`)
 
 - `POST /v1/matches/{id}/reviews/{rvid}/confirm {winner}` + `Idempotency-Key` → `confirmed_point`
   (actor from the JWT) and a `point.confirmed` event.
-- `GET /v1/matches/{mid}/shots/{shot_id}/comparisons?scope=own|shared|reference&limit=3` →
+- `GET /v1/matches/{mid}/shots/{shot_id}/comparisons?scope=own|shared|reference&limit=3` (rank the top 5,
+  return `min(limit, 5)`, default 3; candidates filtered on `ruleset_id`; `scope=shared` uses existing
+  grants only in Phase 3) →
   `{query_shot_id, candidates: [{shot_id, clip_id, distance, matched_features[], role:
   "similar_moment"|"worked_for_you"|"coach_pick"|"simulated", evidence: {won, of, matches, rallies},
   provenance: "own"|"shared"|"team_reference"|"public_cc", attribution}]}`.

@@ -14,7 +14,6 @@ id and a foot position in metres, which this engine does not produce yet.
 
 from __future__ import annotations
 
-import json
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -99,8 +98,43 @@ def build(
     }
 
 
-def validate(window: dict, schema_path: Path = SCHEMA_PATH) -> None:
+def validate(window: dict) -> None:
     """Raise if the window does not match packages/contracts window_result.v1."""
-    import jsonschema
+    from elevate_engine.api import validate as validate_contract
 
-    jsonschema.validate(window, json.loads(schema_path.read_text()))
+    validate_contract("window_result.v1", window)
+
+
+def from_file(
+    tracknet,
+    seq_len: int,
+    path: Path,
+    analysis_id: str,
+    window_seq: int,
+    emit_ms: tuple[int, int],
+    overlap_ms: int = 750,
+) -> tuple[dict, dict]:
+    """Decode [emit_start, emit_end + overlap) of a video, run TrackNet, measure quality.
+
+    Returns (window_result.v1, summary). Shared by the offline window_clip command and analyze.
+    """
+    from elevate_engine.tracknet import infer
+    from elevate_engine.tracknet import run as tracknet_run
+    from elevate_engine.video import frames_in_range, source_size
+
+    lo, hi = emit_ms
+    decode = (lo, hi + overlap_ms)
+    decoded = list(frames_in_range(path, *decode, infer.resize_chw_uint8))
+    t_ms = [f.t_ms for f in decoded]
+    frames = [f.image for f in decoded]
+    blobs = list(tracknet_run.track(tracknet, seq_len, frames))
+    src_w, src_h = source_size(path)
+    rows = tracknet_run.ball_rows(t_ms, blobs, src_w, src_h)
+    emitted = [i for i, t in enumerate(t_ms) if lo <= t < hi]
+    q = quality(
+        [frames[i] for i in emitted], sum(1 for i in emitted if blobs[i]), src_w / infer.WIDTH
+    )
+    window = build(analysis_id, window_seq, decode, (lo, hi), rows, q, ["tracknet_v3"])
+    summary = {"frames_decoded": len(t_ms), "frames_emitted": len(emitted),
+               "ball_rows": len(window["ball"]), "quality": q}  # fmt: skip
+    return window, summary

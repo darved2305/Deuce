@@ -1,5 +1,7 @@
 package com.elevate.app.ui.screens
 
+import com.elevate.app.data.upload.UploadProgress
+import com.elevate.app.ui.upload.UploadProgressCard
 import com.elevate.app.domain.media.PreflightState
 import com.elevate.app.domain.media.Severity
 import com.elevate.app.domain.media.SourceFacts
@@ -86,6 +88,7 @@ fun ReplayScreen(
     onOverlayVisible: (Boolean) -> Unit,
     onSetUp: () -> Unit = {},
     onShowEngine: (Boolean) -> Unit = {},
+    pipeline: PipelineUi = PipelineUi(),
 ) {
     val c = Elevate.colors
     BackHandler(onBack = onBack)
@@ -111,7 +114,7 @@ fun ReplayScreen(
             VideoArea(screen, state, controller, onChooseAnother, m)
         }
         val controls: @Composable (Modifier) -> Unit = { m ->
-            ControlsSheet(screen, state, controller, positionMs, onOverlayVisible, onSetUp, onShowEngine, m)
+            ControlsSheet(screen, state, controller, positionMs, onOverlayVisible, onSetUp, onShowEngine, pipeline, m)
         }
         if (landscape) {
             Row(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -199,6 +202,7 @@ private fun ControlsSheet(
     onOverlayVisible: (Boolean) -> Unit,
     onSetUp: () -> Unit,
     onShowEngine: (Boolean) -> Unit,
+    pipeline: PipelineUi,
     modifier: Modifier,
 ) {
     val c = Elevate.colors
@@ -240,6 +244,7 @@ private fun ControlsSheet(
         Spacer(Modifier.height(8.dp))
         PreflightRow(screen.preflight)
         SetupRow(screen, onSetUp)
+        PipelineRow(screen, pipeline)
     }
 }
 
@@ -399,6 +404,67 @@ private fun EngineRow(offer: Screen.EngineOffer?, onShowEngine: (Boolean) -> Uni
             onCheckedChange = null,
             colors = SwitchDefaults.colors(checkedTrackColor = c.lavenderInk, checkedThumbColor = Color.White, uncheckedBorderColor = c.line),
         )
+    }
+}
+
+/** What the replay screen needs to drive upload → analysis (state lives in the ViewModel). */
+class PipelineUi(
+    val state: Screen.Pipeline = Screen.Pipeline.Idle,
+    val upload: UploadProgress = UploadProgress.Idle,
+    val onAnalyse: () -> Unit = {},
+    val onRetryUpload: () -> Unit = {},
+    val onCancelUpload: () -> Unit = {},
+    val onOpenAnalysis: () -> Unit = {},
+)
+
+/** After setup: start the real upload + analysis, then show real progress and the server's answers. */
+@Composable
+private fun PipelineRow(screen: Screen.Replay, ui: PipelineUi) {
+    if (screen.setup == null && ui.state == Screen.Pipeline.Idle) return
+    Spacer(Modifier.height(8.dp))
+    PipelineStatus(ui, ready = screen.sha256 != null)
+}
+
+/** Upload → analysis status: real bytes, then the server's answers. Shared by the import and replay screens. */
+@Composable
+fun PipelineStatus(ui: PipelineUi, ready: Boolean = true) {
+    val c = Elevate.colors
+    when (val p = ui.state) {
+        Screen.Pipeline.Idle -> if (ready) Button(
+            onClick = ui.onAnalyse,
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(containerColor = c.orange, contentColor = Color.White),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+        ) { Text("Upload & analyse", style = MaterialTheme.typography.labelLarge) } else StatusCard("Identifying the file…", "Measuring its sha256 before upload", c.cream)
+        Screen.Pipeline.Uploading -> UploadProgressCard(ui.upload, onRetry = ui.onRetryUpload, onCancel = ui.onCancelUpload)
+        is Screen.Pipeline.StartingAnalysis -> StatusCard("Uploaded · starting analysis…", "Session ${p.sessionId}", c.cream)
+        is Screen.Pipeline.Started -> Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.mint)
+                .clickable(onClickLabel = "Open analysis progress", role = Role.Button, onClick = ui.onOpenAnalysis)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Text(
+                if (p.dispatched) "Analysis started · ${p.state}" else "Analysis ${p.state}",
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
+            )
+            Text("${p.analysisId} · tap for live progress", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+        }
+        is Screen.Pipeline.Failed -> Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.errorSurface)
+                .clickable(onClickLabel = "Try again", role = Role.Button, onClick = ui.onRetryUpload)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Text("${p.stage.replaceFirstChar { it.uppercase() }} failed · tap to try again", style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
+            Text(p.reason, style = MaterialTheme.typography.labelMedium, color = c.ink)
+        }
+    }
+}
+
+@Composable
+private fun StatusCard(title: String, detail: String, bg: Color) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(bg).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
+        Text(detail, style = MaterialTheme.typography.labelMedium, color = Elevate.colors.inkMuted)
     }
 }
 
