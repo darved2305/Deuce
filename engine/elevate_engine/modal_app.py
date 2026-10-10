@@ -27,14 +27,29 @@ app = modal.App("elevate-engine", image=image)
 # CPU only: the audit reads packet timestamps and never touches a GPU.
 @app.function(region="ap", volumes={CLIPS_PATH: clips}, timeout=600)
 def audit_clip(name: str) -> dict:
+    import time
+
     import av
 
     from elevate_engine.audit import probe
+    from elevate_engine.log import log
 
-    report = probe(Path(CLIPS_PATH) / name)
-    report["clip"] = name
-    report["pyav"] = av.__version__
-    report["ffmpeg"] = av.ffmpeg_version_info
+    path = Path(CLIPS_PATH) / name
+    versions = {"pyav": av.__version__, "ffmpeg": av.ffmpeg_version_info}
+    log("audit.start", clip=name, exists=path.exists(), **versions)
+    if not path.exists():
+        log("audit.failed", clip=name, error="clip not found in volume elevate-clips")
+        raise FileNotFoundError(f"{name} not found in volume elevate-clips")
+    log("audit.clip", clip=name, bytes=path.stat().st_size)
+    started = time.perf_counter()
+    try:
+        report = probe(path)
+    except Exception as exc:
+        log("audit.failed", clip=name, error=f"{type(exc).__name__}: {exc}")
+        raise
+    report.update(clip=name, **versions)
+    elapsed_ms = round((time.perf_counter() - started) * 1000)
+    log("audit.done", clip=name, elapsed_ms=elapsed_ms, report=report)
     return report
 
 
