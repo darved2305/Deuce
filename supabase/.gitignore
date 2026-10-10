@@ -1,0 +1,4 @@
+# Supabase CLI cache and local env (values never in git)
+.temp/
+functions/.env
+.env
