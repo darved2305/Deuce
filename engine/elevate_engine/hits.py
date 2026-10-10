@@ -29,6 +29,8 @@ def detect_direction_changes(
     min_angle_deg: float = 45,
     min_displacement_px: float = 8.0,  # ~200 px/s over 40 ms at 1080p: real flight, not jitter
     min_gap_ms: int = 100,
+    max_secant_ms: int = 150,  # a secant longer than this spans a tracking gap or a switch
+    apex_speed_px_per_ms: float = 0.375,  # ~15 px per 40 ms vertical: slower is a flight apex
 ) -> list[dict]:
     """Find robust local reversals in observed rows only.
 
@@ -58,15 +60,19 @@ def detect_direction_changes(
         after_dt = int(times[i + velocity_window] - times[i])
         if before_dt <= 0 or after_dt <= 0:
             continue
+        if max(before_dt, after_dt) > max_secant_ms:
+            continue
         before_v = before / before_dt
         after_v = after / after_dt
         before_norm, after_norm = float(np.linalg.norm(before)), float(np.linalg.norm(after))
         if min(before_norm, after_norm) < min_displacement_px:
             continue
-        # Apex of a flight: rising (image y decreasing) then falling, same horizontal direction.
-        # That is gravity, not a racket contact; a hit sends a falling shuttle back up or
-        # reverses it horizontally. Measured on h13g: apexes were most early false positives.
-        if before[1] < 0 < after[1] and before[0] * after[0] >= 0:
+        # Apex of a flight: rising (image y decreasing) then falling, same horizontal direction,
+        # slowly on both sides. That is gravity, not a racket contact. A far-court hit also
+        # goes from rising to falling with the same x direction in the image, but the shuttle
+        # is fast on both sides of the contact, so only a slow reversal counts as an apex.
+        slow_reversal = min(abs(float(before_v[1])), abs(float(after_v[1]))) < apex_speed_px_per_ms
+        if before[1] < 0 < after[1] and before[0] * after[0] >= 0 and slow_reversal:
             continue
         vertical_reversal = (
             before[1] * after[1] < 0

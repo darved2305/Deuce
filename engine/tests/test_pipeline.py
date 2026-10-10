@@ -102,3 +102,21 @@ def test_window_result_forwards_optional_onsets_and_hit_events():
     from elevate_engine import window as win
 
     win.validate(window)
+
+
+def test_real_windows_carry_their_onsets_and_hits_inside_their_own_range():
+    plans = pipeline.plan_windows(31000, 91000)
+    ws = per_window(31000, 91000)
+    # Onsets as Models.candidates measures them: per emitted range, so no duplicates.
+    ws[1]["onsets"] = [[ws[1]["t_ms"][10], 0.7]]
+    full, _ = pipeline.assemble("a_x", plans, ws, BADMINTON)
+    from elevate_engine import window as win
+
+    assert sum(len(w["events"]) for w in full) > 0
+    for w in full:
+        win.validate(w)
+        lo, hi = (v // 1000 for v in w["emit_range_us"])
+        assert all(lo <= e["t_ms"] < hi and e["cues"][0] == "trajectory" for e in w["events"])
+    assert full[1]["onsets"] == ws[1]["onsets"] and full[0]["onsets"] == []
+    for k in range(len(ws)):
+        assert pipeline.window_for_posting("a_x", plans, ws, k, BADMINTON) == full[k]

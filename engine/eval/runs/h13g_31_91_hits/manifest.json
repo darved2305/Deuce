@@ -1,0 +1,31 @@
+{
+  "modal_app_run": "ap-OC1nn0d4By8WZb0voixnPt",
+  "command": "modal run -m elevate_engine.modal_app::run_clip --clip h13g_singles.mp4 --start-s 31 --end-s 91 --out-dir <out> --analysis-id a_offline_h13g",
+  "summary": {
+    "clip": "h13g_singles.mp4",
+    "range_ms": [
+      31000,
+      91000
+    ],
+    "windows": 10,
+    "frames": 3000,
+    "ball_rows": 1863,
+    "tracker": {
+      "tracklets": 199,
+      "kept": 33,
+      "dropped_static": 120,
+      "dropped_short": 46,
+      "frames_with_ball": 1863,
+      "inferred": 4,
+      "static_filter_dropped": 452
+    },
+    "onsets": 155,
+    "hits": 32,
+    "background_s": 33.8,
+    "windows_s": 160.3,
+    "total_s": 195.6,
+    "realtime_factor": 3.26
+  },
+  "contact_sheet": "PYTHONPATH=. uv run python eval/contact_sheet.py h13g_singles.mp4 <ball rows of all windows> out.jpg --times <each hit t_ms floored to 20 ms>",
+  "visual_check": "Hand-checked on the contact sheet, no hit labels exist yet: about 26 of 32 are racket contacts; 3 are floor bounces (49900, 68580, 73000 ms); 2 are unclear mid-air (57520, 71252 ms). Not a metric."
+}
