@@ -38,3 +38,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-10T20:48Z | #33 | @VrajVed | p1 | p1/dfine-boxes: D-FINE-S person boxes on the working clip | none new. Notes: | 1.3.0 | Run on a Tesla T4: `modal run -m elevate_engine.modal_app::detect_clip --clip h13g_singles.mp4 --start-s 31 --end-s 91`  |
 | 2026-10-10T20:50Z | #32 | @HetanshWaghela | p4 | contracts 1.4.0: amendment for issue #20 (D-261011-HW6) | D-261011-HW6 (adds). Sign-off per D-012: @nikhilpravinpise (raised #20), @VrajVed (engine events), @darved2305 (Kotlin r | 1.4.0 | ``` |
 | 2026-10-10T21:01Z | #35 | @HetanshWaghela | p4 | Fix main: trail tests count visible labels from the fixture | none (test arithmetic and a CI paths filter; no behaviour change) | 1.4.0 | Failing run on #34 (CI run 38085260962): |
+| 2026-10-10T21:07Z | #36 | @HetanshWaghela | p4 | contracts 1.5.0: segment-upload contract for chunked analysis (D-261011-HW8) | D-261011-HW8 (adds). | 1.5.0 | ``` |
