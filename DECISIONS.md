@@ -462,3 +462,55 @@ Template (copy to the end of the file):
 - **Proof / evidence:** local `supabase db reset`, `supabase db lint` and `supabase test db`
   (`supabase/tests/dispatch_test.sql`) in the PR; live proof comes with the dispatch routes slice.
 - **PRs:** #8
+
+## D-261011-DV1 · Interim app-local trail labels (`elevate.trail_labels.v1`) until `fixture_trail.json` lands; compileSdk 37
+- **Status:** proposed (needs @HetanshWaghela as contracts/fixtures owner)
+- **Date:** 2026-10-11 · **Owner:** @darved2305 (Person 2) · **Supersedes:** none
+- **In one line:** In the context of the Phase 1 overlay spike, facing no `fixture_trail.json` yet
+  (contracts §11), we decided to ship Person 2's own real hand labels for `h13g_singles` 40.00–43.98 s
+  inside `android/` in an app-local format, and rejected waiting or inventing points, to prove the
+  Media3 overlay on real frames now, accepting a temporary second labeller and format.
+- **Context:** The trail spike needs real labels on the working clip (D-261010-HW1). None exist in
+  `fixtures/`. contracts §5 defines ball rows but not the fixture file. Separately, the pinned Compose
+  UI 1.12.1 and core-ktx 1.19.1 refuse to build below compileSdk 37 (android/AGENTS.md says platform 36).
+- **Decision:**
+  1. `android/app/src/main/assets/fixtures/trail_h13g_singles_40000_43980.json` holds labels clicked by
+     @darved2305 on decoded frames (`android/tools/labeller`, PTS cross-checked with ffprobe), with
+     `state: "user"`, `engine_version: "hand-labelled"`, explicit nulls for "looked, not visible",
+     unlabelled frames left absent, and `accepted_file_sha256` binding them to the exact file. They are
+     shown as "Hand-labelled by @darved2305", never as Person 4's fixture or as engine output.
+  2. Format `elevate.trail_labels.v1` (see `TrailLabelsParser.kt`) stays app-local. Person 4 may adopt it
+     (or a superset) for `fixture_trail.json`; the app then loads that instead.
+  3. Android compiles against API 37 (`platforms/android-37.0`); targetSdk stays 36.
+- **Alternatives:** (a) wait for Person 4: rejected, it blocks the Phase 1 overlay proof; (b) put the
+  file in `fixtures/`: rejected, that is Person 4's lane and would collide with their file; (c) downgrade
+  Compose/core-ktx below the pinned BOM: rejected, it changes D-001 pins.
+- **Blast radius:**
+  - Contracts: none changed; proposes a fixture shape to Person 4 (`android/PHASE1_BLOCKERS.md` #2)
+  - People and folders: Person 2 `android/` only; Person 4 reviews the proposal; CI's Android job needs
+    platform 37 available (UNVERIFIED on ubuntu-latest until the first run)
+  - Data/infra: none
+  - Containment: app-local asset; removed when Person 4's fixture lands
+- **Exit:** delete the asset when `fixtures/fixture_trail.json` exists; compileSdk stays tied to the
+  Compose BOM pin. No point of no return.
+- **Proof / evidence:** `android/PHASE1_STATUS.md` (A55 screenshots, recording, OverlayTimingTest 8/8).
+- **PRs:** this PR
+
+## D-261011-DV2 · Phase 1 Android device proof runs on the Galaxy A55 only
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @darved2305 (Person 2) · **Supersedes:** none
+- **In one line:** In the context of closing Phase 1 on Android, facing no S23 FE available to the
+  Android lane, we decided device proof on the Galaxy A55 alone and rejected blocking Phase 1 on a
+  second phone, accepting that S23 FE behaviour (Exynos 2200 decoder/GPU) is unverified.
+- **Context:** `docs/lanes/person-2.md` Phase 1 says verify on both phones; the S23 FE was never
+  connected. The A55 (Exynos 1480, Android 16) is the weaker device the plan says to test on.
+- **Decision:** Phase 1 Android proof = A55 screen recordings, screenshots and instrumented tests.
+  Any S23 FE claim stays UNVERIFIED until it is run.
+- **Alternatives:** (a) wait for the S23 FE: rejected by the owner; (b) emulator: rejected, no real
+  decoder or GPU path.
+- **Blast radius:**
+  - Contracts: none
+  - People and folders: Person 2 `android/` only; Person 4 notes it for the phase check
+  - Containment: the same tests run unchanged on any phone later
+- **Exit:** run the A55 sweep and `OverlayTimingTest` on an S23 FE when one is connected.
+- **Proof / evidence:** `android/PHASE1_STATUS.md`.
+- **PRs:** this PR
