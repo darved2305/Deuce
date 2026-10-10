@@ -43,12 +43,24 @@ class PlayerController(context: Context) {
     private val appContext = context.applicationContext
     val overlay = TrailOverlay()
 
-    /** presentationTimeUs of the last frame released to the screen (playback thread writes). */
-    @Volatile private var lastRenderedUs = -1L
+    /**
+     * presentationTimeUs of the frame on screen (-1 before the first). Updated for every frame while
+     * playing and for the one frame a paused seek renders; NOT when a recreated or resized surface
+     * re-renders a frame decoded ahead. That frame is wrong, and [reassertPausedFrame] seeks back.
+     * Written on the playback thread.
+     */
+    @Volatile private var heldFrameUs = -1L
+    @Volatile private var acceptNextFrame = true
+    @Volatile private var playing = false
 
     private fun buildPlayer(withOverlay: Boolean): ExoPlayer = ExoPlayer.Builder(appContext).build().apply {
         setVideoEffects(if (withOverlay) listOf(OverlayEffect(listOf(overlay))) else emptyList())
-        setVideoFrameMetadataListener { presentationTimeUs, _, _, _ -> lastRenderedUs = presentationTimeUs }
+        setVideoFrameMetadataListener { presentationTimeUs, _, _, _ ->
+            if (playing || acceptNextFrame) {
+                heldFrameUs = presentationTimeUs
+                if (!playing) acceptNextFrame = false
+            }
+        }
     }
 
     /** Colour class (HDR or not) the current player's effect pipeline was configured for. */
@@ -69,6 +81,7 @@ class PlayerController(context: Context) {
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) = sync()
+        override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
         override fun onPlayerError(error: PlaybackException) {
             _state.update { it.copy(error = "${error.errorCodeName}: ${error.message ?: "playback failed"}") }
         }
@@ -117,7 +130,8 @@ class PlayerController(context: Context) {
             _playerFlow.value = player
         }
         overlay.setTrack(null)
-        lastRenderedUs = -1
+        heldFrameUs = -1
+        acceptNextFrame = true
         _state.value = PlaybackUiState()
         player.setMediaItem(MediaItem.fromUri(uri))
         player.setPlaybackSpeed(1f)
@@ -139,16 +153,15 @@ class PlayerController(context: Context) {
 
     /**
      * After the surface comes back or is resized while paused, the decoder may show a frame it had
-     * already decoded ahead of the paused position. Re-seek so the held frame is the one at the
-     * position again. 1 ms earlier, because ExoPlayer skips a seek to the current position and an
-     * exact seek lands on the first frame at or after the target.
+     * already decoded ahead of the paused one. Seek back to the frame that was on screen
+     * ([heldFrameUs]), so pausing mid-frame never moves the picture.
      */
     private fun reassertPausedFrame() {
-        if (player.playWhenReady || player.currentMediaItem == null || player.playbackState != Player.STATE_READY) return
-        player.seekTo(maxOf(0, player.currentPosition - 1))
+        if (player.playWhenReady || player.playbackState != Player.STATE_READY) return
+        seekToHeldFrame()
     }
-    fun replay() { player.seekTo(0); player.play() }
-    fun seekTo(ms: Long) = player.seekTo(ms.coerceIn(0, maxOf(0, _state.value.durationMs)))
+    fun replay() { acceptNextFrame = true; player.seekTo(0); player.play() }
+    fun seekTo(ms: Long) { acceptNextFrame = true; player.seekTo(ms.coerceIn(0, maxOf(0, _state.value.durationMs))) }
     fun setSpeed(speed: Float) = player.setPlaybackSpeed(speed)
 
     /** Debug aid: stamp every frame with its own presentation time (drawn by the overlay). */
@@ -178,11 +191,18 @@ class PlayerController(context: Context) {
      * i.e. that frame whenever frames are more than 1 ms apart), stepped back 1 ms if it collides.
      */
     private fun redrawIfPaused() {
-        val us = lastRenderedUs
         // playWhenReady (not isPlaying): while buffering towards playback the next frame redraws anyway.
-        if (player.playWhenReady || us < 0 || player.currentMediaItem == null) return
+        if (player.playWhenReady) return
+        seekToHeldFrame()
+    }
+
+    /** Exact seek that lands on the held frame again (see [redrawIfPaused] for the target rule). */
+    private fun seekToHeldFrame() {
+        val us = heldFrameUs
+        if (us < 0 || player.currentMediaItem == null) return
         var targetMs = Math.floorDiv(us, 1000L)
         if (targetMs == player.currentPosition) targetMs = maxOf(0, targetMs - 1)
+        acceptNextFrame = true
         player.seekTo(targetMs)
     }
 
