@@ -15,13 +15,23 @@ def trajectory_with_two_turns():
     return rows
 
 
-def test_direction_changes_find_parabola_apex_and_horizontal_reversal():
+def test_apex_is_not_a_hit_but_a_horizontal_reversal_is():
+    # Rising-then-falling with the same horizontal direction (200 ms) is gravity at the top
+    # of a flight; the horizontal reversal at 420 ms is a racket contact.
     turns = detect_direction_changes(trajectory_with_two_turns())
 
-    assert len(turns) == 2
-    assert abs(turns[0]["t_ms"] - 200) <= 20
-    assert abs(turns[1]["t_ms"] - 420) <= 20
-    assert all(turn["t_sigma_ms"] > 0 for turn in turns)
+    assert len(turns) == 1
+    assert abs(turns[0]["t_ms"] - 420) <= 20
+    assert turns[0]["t_sigma_ms"] > 0
+
+
+def test_a_falling_shuttle_sent_back_up_is_a_hit():
+    # Image y grows downward: falling ~15 px/frame until the racket at 200 ms, then sent back
+    # up at the same speed (a sharp reversal, as a real contact is).
+    rows = [[t, 300 + 4 * t, 500 - 0.75 * abs(t - 200), 0.9, "observed"]
+            for t in range(0, 421, 20)]  # fmt: skip
+    turns = detect_direction_changes(rows)
+    assert len(turns) == 1 and abs(turns[0]["t_ms"] - 200) <= 20
 
 
 def test_direction_changes_ignore_inferred_only_motion():
@@ -33,16 +43,15 @@ def test_direction_changes_ignore_inferred_only_motion():
 
 def test_audio_and_trajectory_fuse_into_deterministic_schema_valid_candidates():
     trail = trajectory_with_two_turns()
-    audio = [[215, 0.8], [600, 0.6]]
+    audio = [[425, 0.8], [600, 0.6]]  # one onset at the contact, one with no turn
 
     events = hit_candidates(trail, audio, "a_test", 3, tolerance_ms=40)
     repeated = hit_candidates(trail, audio, "a_test", 3, tolerance_ms=40)
 
     assert events == repeated
-    assert len(events) == 3
+    # The onset at 600 ms has no trajectory turn: it stays an onset, not a hit event.
+    assert len(events) == 1
     assert events[0]["cues"] == ["trajectory", "audio"]
-    assert events[1]["cues"] == ["trajectory"]
-    assert events[2]["cues"] == ["audio"]
     assert all(event["type"] == "hit" and event["state"] == "candidate" for event in events)
     assert all(event["track_id"].startswith("t_") for event in events)
 

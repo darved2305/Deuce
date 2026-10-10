@@ -27,7 +27,7 @@ def detect_direction_changes(
     *,
     velocity_window: int = 2,
     min_angle_deg: float = 45,
-    min_displacement_px: float = 2.0,
+    min_displacement_px: float = 8.0,  # ~200 px/s over 40 ms at 1080p: real flight, not jitter
     min_gap_ms: int = 100,
 ) -> list[dict]:
     """Find robust local reversals in observed rows only.
@@ -62,6 +62,11 @@ def detect_direction_changes(
         after_v = after / after_dt
         before_norm, after_norm = float(np.linalg.norm(before)), float(np.linalg.norm(after))
         if min(before_norm, after_norm) < min_displacement_px:
+            continue
+        # Apex of a flight: rising (image y decreasing) then falling, same horizontal direction.
+        # That is gravity, not a racket contact; a hit sends a falling shuttle back up or
+        # reverses it horizontally. Measured on h13g: apexes were most early false positives.
+        if before[1] < 0 < after[1] and before[0] * after[0] >= 0:
             continue
         vertical_reversal = (
             before[1] * after[1] < 0
@@ -115,7 +120,7 @@ def hit_candidates(
     *,
     tolerance_ms: int = 100,
     onset_sigma_ms: int = 10,
-    min_event_gap_ms: int = 80,
+    min_event_gap_ms: int = 300,  # two hits need the shuttle to cross: ~300 ms minimum
 ) -> list[dict]:
     """Fuse observed trajectory turns and nearby audio onsets into schema-shaped hits.
 
@@ -173,13 +178,10 @@ def hit_candidates(
         if nearest is not None:
             add_candidate(event_time, sigma, nearest[1:3], cues)
 
-    for pi, (peak_time, _strength) in enumerate(peaks):
-        if pi in matched_peaks:
-            continue
-        if any(abs(peak_time - event["t_ms"]) < min_event_gap_ms for event in candidates):
-            continue
-        nearest = _nearest_row(rows, peak_time, tolerance_ms)
-        if nearest is not None:
-            add_candidate(peak_time, onset_sigma_ms, nearest[1:3], ["audio"])
-
-    return sorted(candidates, key=lambda event: (event["t_ms"], event["event_id"]))
+    # Audio-only onsets stay in window_result.onsets but do not become hit events: on real
+    # footage many are footsteps or neighbouring courts. Merge turns closer than the gap.
+    kept: list[dict] = []
+    for event in sorted(candidates, key=lambda e: (-len(e["cues"]), e["t_ms"])):
+        if all(abs(event["t_ms"] - other["t_ms"]) >= min_event_gap_ms for other in kept):
+            kept.append(event)
+    return sorted(kept, key=lambda event: (event["t_ms"], event["event_id"]))
