@@ -59,3 +59,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-10T23:16Z | #57 | @darved2305 | p2 | fix main: UploadCoordinatorTest race (closes #52) | none | 1.7.0 | ``` |
 | 2026-10-10T23:29Z | #59 | @HetanshWaghela | p4 | contracts 1.7.1: API error codes (D-261011-HW13) | D-261011-HW13 | 1.7.1 | ``` |
 | 2026-10-10T23:32Z | #60 | @nikhilpravinpise | p3 | db+api: finalize, ingest_vision_result and deterministic insights (B2, B3) with  | D-261010-NP1 (insights are SQL inside ingest) and D-261011-HW12 (contracts 1.7.0). | 1.7.1 | Local, regression only. Branch head `53016ab` is merged with main (including #29 and #58): |
+| 2026-10-10T23:34Z | #68 | @HetanshWaghela | p4 | contracts 1.8.0: answers #65 #66 #63; ignore *.env (D-261011-HW14) | D-261011-HW14 | 1.8.0 | ``` |
