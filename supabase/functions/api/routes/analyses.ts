@@ -6,11 +6,16 @@ import {
   analysisCreateResponseSchema,
   analysisEventsPageSchema,
   analysisGetResponseSchema,
+  errorEnvelopeSchema,
 } from "../lib/contracts_vendor/index.ts";
 import { ApiFailure } from "../lib/errors.ts";
 import { appendEvent, listEvents } from "../lib/events.ts";
 import { canonicalHash, idemBegin, idemStore } from "../lib/idempotency.ts";
-import { ModalUnavailable, submitToModal } from "../lib/modal.ts";
+import {
+  ModalRejected,
+  ModalUnavailable,
+  submitToModal,
+} from "../lib/modal.ts";
 import { isTerminal } from "../lib/state.ts";
 
 const ENDPOINT = "POST /v1/analyses";
@@ -35,6 +40,14 @@ const createRun = createRoute({
     202: {
       description: "new dispatch or an existing run still queued",
       content: { "application/json": { schema: CreateResponse } },
+    },
+    429: {
+      description: "session has reached its analysis run limit",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
+    503: {
+      description: "Modal rejected the dispatch",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
     },
   },
 });
@@ -77,20 +90,30 @@ async function dispatch(
   sessionId: string,
   r2Key: string,
   modal: Parameters<typeof submitToModal>[1],
-): Promise<string | null> {
+): Promise<
+  | { kind: "submitted"; modal_call_id: string }
+  | {
+    kind: "deferred";
+  }
+  | { kind: "rejected"; modal_error_code: string }
+  | { kind: "invalid" }
+> {
   const spec = await admin.rpc("session_spec", { p_session_id: sessionId });
   if (spec.error) throw spec.error;
-  if (spec.data == null) return null;
+  if (spec.data == null) return { kind: "invalid" };
   try {
     const out = await submitToModal({
       analysis_id: run.id,
       r2_key: r2Key,
       session_spec: spec.data as Record<string, unknown>,
     }, modal);
-    return out.modal_call_id;
+    return { kind: "submitted", modal_call_id: out.modal_call_id };
   } catch (err) {
+    if (err instanceof ModalRejected) {
+      return { kind: "rejected", modal_error_code: err.modalErrorCode };
+    }
     if (!(err instanceof ModalUnavailable)) throw err;
-    return null;
+    return { kind: "deferred" };
   }
 }
 
@@ -136,6 +159,21 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
       return idem.status === 202 ? c.json(body, 202) : c.json(body, 200);
     }
 
+    const existingRuns = await admin.from("analysis_runs").select("id,state")
+      .eq("session_id", session_id);
+    if (existingRuns.error) throw existingRuns.error;
+    const runs = existingRuns.data as { id: string; state: string }[] | null;
+    if (
+      (runs?.length ?? 0) >= 3 &&
+      !(runs ?? []).some((existing) => !isTerminal(existing.state))
+    ) {
+      throw new ApiFailure(
+        429,
+        "analysis_limit_reached",
+        "session has reached its analysis run limit",
+      );
+    }
+
     const created = await admin.rpc("create_analysis_run", {
       p_session_id: session_id,
       p_idempotency_key: key,
@@ -169,29 +207,22 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
     const claim = await admin.rpc("claim_dispatch", { p_analysis_id: run.id });
     if (claim.error) throw claim.error;
     const claimed = claim.data as RunRow | null;
+    if (claimed?.state === "failed") {
+      const body = { analysis_id: run.id, state: "failed" as const };
+      try {
+        await idemStore(admin, key, ownerId, ENDPOINT, hash, 200, body);
+      } catch (err) {
+        console.error("idempotency store failed", (err as Error).message);
+      }
+      return c.json(body, 200);
+    }
     if (!claimed?.id) {
       const cur = await admin.from("analysis_runs")
-        .select("id,state,dispatch_attempts")
+        .select("id,state")
         .eq("id", run.id).maybeSingle();
       if (cur.error) throw cur.error;
-      const curRow = cur.data as
-        | (RunRow & { dispatch_attempts: number })
-        | null;
+      const curRow = cur.data as RunRow | null;
       const s = (curRow?.state ?? "queued") as typeof state;
-      if (s === "queued" && (curRow?.dispatch_attempts ?? 0) >= 5) {
-        await appendEvent(admin, run.id, "analysis.failed", {
-          reason: "dispatch_failed",
-        });
-        const rel = await admin.from("analysis_runs")
-          .update({ dispatching: false, updated_at: new Date().toISOString() })
-          .eq("id", run.id);
-        if (rel.error) console.error("dispatch release failed", rel.error.code);
-        throw new ApiFailure(
-          503,
-          "engine_unavailable",
-          "engine is unavailable",
-        );
-      }
       const body = { analysis_id: run.id, state: s };
       const status = s === "queued" ? 202 : 200;
       try {
@@ -202,14 +233,21 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
       return status === 202 ? c.json(body, 202) : c.json(body, 200);
     }
 
-    const callId = await dispatch(
+    const dispatchResult = await dispatch(
       admin,
       run,
       session_id,
       up.r2_key,
       deps.modal(),
     );
-    if (callId === null) {
+    if (dispatchResult.kind === "invalid") {
+      const rel = await admin.from("analysis_runs")
+        .update({ dispatching: false, updated_at: new Date().toISOString() })
+        .eq("id", run.id);
+      if (rel.error) console.error("dispatch release failed", rel.error.code);
+      throw new ApiFailure(500, "internal", "session specification is missing");
+    }
+    if (dispatchResult.kind === "rejected") {
       await appendEvent(admin, run.id, "analysis.failed", {
         reason: "dispatch_failed",
       });
@@ -217,14 +255,38 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
         .update({ dispatching: false, updated_at: new Date().toISOString() })
         .eq("id", run.id);
       if (rel.error) console.error("dispatch release failed", rel.error.code);
-      throw new ApiFailure(503, "engine_unavailable", "engine is unavailable");
+      throw new ApiFailure(
+        503,
+        "engine_unavailable",
+        "Modal rejected the analysis",
+        { modal_error_code: dispatchResult.modal_error_code },
+      );
+    }
+    if (dispatchResult.kind === "deferred") {
+      const rel = await admin.from("analysis_runs")
+        .update({ dispatching: false, updated_at: new Date().toISOString() })
+        .eq("id", run.id);
+      if (rel.error) console.error("dispatch release failed", rel.error.code);
+      const body = { analysis_id: run.id, state: "queued" as const };
+      try {
+        await idemStore(admin, key, ownerId, ENDPOINT, hash, 202, body);
+      } catch (err) {
+        console.error("idempotency store failed", (err as Error).message);
+      }
+      return c.json(body, 202);
     }
     const upd = await admin.from("analysis_runs").update({
-      modal_call_id: callId,
+      modal_call_id: dispatchResult.modal_call_id,
       dispatching: false,
       updated_at: new Date().toISOString(),
-    }).eq("id", run.id);
-    if (upd.error) console.error("modal_call_id store failed", upd.error.code);
+    }).eq("id", run.id).select("id").maybeSingle();
+    if (upd.error || !upd.data) {
+      throw new ApiFailure(
+        500,
+        "internal",
+        "could not store the dispatch result",
+      );
+    }
     const body = { analysis_id: run.id, state: "queued" as const };
     try {
       await idemStore(admin, key, ownerId, ENDPOINT, hash, 202, body);

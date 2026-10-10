@@ -44,6 +44,7 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
             onChooseAnother = pickVideo,
             onOverlayVisible = vm::setOverlayVisible,
             onSetUp = vm::startSetup,
+            onShowEngine = vm::showEngine,
         )
         }
     }

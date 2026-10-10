@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { ModalUnavailable, submitToModal } from "../lib/modal.ts";
+import {
+  ModalRejected,
+  ModalUnavailable,
+  submitToModal,
+} from "../lib/modal.ts";
 import { jsonRes } from "./fakes.ts";
 
 const body = {
@@ -32,7 +36,12 @@ function setup(responses: Array<() => Response | Promise<Response>>) {
 
 Deno.test("modal 4xx is not retried", async () => {
   const s = setup([() => jsonRes(422, { error: { code: "invalid_body" } })]);
-  await assert.rejects(submitToModal(body, s.deps), ModalUnavailable);
+  await assert.rejects(
+    submitToModal(body, s.deps),
+    (err: unknown) =>
+      err instanceof ModalRejected &&
+      err.modalErrorCode === "invalid_body",
+  );
   assert.equal(s.calls(), 1);
   assert.deepEqual(s.sleeps, []);
 });
@@ -72,6 +81,22 @@ Deno.test("modal timeout (AbortError) is retried", async () => {
 Deno.test("modal 2xx without modal_call_id is a failure", async () => {
   const s = setup([() => jsonRes(200, {})]);
   await assert.rejects(submitToModal(body, s.deps), ModalUnavailable);
+});
+
+Deno.test("Modal submit sets a 30 second per-attempt timeout", async () => {
+  const original = AbortSignal.timeout;
+  let observed = 0;
+  AbortSignal.timeout = ((milliseconds: number) => {
+    observed = milliseconds;
+    return original(milliseconds);
+  }) as typeof AbortSignal.timeout;
+  try {
+    const s = setup([() => jsonRes(200, { modal_call_id: "fc-3" })]);
+    await submitToModal(body, s.deps);
+  } finally {
+    AbortSignal.timeout = original;
+  }
+  assert.equal(observed, 30_000);
 });
 
 Deno.test("modal invalid ids fail fast without calling", async () => {

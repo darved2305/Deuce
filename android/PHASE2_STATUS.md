@@ -88,3 +88,25 @@ in **source pixels after rotation** (contracts §0), validated against
 Known limits: `h13g_singles` at 41.78 s does not show the near baseline, so the corners tapped in
 the proof exercise the mapping, not a real calibration. "Tap to change" restarts the flow instead
 of reloading the previous corners. TalkBack pass not done.
+
+## Recorded engine run on the real video (G5 on recorded engine output)
+
+Person 1's real TrackNetV3 run on `h13g_singles` window 1 (#37, `engine/eval/runs/h13g_w1`,
+emit 37.00–43.00 s, 302 candidate rows on 204 of the 300 emitted frames) is copied into the app
+at build time and offered only on a file whose sha256 matched the hand-label fixture for the same
+clip. Row: "TrackNetV3 · recorded engine run · candidates · a candidate on 204 of 300 frames ·
+highest confidence per frame (302 rows) · engine 0.1.0, not live". Drawn as cyan hollow rings with
+dashed joins (never the solid orange of confirmed points), keyed to frame PTS like the hand trail.
+
+Bug found and fixed on the real file: `WindowResultStore` rejected **both** rows whenever a frame
+had two candidates (93 frames lost, including the real shuttle at 37.02 s). Several candidates
+per frame are now kept and the highest confidence wins; contradictory observed rows are still
+rejected. `RecordedEngineRunTest` pins 204 frames and the 37.02 s pick on the real file.
+
+A55: paused at PTS 41.280000, the candidate ring is drawn at display (443, 596) = source
+(922.5, 723.8) through the video rect (`proof/phase2/engine_run/01_engine_candidates_41s.png`,
+zoom `02_zoom_41s.png`). Against the hand labels: 1.4–7.2 px on 41.10–41.30 s; 70 of 77 frames that
+have both within 15 px.
+
+Also fixed: in portrait the controls sheet squeezed the video once a row was added; it is now
+capped at 55 % of the height and scrolls.

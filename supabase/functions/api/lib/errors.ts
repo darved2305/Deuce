@@ -2,21 +2,41 @@ import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { knownErrorCodes } from "./contracts_vendor/api.ts";
 
-export type ErrorCode = keyof typeof knownErrorCodes;
-export type ErrorStatus = typeof knownErrorCodes[ErrorCode];
+export type ErrorCode =
+  | keyof typeof knownErrorCodes
+  | "analysis_limit_reached"
+  | "upload_parts_invalid"
+  | "storage_busy";
+export type ErrorStatus =
+  | typeof knownErrorCodes[keyof typeof knownErrorCodes]
+  | 409
+  | 429
+  | 503;
+
+const LOCAL_ERROR_CODES = {
+  analysis_limit_reached: 429,
+  upload_parts_invalid: 409,
+  storage_busy: 503,
+} as const;
+
+const ERROR_STATUSES: Record<ErrorCode, ErrorStatus> = {
+  ...knownErrorCodes,
+  ...LOCAL_ERROR_CODES,
+};
 
 function assertErrorContract(
   status: ErrorStatus,
   code: ErrorCode,
   retryAfterS?: number,
 ): void {
-  if (knownErrorCodes[code] !== status) {
+  if (ERROR_STATUSES[code] !== status) {
     throw new TypeError(`error code ${code} does not use HTTP ${status}`);
   }
   if (
-    status === 429 && code !== "too_many_part_requests" &&
-    (retryAfterS === undefined || !Number.isFinite(retryAfterS) ||
-      retryAfterS < 0)
+    status === 429 &&
+    ((code !== "analysis_limit_reached" && retryAfterS === undefined) ||
+      (retryAfterS !== undefined &&
+        (!Number.isFinite(retryAfterS) || retryAfterS < 0)))
   ) {
     throw new TypeError("429 errors require a non-negative retry_after_s");
   }
@@ -107,7 +127,7 @@ export function onError(err: Error, c: Context): Response {
       return fail(c, 422, "invalid_body", err.message);
     }
     const code = STATUS_CODES[err.status] ?? "internal";
-    if (knownErrorCodes[code] === err.status) {
+    if (ERROR_STATUSES[code] === err.status) {
       return fail(c, err.status as ErrorStatus, code, err.message);
     }
     return fail(c, 500, "internal", "internal error");

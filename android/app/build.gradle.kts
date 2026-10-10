@@ -125,9 +125,46 @@ val copyRealFixtures = tasks.register<CopyRealFixtures>("copyRealFixtures") {
     )
 }
 
+/**
+ * Engine output Person 1 recorded on Modal for evaluation (`engine/eval/runs/<run>/`): a real
+ * window_result.v1 and its manifest, copied as `engine_runs/<run>/…`. Shown in the app only as a
+ * recorded run, never as live analysis.
+ */
+abstract class CopyEngineRuns : DefaultTask() {
+    @get:InputDirectory
+    @get:Optional
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val runsDir: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val out = outputDir.get().asFile.resolve("engine_runs")
+        out.deleteRecursively()
+        out.mkdirs()
+        val root = runsDir.orNull?.asFile ?: return
+        root.listFiles().orEmpty().filter { it.isDirectory }.forEach { run ->
+            val wr = run.resolve("window_result.json")
+            val mf = run.resolve("manifest.json")
+            if (wr.isFile && mf.isFile) {
+                wr.copyTo(out.resolve("${run.name}/window_result.json"))
+                mf.copyTo(out.resolve("${run.name}/manifest.json"))
+            }
+        }
+    }
+}
+
+val copyEngineRuns = tasks.register<CopyEngineRuns>("copyEngineRuns") {
+    val runs = rootProject.layout.projectDirectory.dir("../engine/eval/runs")
+    if (runs.asFile.isDirectory) runsDir.set(runs)
+}
+
 androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(copyRealFixtures, CopyRealFixtures::outputDir)
+        variant.sources.assets?.addGeneratedSourceDirectory(copyEngineRuns, CopyEngineRuns::outputDir)
     }
 }
 
