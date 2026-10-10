@@ -25,6 +25,7 @@ def test_build_keeps_only_rows_inside_the_emitted_range():
     q = {"ball_coverage": 0.5, "camera_motion_px": 0.0, "blur_index": 0.1}
     w = win.build("a_test", 0, (1000, 2750), (1000, 2000), rows, q, ["tracknet_v3"])
     assert [r[0] for r in w["ball"]] == [1000, 1999]
+    assert w["onsets"] == [] and w["events"] == []
     assert w["decode_window_us"] == [1_000_000, 2_750_000]
     win.validate(w)
 

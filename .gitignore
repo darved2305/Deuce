@@ -37,3 +37,7 @@ android/local.properties
 !.claude/skills/ship/
 !.claude/skills/slice-plan/
 !.claude/skills/sync-main/
+
+# secret files like internal_api_token.env (#64); keep the example
+*.env
+!.env.example

@@ -14,8 +14,9 @@ insert into public.matches (id, owner_id, sport, format, ruleset_id, ruleset_ver
 values
   ('m_results_a', '11111111-1111-1111-1111-111111111111', 'badminton', 'singles', 'bwf_singles', 'v1'),
   ('m_results_b', '22222222-2222-2222-2222-222222222222', 'badminton', 'singles', 'bwf_singles', 'v1');
-insert into public.sessions (id, match_id, owner_id, mode, source)
-values ('s_results_a', 'm_results_a', '11111111-1111-1111-1111-111111111111', 'match', '{}'::jsonb);
+insert into public.sessions (id, match_id, owner_id, mode, source, who_is_me)
+values ('s_results_a', 'm_results_a', '11111111-1111-1111-1111-111111111111', 'match', '{}'::jsonb,
+        '{"image_xy":[0,0],"t_ms":0}'::jsonb);
 insert into public.analysis_runs (id, session_id, match_id, owner_id, idempotency_key)
 values ('a_results_a', 's_results_a', 'm_results_a', '11111111-1111-1111-1111-111111111111', 'results');
 
