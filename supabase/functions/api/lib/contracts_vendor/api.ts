@@ -12,7 +12,10 @@ import {
   confirmedPointIdSchema,
   correctionIdSchema,
   eventIdSchema,
-  formatSchema,
+  artifactKindSchema,
+  builtSportSchema,
+  matchFormatSchema,
+  sessionModeSchema,
   insightIdSchema,
   isoTimestampSchema,
   matchIdSchema,
@@ -29,7 +32,6 @@ import {
   sha256Schema,
   shotClipIdSchema,
   shotIdSchema,
-  sportSchema,
   surfacePlaneSchema,
   trackIdSchema,
   zoneIdSchema,
@@ -120,13 +122,13 @@ const rallyCandidateSchema = strictObject({
 });
 
 export const sessionCreateRequestSchema = strictObject({
-  sport: sportSchema,
-  format: formatSchema,
+  sport: builtSportSchema,
+  format: matchFormatSchema,
   ruleset: strictObject({
     id: z.string(),
     version: z.string(),
   }),
-  mode: z.string(),
+  mode: sessionModeSchema,
   source: mediaSourceSchema,
   calibration_input: calibrationInputSchema,
   who_is_me: strictObject({
@@ -137,6 +139,14 @@ export const sessionCreateRequestSchema = strictObject({
   rally_candidates: z.array(rallyCandidateSchema),
   upload_mode: z.literal("multipart"),
 }).superRefine((session, ctx) => {
+  // Free play has no court format; racket sports always have one.
+  if ((session.sport === "free_play") !== (session.format === "none")) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["format"],
+      message: 'format is "none" exactly when sport is free_play',
+    });
+  }
   // §2: "The court template always matches format (badminton_singles / badminton_doubles)."
   const calibration = session.calibration_input;
   if (session.sport === "badminton" && calibration?.plane === "court") {
@@ -261,7 +271,7 @@ export const internalEventRequestSchema = z.union([
 ]);
 
 export const internalArtifactRequestSchema = strictObject({
-  kind: z.string(),
+  kind: artifactKindSchema,
   r2_key: r2ObjectKeySchema,
   bytes: nonNegativeInteger,
   sha256: sha256Schema,
@@ -584,8 +594,8 @@ export const matchV1Schema = strictObject({
   schema: z.literal("match.v1"),
   match_id: matchIdSchema,
   session_ids: z.array(sessionIdSchema),
-  sport: sportSchema,
-  format: formatSchema,
+  sport: builtSportSchema,
+  format: matchFormatSchema,
   ruleset: strictObject({
     id: z.string(),
     version: z.string(),

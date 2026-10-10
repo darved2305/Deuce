@@ -3,7 +3,9 @@
 import * as z from "zod";
 import {
   canonicalModelIdSchema,
+  builtSportSchema,
   formatSchema,
+  matchFormatSchema,
   playerIdSchema,
   sportSchema,
   zoneIdSchema,
@@ -32,8 +34,8 @@ export const sportPackSchema = z.strictObject({
 export const rulesStateSchema = z.strictObject({
   ruleset_id: z.string(),
   ruleset_version: z.string(),
-  sport: sportSchema,
-  format: formatSchema,
+  sport: builtSportSchema,
+  format: matchFormatSchema,
   teams: z.tuple([z.array(playerIdSchema), z.array(playerIdSchema)]),
   games: z.array(z.tuple([z.number().int().nonnegative(), z.number().int().nonnegative()])),
   current: z.tuple([z.number().int().nonnegative(), z.number().int().nonnegative()]),
