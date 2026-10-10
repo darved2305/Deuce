@@ -41,6 +41,10 @@ API, a TypeScript SDK, a read-only MCP server and an embeddable player. Plan: `d
    service-role key never reaches the app.
 9. **Big binaries never enter git.** Videos, model weights and APKs live in R2, the Modal image or
    CI artifacts. Git holds code, docs, JSON fixtures and links.
+10. **Cloudflare and Modal cost nothing beyond their caps (D-261011-HW2, D-261010-VV1).** R2 never uses
+    more than 20% of its free tier (automatic pause at 10%), enforced in code: follow `docs/ops/cloudflare-budget.md` (upload size, storage
+    and daily caps, no `ListObjects` loops, short-lived URLs, kill switch `R2_WRITES_ENABLED`). Never
+    Infrequent Access, public buckets, Workers Paid or account-wide tokens.
 
 ## Team and lanes
 | Person | GitHub | Lane | Folders (edit only these) |
