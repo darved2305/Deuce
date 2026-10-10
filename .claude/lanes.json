@@ -28,6 +28,7 @@
     "docs/"
   ],
   "shared": [
-    "DECISIONS.md"
+    "DECISIONS.md",
+    "supabase/functions/api/lib/contracts_vendor/"
   ]
 }
