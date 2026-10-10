@@ -43,7 +43,7 @@ Template (copy to the end of the file):
 2. Modal spend ceiling: decided in D-261010-VV1 ($30 total).
 3. The demo clip (working and eval clips are decided in D-261010-HW1).
 4. Default badminton ruleset (proposed `bwf_3x21`).
-5. Retention default (proposed: server copy of an original deleted after analysis unless kept).
+5. Retention of results and clips beyond 30 days (originals: deleted after 3 days, D-261011-HW1).
 6. Referee call-coverage threshold for the evaluation (set before results are seen).
 
 ---
@@ -369,4 +369,30 @@ Template (copy to the end of the file):
   - Contracts: v1, tightened to match the database; additive `none` format.
 - **Exit:** supersede with a new entry; change both the migration and the package together.
 - **Proof / evidence:** the PR's Proof section.
+- **PRs:** this PR.
+
+## D-261011-HW1 · Cloudflare stays at $0: free tier only, enforced in code, config and a card limit
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of R2 storing every upload and Workers AI being available, facing
+  Cloudflare having no hard spending cap, we decided to keep usage under half the free tier with
+  code guards, bucket configuration and a low-limit card, and rejected relying on budget alerts.
+- **Context:** Cloudflare's budget alerts only email; nothing stops usage. R2 bills beyond 10
+  GB-month, 1M Class A and 10M Class B ops; every multipart part is a Class A op.
+- **Decision:** follow `docs/ops/cloudflare-budget.md`: budget = half of each free dimension;
+  guards G1-G9 in the API and engine; lifecycle rules (originals 3 days, results and clips 30
+  days, abandoned multipart 1 day); no public access; Standard storage only; Workers Free plan
+  only; scoped tokens; daily 2-minute check; kill switch `R2_WRITES_ENABLED`.
+- **Alternatives:** (a) budget alerts only, rejected: they do not stop spend; (b) no R2, rejected:
+  the upload flow (D-004) needs object storage.
+- **Blast radius:**
+  - People and folders: Person 3 implements G1-G7 and G9 in `supabase/` (new 429/413/503 error
+    codes and an `r2_usage_monthly` table); Person 1 implements G8 in `engine/`; the Cloudflare
+    account owner applies layers 2 and 3 and does the daily check; Person 2 shows the 429/503
+    messages in the app.
+  - Contracts: none (error codes are free strings in the §1 envelope).
+  - Data/infra: R2 lifecycle rules delete originals after 3 days (closes the retention open item
+    for originals).
+- **Exit:** raise a budget with a new entry; never remove the guards.
+- **Proof / evidence:** limits and commands from developers.cloudflare.com (R2 pricing, R2 object
+  lifecycles, Workers AI pricing, Wrangler R2 commands, usage-based billing), read 2026-10-11.
 - **PRs:** this PR.
