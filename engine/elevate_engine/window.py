@@ -80,6 +80,8 @@ def build(
     ball_rows: list[list],
     quality_: dict,
     models: Sequence[str],
+    onsets: Sequence[Sequence[int | float]] = (),
+    events: Sequence[dict] = (),
 ) -> dict:
     """The window object, keeping only rows inside the emitted range."""
     lo, hi = emit_ms
@@ -92,8 +94,8 @@ def build(
         "models": list(models),
         "ball": [r for r in ball_rows if lo <= r[0] < hi],
         "players": [],
-        "onsets": [],
-        "events": [],
+        "onsets": [list(row) for row in onsets if lo <= row[0] < hi],
+        "events": [dict(event) for event in events if lo <= event["t_ms"] < hi],
         "quality": quality_,
     }
 
