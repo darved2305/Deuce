@@ -110,3 +110,19 @@ have both within 15 px.
 
 Also fixed: in portrait the controls sheet squeezed the video once a row was added; it is now
 capped at 55 % of the height and scrolls.
+
+## End-to-end run on the A55 against the deployed backend (2026-10-11)
+
+Pick `h13g_singles` → clip check → setup (4 corners, you at 41.26 s) → **Upload & analyse**:
+
+| Step | Result |
+|---|---|
+| Session created on the deployed API | `s_3df758f240434f74820e829033966138` |
+| Upload over LTE (Airtel) | 10 min, **0 of 8 parts confirmed**, then `SSLHandshakeException` on `upload/parts` → stopped. Two bugs found: URL fetch outside the per-part retry (fixed, regression test); rate/ETA from socket-buffered bytes showed "0.4 MiB/s · 4 min left" while ~0.02 MiB/s was confirmed (fixed: rate, ETA and bar from server-confirmed parts only) |
+| App reinstalled (process death) → restored from disk → Retry over Wi-Fi | notification **"Uploaded · server confirmed 63,698,735 bytes · 60.7 MiB stored"** (= the file's size) |
+| `POST /v1/analyses` | analysis `a_73b8c407edb6440a953f0204796370e6`, event 1 `analysis.queued` at 03:37:29; Analysing screen shows the real stages |
+| Relaunch | upload restored as completed, start re-sent with the same Idempotency-Key → **same analysis** (no duplicate GPU job); "0.0 of 484.5 s analysed" (duration from the saved session request) |
+| Engine | **no `analysis.started` / `window.completed` after the run** → Person 1 (engine posting events) and Person 3 (`GET /v1/artifacts/{id}`, `GET /v1/matches/{id}`) |
+
+Also fixed during the run: a retry after a failure ended at once on the stale "failed" progress
+value (the waiter now follows the saved upload phase; device-verified path: completed → start).

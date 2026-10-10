@@ -678,4 +678,30 @@ Template (copy to the end of the file):
   not invention); estimated parts are dashed and labelled.
 - **Blast radius:** all four lanes, additive only; Person 3 adds `GET /v1/artifacts/{id}` (contracts §4).
 - **Exit:** n/a (ordering only).
+
+## D-261011-HW11 · Window fixtures are named by their real window_seq
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** the `fixture_window_0003.json` name in contracts §11
+- **In one line:** The first real engine window is window 1 (#37), so the fixture is
+  `fixture_window_0001.json`; the validator accepts any `fixture_window_<n>.json` instead of
+  inventing a window 3.
+- **Blast radius:** Person 2 and Person 3 load window fixtures by pattern; contracts unchanged.
+- **PRs:** this PR.
+
+## D-261011-HW12 · Person 3's Phase 3 contract blockers (contracts 1.7.0)
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** Accept all four proposals in @nikhilpravinpise's #20 follow-up so finalize, confirm
+  and compare can proceed.
+- **Decision:**
+  1. `reviewSchema`: `confirmed_point_winner`, `confirmed_by`, `confirmed_at` nullable, all null or all
+     set; engine estimates send null.
+  2. Wire `confirmed_by` / `confirmed.point.v1.by` stays a player ID (the account mapped via
+     `who_is_me`); the database stores the auth user as the audit actor.
+  3. Metric `player_id` nullable; storage uses `unique nulls not distinct (match_id, key,
+     definition_version, player_id)`.
+  4. Comparisons rank the top 5 and return `min(limit, 5)` (default 3), filter on `ruleset_id`;
+     `scope=shared` uses existing grants only in Phase 3.
+  Also: `r2_usage_monthly` is as implemented in Person 3's migration `20261010190309_r2_budget.sql`;
+  player history is keyed per account ("me") in Phase 3, not cross-match player IDs.
+- **Blast radius:** Person 3 (finalize, confirm, compare, metrics PK); Person 1 (reviews in
+  `vision_result.v1` send null confirmations); Person 2 (readers accept nulls). Contracts 1.7.0.
 - **PRs:** this PR.

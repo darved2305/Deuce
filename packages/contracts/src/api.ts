@@ -602,10 +602,17 @@ const reviewSchema = strictObject({
   visibility: z.string(),
   model_ids: z.array(canonicalModelIdSchema),
   calibration_id: calibrationIdSchema,
-  confirmed_point_winner: playerIdSchema,
-  confirmed_by: playerIdSchema,
-  confirmed_at: isoTimestampSchema,
-});
+  // D-261011-HW12: an engine estimate has no confirmation yet; a player confirmation sets all three.
+  // `confirmed_by` is the match player the signed-in account is mapped to (who_is_me); the database
+  // keeps the account itself as the audit actor.
+  confirmed_point_winner: playerIdSchema.nullable(),
+  confirmed_by: playerIdSchema.nullable(),
+  confirmed_at: isoTimestampSchema.nullable(),
+}).refine(
+  (r) => [r.confirmed_point_winner, r.confirmed_by, r.confirmed_at].every((v) => v === null) ||
+    [r.confirmed_point_winner, r.confirmed_by, r.confirmed_at].every((v) => v !== null),
+  { message: "confirmed_point_winner, confirmed_by and confirmed_at are all null or all set" },
+);
 
 export const confirmedPointSchema = strictObject({
   confirmed_point_id: confirmedPointIdSchema,
@@ -625,7 +632,7 @@ const scoreTimelineRowSchema = strictObject({
 const metricSchema = strictObject({
   key: z.string(),
   definition_version: nonNegativeInteger,
-  player_id: playerIdSchema,
+  player_id: playerIdSchema.nullable(), // null = a match-level metric (D-261011-HW12)
   numerator: nonNegativeInteger,
   denominator: nonNegativeInteger,
   unit: z.string(),

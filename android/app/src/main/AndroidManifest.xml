@@ -1,8 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- GET /v1/health on the Elevate API (contracts §1); no other network use in Phase 1. -->
+    <!-- Elevate API (contracts §1) and the presigned R2 part uploads (android/UPLOAD_CLIENT.md). -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Network constraints of the upload job / worker. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- API 34+: the upload runs as a user-initiated data transfer job. -->
+    <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
+    <!-- API 26–33 fallback: WorkManager runs the upload in a dataSync foreground service. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Upload progress notification (runtime permission on API 33+; the app asks before uploading). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"
@@ -23,6 +33,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- API 34+ upload: user-initiated data transfer job (data/upload/UploadJobService.kt). -->
+        <service
+            android:name=".data.upload.UploadJobService"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
+
+        <!-- API 26–33 upload: WorkManager's foreground service typed dataSync (data/upload/UploadWorker.kt). -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
     </application>
 
 </manifest>
