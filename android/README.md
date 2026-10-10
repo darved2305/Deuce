@@ -8,7 +8,8 @@ compileSdk 37 (the pinned Compose UI 1.12.1 and core-ktx 1.19.1 require compilin
 1. JDK 17 (e.g. Temurin) → `JAVA_HOME`.
 2. Android command-line tools → `%LOCALAPPDATA%\Android\Sdk\cmdline-tools\latest`, then
    `android sdk install platform-tools platforms/android-36 platforms/android-37.0 build-tools/36.1.0`.
-3. `android/local.properties`: `sdk.dir=C\:/Users/<you>/AppData/Local/Android/Sdk` (colon escaped).
+3. `android/local.properties` (untracked): `sdk.dir=C\:/Users/<you>/AppData/Local/Android/Sdk` (colon
+   escaped) and, for the live API, `elevate.apiBaseUrl=https://<project-ref>.supabase.co/functions/v1/api`.
 4. From `android/`: `./gradlew assembleDebug lintDebug testDebugUnitTest`.
 5. Phone: Developer options → USB debugging on → `adb install -r app/build/outputs/apk/debug/app-debug.apk`
    → `adb shell am start -n com.elevate.app/.MainActivity`.
@@ -22,7 +23,8 @@ compileSdk 37 (the pinned Compose UI 1.12.1 and core-ktx 1.19.1 require compilin
 | `playback/VideoInspector.kt` | reads name, size, dimensions, rotation, duration and sha256 from the picked file |
 | `domain/` | `TrailTrack`, `Provenance`, `AnnotationState`, `MatchRepository` |
 | `data/fixture/` | `TrailLabelsParser` (strict) + `FixtureSource` (bundled real labels in `assets/fixtures`) |
-| `data/api/ApiSource.kt` | Phase 2 boundary; reports `NotConnected` |
+| `data/api/ApiSource.kt` | real `GET /v1/health`; analysis calls arrive in Phase 2 |
+| `data/api/Contracts.kt` | Kotlin readers for `@elevate/contracts` schemas (checked by `ContractSchemaTest`) |
 | `ui/` | `ReplayViewModel`, Import and Replay screens, theme |
 | `tools/labeller/` | frame extraction with verified PTS + browser labeller for real hand labels |
 

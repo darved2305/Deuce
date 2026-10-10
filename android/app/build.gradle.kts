@@ -1,4 +1,11 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+// Machine-local values (never in git, AGENTS.md rule 8): android/local.properties
+//   elevate.apiBaseUrl=https://<project-ref>.supabase.co/functions/v1/api
+val localProps = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
 
 plugins {
     alias(libs.plugins.android.application)
@@ -18,6 +25,8 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        val apiBaseUrl = localProps.getProperty("elevate.apiBaseUrl", "")
+        buildConfigField("String", "API_BASE_URL", "\"" + apiBaseUrl.replace("\"", "") + "\"")
     }
 
     buildTypes {
@@ -33,6 +42,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     lint {

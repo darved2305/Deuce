@@ -33,11 +33,12 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.elevate.app.domain.repository.BackendStatus
 import com.elevate.app.ui.components.ElevateIcons
 import com.elevate.app.ui.theme.Elevate
 
 @Composable
-fun ImportScreen(opening: Boolean, error: String?, onChoose: () -> Unit) {
+fun ImportScreen(opening: Boolean, error: String?, onChoose: () -> Unit, backend: BackendStatus? = null) {
     val c = Elevate.colors
     Box(
         Modifier
@@ -115,6 +116,8 @@ fun ImportScreen(opening: Boolean, error: String?, onChoose: () -> Unit) {
                 Tip("60 fps if you can", "More frames give the shuttle tracker more to work with.")
                 Tip("Keep it still", "A fence, bag or tripod. No hand-holding.")
             }
+            Spacer(Modifier.height(24.dp))
+            BackendLine(backend)
         }
     }
 }
@@ -129,5 +132,22 @@ private fun Tip(title: String, body: String) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(body, style = MaterialTheme.typography.bodyMedium)
         }
+    }
+}
+
+/** Measured from a real `GET /v1/health`; the analysis itself arrives in Phase 2. */
+@Composable
+private fun BackendLine(status: BackendStatus?) {
+    val c = Elevate.colors
+    val (dot, text) = when (status) {
+        null -> c.inkMuted to "Checking Elevate cloud…"
+        BackendStatus.NotConfigured -> c.inkMuted to "Elevate cloud not configured in this build"
+        is BackendStatus.Online -> c.mintInk to "Elevate cloud online · ${status.latencyMs} ms · analysis arrives in a later update"
+        is BackendStatus.Offline -> c.error to "Elevate cloud unreachable · ${status.reason}"
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+        Spacer(Modifier.size(8.dp))
+        Text(text, style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
     }
 }

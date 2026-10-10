@@ -24,9 +24,10 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
 
     val screen by vm.screen.collectAsStateWithLifecycle()
     val playback by vm.controller.state.collectAsStateWithLifecycle()
+    val backend by vm.backend.collectAsStateWithLifecycle()
 
     when (val s = screen) {
-        is Screen.Import -> ImportScreen(opening = s.opening, error = s.error, onChoose = pickVideo)
+        is Screen.Import -> ImportScreen(opening = s.opening, error = s.error, onChoose = pickVideo, backend = backend)
         is Screen.Replay -> ReplayScreen(
             screen = s,
             state = playback,

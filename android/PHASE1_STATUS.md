@@ -1,7 +1,7 @@
 # Phase 1 status · Person 2 (Android)
 
 PASS means it was run on the phone or the machine in this session and the output was seen.
-Updated 2026-10-11 00:12. Device: Galaxy A55 SM-A556E, Android 16 (API 36), Exynos 1480.
+Updated 2026-10-11 00:30, rebased on main 80c5b0a (contracts 1.1.0, API skeleton). Device: Galaxy A55 SM-A556E, Android 16 (API 36), Exynos 1480.
 **S23 FE: never connected, so every S23 FE row is NOT RUN and Phase 1 is not device-complete.**
 
 ## What works (A55)
@@ -16,7 +16,17 @@ Updated 2026-10-11 00:12. Device: Galaxy A55 SM-A556E, Android 16 (API 36), Exyn
   each frame's `presentationTimeUs`. Only hand-labelled positions are drawn; gaps stay gaps;
   nothing is interpolated. The trail toggle redraws the held frame while paused.
 - Labels are bound to the exact file by sha256. Any other video shows "No annotations for this video".
-- `MatchRepository` → `FixtureSource` (real hand labels) / `ApiSource` (`NotConnected`).
+- `MatchRepository` → `FixtureSource` (real hand labels) / `ApiSource`. `ApiSource` makes one real
+  call, `GET /v1/health`, to Person 3's deployed API. On the A55: "Elevate cloud online · 724 ms";
+  with wifi and data off: "unreachable · no network" (`slice5/20_backend_status.png`,
+  `slice5/21_backend_offline.png`). The URL comes from the untracked `local.properties`
+  (`elevate.apiBaseUrl`); builds without it say "not configured". There are no analysis calls
+  yet: those routes are not deployed (Phase 2).
+- Kotlin readers for `@elevate/contracts` 1.1.0: `error.envelope.v1`, `realtime.hint.v1`,
+  `analysis.event.v1`, `analysis.events.page.v1`, `window_result.v1` (+ typed ball rows).
+  `ContractSchemaTest` compares them with `packages/contracts/schemas/*.schema.json` (field sets,
+  required ⇒ non-null) and decodes the fenced examples in `contracts.md`. It already caught one
+  drift: `engine_version` is required on every event.
 - Debug builds stamp each frame's own PTS into the frame (proof aid).
 
 ## Checks run (final code)
@@ -24,7 +34,7 @@ Updated 2026-10-11 00:12. Device: Galaxy A55 SM-A556E, Android 16 (API 36), Exyn
 |---|---|
 | `./gradlew --version` | Gradle 9.5.0, launcher JVM 17.0.20.1 |
 | `./gradlew clean assembleDebug` | PASS |
-| `./gradlew testDebugUnitTest` | PASS 26/26 (TimeMapping 8, TrailLabelsParser 10, repository 6, annotation text 2) |
+| `./gradlew testDebugUnitTest` | PASS 36/36 (TimeMapping 8, TrailLabelsParser 10, repository 6, annotation text 2, ContractSchema 5, ApiSource 5) |
 | `./gradlew lintDebug` | PASS: 0 errors; 2 warnings kept on purpose (below) |
 | instrumented, `am instrument` on the A55 | PASS 8/8: ImportScreen ×3, OverlayTimingTest ×5 (real clip, real decoder) |
 

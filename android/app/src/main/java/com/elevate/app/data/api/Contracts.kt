@@ -1,0 +1,119 @@
+package com.elevate.app.data.api
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
+
+/**
+ * Kotlin readers for `packages/contracts/schemas` (@elevate/contracts 1.1.0, D-261010-HW2).
+ * Readers ignore unknown fields so additive contract changes never break the app; field names and
+ * nullability are checked against the generated JSON Schemas by `ContractSchemaTest`.
+ */
+object Contracts {
+    val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+}
+
+/** `error.envelope.v1` (contracts §1). */
+@Serializable
+data class ErrorEnvelope(
+    val error: ErrorBody,
+    @SerialName("retry_after_s") val retryAfterS: Double? = null,
+)
+
+@Serializable
+data class ErrorBody(val code: String, val message: String, val details: JsonElement? = null)
+
+/** `GET /v1/health` response (supabase/functions/api/routes/health.ts). */
+@Serializable
+data class HealthResponse(val status: String)
+
+/** `realtime.hint.v1`: Broadcast payload on `analysis:{id}`, event `analysis_seq` (contracts §3). */
+@Serializable
+data class RealtimeHint(
+    @SerialName("schema_version") val schemaVersion: Int,
+    @SerialName("analysis_id") val analysisId: String,
+    @SerialName("latest_seq") val latestSeq: Long,
+)
+
+/** One row of `analysis.event.v1` (contracts §3). Optional fields depend on `type`. */
+@Serializable
+data class AnalysisEvent(
+    @SerialName("event_id") val eventId: String,
+    @SerialName("analysis_id") val analysisId: String,
+    @SerialName("match_id") val matchId: String,
+    val seq: Long,
+    @SerialName("schema_version") val schemaVersion: Int,
+    val type: String,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("engine_version") val engineVersion: String,
+    @SerialName("window_seq") val windowSeq: Int? = null,
+    @SerialName("decode_window_us") val decodeWindowUs: List<Long>? = null,
+    @SerialName("emit_range_us") val emitRangeUs: List<Long>? = null,
+    @SerialName("artifact_id") val artifactId: String? = null,
+    val reason: String? = null,
+)
+
+/** `analysis.events.page.v1`: `GET /v1/analyses/{id}/events?after_seq=` (contracts §3). */
+@Serializable
+data class AnalysisEventsPage(
+    val events: List<AnalysisEvent>,
+    @SerialName("next_after_seq") val nextAfterSeq: Long,
+    @SerialName("has_more") val hasMore: Boolean,
+    val state: String,
+)
+
+/** `window_result.v1` (contracts §5): one engine window, stored in R2. */
+@Serializable
+data class WindowResult(
+    val schema: String,
+    @SerialName("analysis_id") val analysisId: String,
+    @SerialName("window_seq") val windowSeq: Int,
+    @SerialName("decode_window_us") val decodeWindowUs: List<Long>,
+    @SerialName("emit_range_us") val emitRangeUs: List<Long>,
+    val models: List<String>,
+    val ball: List<JsonArray>,
+    val players: List<JsonArray>,
+    val onsets: List<JsonArray>,
+    val events: List<WindowEvent>,
+    val quality: WindowQuality,
+) {
+    /** Ball rows `[t_ms, x_px, y_px, confidence|null, state]` in image space (contracts §5). */
+    fun ballRows(): List<BallRow> = ball.map { r ->
+        require(r.size == 5) { "ball row must have 5 items: $r" }
+        BallRow(
+            tMs = r[0].jsonPrimitive.long,
+            xPx = r[1].jsonPrimitive.double,
+            yPx = r[2].jsonPrimitive.double,
+            confidence = r[3].takeUnless { it is JsonNull }?.jsonPrimitive?.double,
+            state = requireNotNull(r[4].jsonPrimitive.contentOrNull) { "ball row state missing" },
+        )
+    }
+}
+
+data class BallRow(val tMs: Long, val xPx: Double, val yPx: Double, val confidence: Double?, val state: String)
+
+@Serializable
+data class WindowEvent(
+    @SerialName("event_id") val eventId: String,
+    val type: String,
+    @SerialName("t_ms") val tMs: Long,
+    @SerialName("t_sigma_ms") val tSigmaMs: Long,
+    @SerialName("track_id") val trackId: String,
+    @SerialName("image_xy") val imageXy: List<Double>,
+    val cues: List<String>,
+    val state: String,
+)
+
+@Serializable
+data class WindowQuality(
+    @SerialName("ball_coverage") val ballCoverage: Double,
+    @SerialName("camera_motion_px") val cameraMotionPx: Double,
+    @SerialName("blur_index") val blurIndex: Double,
+)

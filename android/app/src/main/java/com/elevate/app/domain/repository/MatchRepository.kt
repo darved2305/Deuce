@@ -12,4 +12,13 @@ data class VideoFingerprint(val sha256: String, val bytes: Long)
 interface MatchRepository {
     /** Annotations recorded for exactly this recording, or why there are none. */
     suspend fun annotationsFor(video: VideoFingerprint): AnnotationState
+
+    /** Live state of the backend, from a real request (never assumed). */
+    suspend fun backendStatus(): BackendStatus
+}
+
+sealed interface BackendStatus {
+    data object NotConfigured : BackendStatus
+    data class Online(val latencyMs: Long) : BackendStatus
+    data class Offline(val reason: String) : BackendStatus
 }

@@ -5,10 +5,12 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
+import com.elevate.app.BuildConfig
 import com.elevate.app.data.DefaultMatchRepository
 import com.elevate.app.data.api.ApiSource
 import com.elevate.app.data.fixture.FixtureSource
 import com.elevate.app.domain.model.AnnotationState
+import com.elevate.app.domain.repository.BackendStatus
 import com.elevate.app.domain.repository.MatchRepository
 import com.elevate.app.playback.PlayerController
 import com.elevate.app.playback.VideoInspector
@@ -45,7 +47,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 name to assets.open("$FIXTURE_DIR/$name").bufferedReader().use { it.readText() }
             }
         },
-        api = ApiSource(),
+        api = ApiSource(BuildConfig.API_BASE_URL),
         io = Dispatchers.IO,
     )
 
@@ -53,6 +55,16 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     val screen: StateFlow<Screen> = _screen.asStateFlow()
 
     private var openJob: Job? = null
+
+    private val _backend = MutableStateFlow<BackendStatus?>(null)
+    /** null while the first health check runs. */
+    val backend: StateFlow<BackendStatus?> = _backend.asStateFlow()
+
+    init { refreshBackend() }
+
+    fun refreshBackend() {
+        viewModelScope.launch { _backend.value = repository.backendStatus() }
+    }
 
     /** Picker returned [uri]; null means the user cancelled, which changes nothing. */
     fun onPicked(uri: Uri?) {
