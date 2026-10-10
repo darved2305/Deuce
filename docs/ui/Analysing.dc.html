@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Analysing match</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#62C7D5;text-decoration:none}a:hover{color:#8FDCE6}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #101519; color: #F3F0E8; font-family: 'IBM Plex Sans', system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <div style="padding: 18px 20px 0 20px; display: flex; flex-direction: column; gap: 4px">
+    <div style="display: flex; align-items: center; height: 40px">
+      <a href="Today.dc.html" style="display: flex; align-items: center; gap: 4px; font-size: 15px; color: #A9B4B8">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
+        Today
+      </a>
+    </div>
+    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.08em; color: #A9B4B8">BADMINTON · 52 MIN · 1080p60</div>
+    <h1 style="margin: 0; font-size: 28px; font-weight: 600">You vs Arjun</h1>
+  </div>
+
+  <div style="padding: 14px 20px 0 20px; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline">
+        <span style="font-size: 15px; font-weight: 600">114 rallies found <span style="font-weight: 400; font-size: 13px; color: #A9B4B8">in 6 s, from sound</span></span>
+      </div>
+      <div style="display: flex; align-items: flex-end; gap: 1px; height: 46px">
+        <sc-for list="{{bars}}" as="b" hint-placeholder-count="114">
+          <div style="width: 2px; height: {{b.h}}px; background: {{b.c}}; border-radius: 1px; margin-left: {{b.m}}px"></div>
+        </sc-for>
+      </div>
+      <div style="display: flex; gap: 14px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #A9B4B8">
+        <span><span style="color: #F3F0E8">■</span> analysed</span>
+        <span><span style="color: #4A585E">■</span> from sound, analysing</span>
+        <span style="color: #62C7D5">▲ playing</span>
+      </div>
+    </div>
+
+    <div style="position: relative; border-radius: 16px; overflow: hidden">
+      <svg width="350" height="168" viewBox="0 0 350 168" role="img" aria-label="Rally 12 playing from your phone while the rest is analysed; the shuttle trail is already drawn on it">
+        <rect width="350" height="168" fill="#0A1719"></rect>
+        <polygon points="110,18 240,18 340,166 10,166" fill="#123F39"></polygon>
+        <g stroke="#E9E6DC" stroke-opacity="0.8" stroke-width="1.2" fill="none">
+          <polygon points="110,18 240,18 340,166 10,166"></polygon>
+          <line x1="78" y1="64" x2="272" y2="64"></line>
+          <line x1="58" y1="100" x2="292" y2="100"></line>
+        </g>
+        <line x1="68" y1="66" x2="282" y2="66" stroke="#F3F0E8" stroke-width="1.5"></line>
+        <path d="M200 40 Q 168 30 130 118" stroke="#DCE76B" stroke-width="1.6" fill="none"></path>
+        <circle cx="130" cy="118" r="3" fill="#DCE76B"></circle>
+        <circle cx="204" cy="34" r="3.4" fill="#F39B68"></circle><rect x="200.6" y="38" width="6.8" height="11" rx="2" fill="#F39B68"></rect>
+        <circle cx="150" cy="128" r="6" fill="#62C7D5"></circle><rect x="144" y="135" width="12" height="22" rx="3" fill="#62C7D5"></rect>
+      </svg>
+      <span style="position: absolute; left: 10px; top: 10px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; background: rgba(16,21,25,0.86); padding: 4px 8px; border-radius: 6px">RALLY 12 · PLAYING NOW</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <sc-for list="{{stages}}" as="s" hint-placeholder-count="5">
+        <div style="display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; height: 34px">
+          <span style="width: 22px; height: 22px; border-radius: 11px; border: 2px solid {{s.ring}}; background: {{s.fill}}; display: flex; align-items: center; justify-content: center; color: #101519; font-size: 12px; font-weight: 700">{{s.mark}}</span>
+          <span style="font-size: 15px; color: {{s.text}}">{{s.name}}</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #A9B4B8">{{s.detail}}</span>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="background: #1D272D; border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; justify-content: space-between; font-size: 13px">
+        <span>Sending rallies first</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; color: #A9B4B8">5G · 41 of 114</span>
+      </div>
+      <div style="height: 6px; border-radius: 3px; background: #2C3940; overflow: hidden"><div style="width: 36%; height: 6px; background: #62C7D5"></div></div>
+      <span style="font-size: 12px; color: #A9B4B8">You can leave. The notification keeps the progress, and you'll get a ping when it's ready.</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var seed = 11;
+    function rnd() { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }
+    var bars = [];
+    for (var i = 0; i < 114; i++) {
+      var shots = 2 + Math.floor(Math.pow(rnd(), 1.8) * 22);
+      var c = i < 41 ? '#F3F0E8' : '#4A585E';
+      if (i === 11) c = '#62C7D5';
+      bars.push({ h: Math.round(5 + shots * 1.3), c: c, m: (i === 38 || i === 78) ? 5 : 0 });
+    }
+    var stages = [
+      { name: 'Court calibrated', detail: '4 corners · ±3 cm', mark: '✓', ring: '#62C7D5', fill: '#62C7D5', text: '#F3F0E8' },
+      { name: 'Players tracked', detail: '2 players', mark: '✓', ring: '#62C7D5', fill: '#62C7D5', text: '#F3F0E8' },
+      { name: 'Shuttle tracked', detail: '41 / 114 rallies', mark: '', ring: '#DCE76B', fill: 'transparent', text: '#F3F0E8' },
+      { name: 'Hits, landings, score', detail: 'next', mark: '', ring: '#4A585E', fill: 'transparent', text: '#A9B4B8' },
+      { name: 'Insights and clips', detail: 'next', mark: '', ring: '#4A585E', fill: 'transparent', text: '#A9B4B8' }
+    ];
+    return { bars: bars, stages: stages };
+  }
+}
+</script>
+</body>
+</html>

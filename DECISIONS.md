@@ -1,0 +1,171 @@
+# DECISIONS.md
+
+The single record of **what we decided and what it touches**. Any change to the plan, to a
+contract, to ownership, or to a rule starts here, before code.
+
+**Rules**
+- A PR that changes `docs/plan/`, `docs/plan/contracts.md`, `packages/contracts/`, `AGENTS.md`,
+  `CLAUDE.md`, `.claude/lanes.json` or `.github/CODEOWNERS` **must add or update an entry here in
+  the same PR** (CI: `scripts/check-pr.sh`). Prefer a small decision-only PR that merges first.
+- One decision per entry. **Append new entries at the end.** Never rewrite an accepted entry's
+  decision: add a new entry and change only the old one's status line to `superseded by D-…`.
+- **IDs never collide:** seeds are D-001…D-015; new IDs are `D-<YYMMDD>-<initials><n>`
+  (e.g. `D-261011-NP1` for nikhilpravinpise's first decision that day).
+- **Blast radius is mandatory** and decides who must sign off: if it touches another person's
+  folder or a contract, every affected person approves the PR before merge.
+- The reasoning behind D-001…D-015 lives in `docs/plan/11-debates.md` and `docs/research/`.
+
+Template (copy to the end of the file):
+
+```markdown
+## D-<YYMMDD>-<initials><n> · Short imperative title
+- **Status:** proposed | accepted | superseded by D-…
+- **Date:** YYYY-MM-DD · **Owner:** @handle (Person n) · **Supersedes:** D-… | none
+- **In one line:** In the context of <slice>, facing <concern>, we decided <option> and rejected
+  <alternatives>, to achieve <benefit>, accepting <cost>.
+- **Context:** 2–4 lines on what forced this now.
+- **Decision:** 1–3 imperative lines: what every affected person must now do.
+- **Alternatives:** (a) … rejected because …; (b) …
+- **Blast radius:**
+  - Contracts: none | sections/schemas; version bump none | minor | major
+  - People and folders: Person n `folder/` must …
+  - Data/infra: migrations, env names (`.env.example`), secrets, Modal/Supabase config
+  - Containment: flag | additive-only | adapter; who signed off
+- **Exit:** how to undo it, and the point of no return.
+- **Proof / evidence:** links to real runs, recordings, measurements.
+- **PRs:** #…
+```
+
+---
+
+## Open (decide, then record as entries)
+1. Product name (shortlist: CourtMemory, RallyMirror, MatchEcho); code uses `elevate` until then.
+2. Modal spend ceiling (card on Person 1's operator account).
+3. The named, rights-cleared badminton clip for fixtures and the demo.
+4. Default badminton ruleset (proposed `bwf_3x21`).
+5. Retention default (proposed: server copy of an original deleted after analysis unless kept).
+6. Referee call-coverage threshold for the evaluation (set before results are seen).
+
+---
+
+## D-001 · Android first, native Kotlin + Compose + Media3, no Android Studio
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @darved2305 (Person 2)
+- **Context:** Team phones are Android (Galaxy S23 FE, Galaxy A55); one iPhone. The product's core
+  is real footage with overlays glued to frames.
+- **Decision:** Kotlin 2.4.20, AGP 9.3.3, Gradle 9.5.0, JDK 17, Compose BOM 2026.09.00, Media3
+  1.11.1, Room 2.8.5, Glance 1.2.0, WorkManager 2.11.2, supabase-kt 3.8.0. Built with the
+  command-line SDK; GitHub Actions as backup builder.
+- **Alternatives:** Expo/React Native (bundled Skia video bug on Android, no per-frame callback,
+  unpredictable EAS queue); Flutter (still needs Kotlin for Media3).
+- **Blast radius:** `android/` · Person 2.
+- **Proof / evidence:** `docs/research/debates/D1-app-stack.md`.
+
+## D-002 · Cloud vision engine on Modal; phones run no ML
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @VrajVed (Person 1)
+- **Context:** Exynos 2200 / 1480 have no verified on-device path for these models.
+- **Decision:** Modal (Python 3.12, Modal SDK 1.6.1, PyAV 19.0.1, FFmpeg 9.0.2) on a T4; one job
+  per analysis; ordered ~6 s windows with overlap. Person 1 is the Modal operator with an agreed
+  spend ceiling.
+- **Blast radius:** `engine/` · Person 1 (operator), Person 3 (caller).
+- **Proof / evidence:** `docs/research/reports/18-device-capabilities.md`, `16-cloud-streaming.md`.
+
+## D-003 · One API: Hono on Supabase Edge Function `api`; Supabase + R2
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @nikhilpravinpise (Person 3)
+- **Decision:** Hono 4.13.13 + `@hono/zod-openapi` 1.6.3 on Edge Function `api`
+  (`{SUPABASE_URL}/functions/v1/api`, routes `/v1/...`); Supabase Postgres `ap-south-1`, Auth,
+  Realtime Broadcast (hint) + REST event cursor (source of truth); private Cloudflare R2 for video
+  and artifacts (presigned with `aws4fetch` 1.0.20). No Cloudflare Worker API, no queue, no SSE.
+- **Blast radius:** `supabase/`, `sdk/`, `mcp/` · Person 3; Persons 1 and 2 consume.
+- **Proof / evidence:** `docs/research/debates/D2-architecture-streaming.md`, reviews R1–R3.
+
+## D-004 · Upload the original with R2 multipart; segment upload later behind a flag
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @darved2305 (Person 2)
+- **Decision:** 8 MiB parts, 2 concurrent, resumable, idempotent completion. Phone-side remux into
+  segments is a Phase 4 upgrade, enabled only after it passes on real S23 FE and A55 gallery files.
+- **Blast radius:** `android/`, `supabase/` · Persons 2 and 3.
+
+## D-005 · Sports scope
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4)
+- **Decision:** Badminton primary (court, rules, tracker). Table tennis: court + rules, no ball
+  tracker. Tennis: court + rules, static-view tracker. Squash, padel, pickleball: listed,
+  unsupported. Free play: one-tap ball tracking on informal footage.
+- **Blast radius:** contracts §9 · all.
+
+## D-006 · Models
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @VrajVed (Person 1)
+- **Decision:** `tracknet_v3` (MIT code + weights) is the badminton default; `dfine_s_coco`
+  (Apache-2.0, sha256 `48a6c8cc…3e89`) for players; `tapir_causal` (Apache-2.0) for free play.
+  WASB-SBDT only as a challenger after its weight licence is checked. No Ultralytics (AGPL).
+- **Blast radius:** `engine/`, contracts §6 · Person 1.
+- **Proof / evidence:** `docs/research/debates/D3-vision-engine.md`, `docs/plan/04-vision-engine.md` §1.
+
+## D-007 · Honesty rules in the product
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4)
+- **Decision:** Referee = MODEL ESTIMATE (IN / OUT / TOO CLOSE TO CALL / UNOBSERVED); the score
+  changes only on a player's confirmation. No km/h; flight time instead. Comparison clips are
+  "SIMILAR MOMENT" below the evidence gate (≥20 comparable decisions, ≥5 per action, ≥3 matches,
+  ≤1 per rally), "WORKED FOR YOU n/N" above it. No win probability. Every number shows its
+  denominator; never a fake progress percentage.
+- **Blast radius:** `android/`, `services/insights/`, `engine/` · Persons 1, 2, 3.
+
+## D-008 · Real clips and real data only: nothing synthetic, for anyone
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4)
+- **Decision:** Every overlay is drawn on real frames; every comparison clip is a real clip with
+  provenance; the only synthetic visual is the top-down court animation, labelled SIMULATED. The
+  shared fixtures are **real**: a rights-cleared real clip hand-labelled by Person 4 (state
+  `user`), replaced by real engine output as soon as it exists. No invented numbers anywhere, in
+  code, fixtures, demos or PR proof.
+- **Blast radius:** all folders · all four.
+
+## D-009 · Proof of real results is the merge bar; tests are regression only
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4)
+- **Decision:** Passing tests never proves the product works. No PR merges without proof on real
+  input in its "Proof" section: Person 1 a real Modal run on a real clip (app/run ID, outputs,
+  detections against labels); Person 2 a screen recording on the S23 FE or A55 with real footage;
+  Person 3 real calls against the deployed API with real IDs; Person 4 real footage, real labels,
+  eval on real engine output. If an upstream is not ready, the PR says which part ran on the
+  hand-labelled real fixture, and the slice is re-proven on the live path at the phase check.
+- **Blast radius:** PR template, CI guard · all four.
+
+## D-010 · Ownership and single writers
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4)
+- **Decision:** Each person edits only their folders (`AGENTS.md` §Folders). Person 1's Modal job
+  never writes Postgres; it reports through `/internal/analyses/{id}/events|artifacts|finalize`.
+  Person 3 alone assigns event `seq`, sends Broadcasts, persists results, runs insights and appends
+  `analysis.completed`. Person 4 owns contracts and `@elevate/rules`; Person 2 owns the Kotlin port.
+- **Blast radius:** all · all four.
+
+## D-011 · Ship in slices to `main`
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4)
+- **Decision:** Small slices; branch `p{n}/{slice}`; lane checks; agent code review; PR with real
+  proof; squash-merge when CI is green; `main` always demoable; whoever breaks `main` fixes it
+  first. LEDGER.md records every merge.
+- **Blast radius:** repo process · all four.
+
+## D-012 · Contracts v1 frozen at the start of Phase 1
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4)
+- **Decision:** `docs/plan/contracts.md` is v1. Changes need all four to agree, a DECISIONS entry
+  with blast radius, a schema version bump, and a matching update to `packages/contracts`.
+- **Blast radius:** contracts · all four.
+
+## D-013 · Team map
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4)
+- **Decision:** Person 1 @VrajVed (vision engine, Modal). Person 2 @darved2305 (Android app;
+  handle to confirm). Person 3 @nikhilpravinpise (API, data, events, insights, SDK, MCP).
+  Person 4 @HetanshWaghela (repo + CI, contracts, rules, footage, evaluation, demo).
+- **Blast radius:** `.github/CODEOWNERS`, `AGENTS.md` · all.
+
+## D-014 · Phases, not deadlines
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4)
+- **Decision:** 1 Foundations → 2 First real result → 3 Full loop → 4 Depth and extras →
+  5 Demo-ready; each ends with one integration check (`docs/plan/10-build-plan.md`).
+- **Blast radius:** planning · all.
+
+---
+
+## D-015 · UI concept is a starting point owned by Person 2
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @darved2305 (Person 2)
+- **Decision:** `docs/ui/` (8 concept screens + tokens) is not final. Person 2 owns the final UI
+  design and `docs/ui/`; layouts, motion and styling may change freely. The product rules
+  (D-007, D-008) stay fixed. Big design changes get a DECISIONS entry.
+- **Blast radius:** `docs/ui/`, `android/` · Person 2.

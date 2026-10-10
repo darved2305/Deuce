@@ -1,0 +1,33 @@
+{
+  "p1": [
+    "engine/",
+    "docs/lanes/person-1.md"
+  ],
+  "p2": [
+    "android/",
+    "docs/lanes/person-2.md",
+    "docs/ui/"
+  ],
+  "p3": [
+    "supabase/",
+    "services/insights/",
+    "sdk/",
+    "mcp/",
+    "docs/lanes/person-3.md",
+    "docs/lanes/person-3-spec.md"
+  ],
+  "p4": [
+    "./*",
+    ".github/",
+    ".claude/",
+    "scripts/",
+    "packages/",
+    "fixtures/",
+    "web/",
+    "demo/",
+    "docs/"
+  ],
+  "shared": [
+    "DECISIONS.md"
+  ]
+}

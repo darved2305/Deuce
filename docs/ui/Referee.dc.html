@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Referee challenge</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#62C7D5;text-decoration:none}a:hover{color:#8FDCE6}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #101519; color: #F3F0E8; font-family: 'IBM Plex Sans', system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <div style="padding: 18px 20px 0 20px; display: flex; flex-direction: column; gap: 4px">
+    <a href="Rally.dc.html" style="display: flex; align-items: center; gap: 4px; font-size: 15px; color: #A9B4B8; height: 40px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
+      Rally 58
+    </a>
+    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.08em; color: #A9B4B8">CHALLENGE · SHOT 31 · ARJUN'S SMASH</div>
+    <h1 style="margin: 0; font-size: 26px; line-height: 1.15; font-weight: 600">Was it in?</h1>
+  </div>
+
+  <div style="padding: 14px 20px 0 20px; display: flex; flex-direction: column; gap: 10px">
+    <div style="position: relative; border-radius: 16px; overflow: hidden">
+      <svg width="350" height="176" viewBox="0 0 350 176" role="img" aria-label="Frozen impact frame zoomed on your left sideline: the shuttle touches the floor inside the line">
+        <rect width="350" height="176" fill="#123F39"></rect>
+        <polygon points="0,0 70,0 20,176 0,176" fill="#0A1719"></polygon>
+        <line x1="70" y1="0" x2="20" y2="176" stroke="#E9E6DC" stroke-width="6"></line>
+        <line x1="104" y1="0" x2="62" y2="176" stroke="#E9E6DC" stroke-width="4" stroke-opacity="0.9"></line>
+        <line x1="0" y1="138" x2="350" y2="138" stroke="#E9E6DC" stroke-width="4" stroke-opacity="0.9"></line>
+        <path d="M150 20 L 128 92" stroke="#DCE76B" stroke-width="1.5" stroke-dasharray="2 4"></path>
+        <g transform="translate(124,104) rotate(-28)">
+          <ellipse cx="0" cy="0" rx="6" ry="4" fill="#F3F0E8"></ellipse>
+          <path d="M-2 -3 L -10 -14 L 10 -14 L 2 -3 Z" fill="#F3F0E8" fill-opacity="0.85"></path>
+        </g>
+        <circle cx="124" cy="107" r="16" fill="none" stroke="#DCE76B" stroke-width="2"></circle>
+        <rect x="236" y="38" width="64" height="98" rx="12" fill="#62C7D5" fill-opacity="0.9"></rect>
+        <circle cx="268" cy="24" r="16" fill="#62C7D5" fill-opacity="0.9"></circle>
+      </svg>
+      <span style="position: absolute; left: 10px; top: 10px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.06em; background: rgba(16,21,25,0.86); padding: 4px 8px; border-radius: 6px">IMPACT · 0:41.27 · 4× ZOOM</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+      <sc-for list="{{frames}}" as="f" hint-placeholder-count="3">
+        <button style="border: {{f.border}}; background: #1D272D; border-radius: 12px; padding: 6px; display: flex; flex-direction: column; gap: 4px; align-items: stretch; cursor: pointer; color: #F3F0E8; font-family: 'IBM Plex Mono', monospace">
+          <svg width="96" height="50" viewBox="0 0 96 50" aria-hidden="true">
+            <rect width="96" height="50" rx="6" fill="#123F39"></rect>
+            <line x1="22" y1="0" x2="8" y2="50" stroke="#E9E6DC" stroke-width="3"></line>
+            <circle cx="{{f.x}}" cy="{{f.y}}" r="3.5" fill="#F3F0E8"></circle>
+          </svg>
+          <span style="font-size: 10px; color: {{f.color}}">{{f.label}}</span>
+        </button>
+      </sc-for>
+    </div>
+
+    <div style="background: #1D272D; border-radius: 16px; padding: 12px 14px 14px 14px; display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; justify-content: space-between; align-items: center">
+        <span style="font-size: 13px; color: #A9B4B8">Top-down, at the line</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #A9B4B8">MODEL ESTIMATE · CONTACT AREA</span>
+      </div>
+      <svg width="322" height="118" viewBox="0 0 322 118" role="img" aria-label="Top-down view: the estimated contact area sits entirely inside the sideline, about 41 centimetres from it">
+        <rect width="322" height="118" rx="10" fill="#0F2A2A"></rect>
+        <rect x="0" y="0" width="58" height="118" fill="#0A1719"></rect>
+        <rect x="58" y="0" width="8" height="118" fill="#E9E6DC"></rect>
+        <ellipse cx="170" cy="60" rx="24" ry="15" fill="#DCE76B" fill-opacity="0.22" stroke="#DCE76B" stroke-width="1.5"></ellipse>
+        <circle cx="170" cy="60" r="3.5" fill="#DCE76B"></circle>
+        <line x1="66" y1="60" x2="146" y2="60" stroke="#F3F0E8" stroke-width="1" stroke-dasharray="3 3"></line>
+        <text x="104" y="52" font-family="IBM Plex Mono, monospace" font-size="11" fill="#F3F0E8" text-anchor="middle">41 cm</text>
+        <text x="29" y="64" font-family="IBM Plex Mono, monospace" font-size="10" fill="#7E8A8F" text-anchor="middle">OUT</text>
+        <text x="270" y="64" font-family="IBM Plex Mono, monospace" font-size="10" fill="#7E8A8F" text-anchor="middle">IN</text>
+        <line x1="236" y1="104" x2="296" y2="104" stroke="#A9B4B8" stroke-width="1.5"></line>
+        <text x="266" y="98" font-family="IBM Plex Mono, monospace" font-size="9" fill="#A9B4B8" text-anchor="middle">20 cm</text>
+      </svg>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 14px">
+      <div style="border: 2px solid #DCE76B; border-radius: 14px; padding: 6px 16px; font-family: 'IBM Plex Mono', monospace; font-size: 40px; font-weight: 600; color: #DCE76B; line-height: 1.1">IN</div>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 15px">Model estimate · about 41 cm inside the sideline</span>
+        <span style="font-size: 12px; color: #A9B4B8">7 observed frames · audio bounce at 0:41.271</span>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 6px; flex-wrap: wrap; font-family: 'IBM Plex Mono', monospace; font-size: 10px">
+      <span style="color: #A9B4B8; padding: 4px 0">CALLS FROM THIS ANGLE</span>
+      <span style="border: 1px solid #34434A; border-radius: 6px; padding: 3px 7px">YOUR SIDELINES ✓</span>
+      <span style="border: 1px solid #34434A; border-radius: 6px; padding: 3px 7px">YOUR BASELINE ✓</span>
+      <span style="border: 1px dashed #5B6A70; color: #7E8A8F; border-radius: 6px; padding: 3px 7px">FAR LINES · TOO FAR</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 8px">
+      <button style="height: 54px; border-radius: 14px; border: 0; background: #F3F0E8; color: #101519; font-family: 'IBM Plex Sans', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer">Confirm · point Arjun 14–17</button>
+      <button style="height: 54px; border-radius: 14px; border: 1px solid #2F3D44; background: transparent; color: #F3F0E8; font-family: 'IBM Plex Sans', sans-serif; font-size: 15px; cursor: pointer">Replay</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      frames: [
+        { label: '−2 FRAMES', x: 56, y: 12, color: '#A9B4B8', border: '1px solid #2F3D44' },
+        { label: 'IMPACT', x: 50, y: 30, color: '#DCE76B', border: '1.5px solid #DCE76B' },
+        { label: '+2 FRAMES', x: 60, y: 22, color: '#A9B4B8', border: '1px solid #2F3D44' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

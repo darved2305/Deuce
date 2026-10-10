@@ -1,0 +1,16 @@
+# Advisory on GitHub Free (auto-requests review); enforced only if the owner enables Pro + branch protection.
+*                       @HetanshWaghela
+/engine/                @VrajVed
+/android/               @darved2305
+/docs/ui/               @darved2305
+/supabase/              @nikhilpravinpise
+/services/insights/     @nikhilpravinpise
+/sdk/                   @nikhilpravinpise
+/mcp/                   @nikhilpravinpise
+/docs/lanes/person-1.md @VrajVed
+/docs/lanes/person-2.md @darved2305
+/docs/lanes/person-3.md @nikhilpravinpise
+/docs/lanes/person-3-spec.md @nikhilpravinpise
+/DECISIONS.md           @HetanshWaghela @VrajVed @darved2305 @nikhilpravinpise
+/docs/plan/contracts.md @HetanshWaghela @VrajVed @darved2305 @nikhilpravinpise
+/packages/contracts/    @HetanshWaghela @VrajVed @darved2305 @nikhilpravinpise

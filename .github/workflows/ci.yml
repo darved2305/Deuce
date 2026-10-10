@@ -1,0 +1,191 @@
+# One workflow, one required check (`ci-gate`). Lane jobs run only when their folders change.
+# Tests here catch regressions; they never replace the real proof in the PR body (D-009).
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard:
+    name: guard (lane, proof, decisions, secrets)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - run: git fetch --no-tags origin main
+      - name: Changes stay inside the author's lane
+        env:
+          ALLOW_CROSS_LANE: ${{ contains(github.event.pull_request.labels.*.name, 'cross-lane') && '1' || '0' }}
+        run: ./scripts/check-lane.sh
+      - name: PR has real proof, decisions recorded, ledger untouched
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: ./scripts/check-pr.sh
+      - name: No secrets in the diff (gitleaks)
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks git --log-opts="origin/main..HEAD" --redact --no-banner
+
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      android: ${{ steps.f.outputs.android }}
+      supabase: ${{ steps.f.outputs.supabase }}
+      engine: ${{ steps.f.outputs.engine }}
+      ts: ${{ steps.f.outputs.ts }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: f
+        with:
+          filters: |
+            shared: &shared
+              - 'packages/contracts/**'
+              - 'packages/rules/**'
+              - '.github/workflows/**'
+            android:
+              - *shared
+              - 'android/**'
+            supabase:
+              - *shared
+              - 'supabase/**'
+            engine:
+              - *shared
+              - 'engine/**'
+              - 'services/insights/**'
+            ts:
+              - *shared
+              - 'packages/**'
+              - 'sdk/**'
+              - 'mcp/**'
+              - 'web/**'
+              - 'demo/**'
+              - 'fixtures/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+
+  android:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Skip until the Gradle project exists
+        id: has
+        run: echo "ok=$([ -f android/gradlew ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - if: steps.has.outputs.ok == 'true'
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - if: steps.has.outputs.ok == 'true'
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - if: steps.has.outputs.ok == 'true'
+        working-directory: android
+        run: ./gradlew assembleDebug lint test --no-daemon
+      - if: steps.has.outputs.ok == 'true' && github.event_name == 'push'
+        name: Debug APK for the phones (adb install -r)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app-debug-${{ github.sha }}
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 5
+
+  supabase:
+    needs: changes
+    if: needs.changes.outputs.supabase == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Skip until the function exists
+        id: has
+        run: echo "ok=$([ -d supabase/functions/api ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - if: steps.has.outputs.ok == 'true'
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: v2.9.7
+      - if: steps.has.outputs.ok == 'true'
+        working-directory: supabase/functions
+        run: |
+          deno fmt --check
+          deno lint
+          deno check api/index.ts
+          if find . -name '*_test.ts' | grep -q .; then deno test --allow-all; fi
+
+  engine:
+    needs: changes
+    if: needs.changes.outputs.engine == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Skip until the Python projects exist
+        id: has
+        run: echo "ok=$([ -f engine/pyproject.toml ] || [ -f services/insights/pyproject.toml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - if: steps.has.outputs.ok == 'true'
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - if: steps.has.outputs.ok == 'true'
+        run: |
+          for d in engine services/insights; do
+            [ -f "$d/pyproject.toml" ] || continue
+            (cd "$d" && uv sync --locked && uv run ruff check . && uv run pytest -q)
+          done
+
+  ts:
+    needs: changes
+    if: needs.changes.outputs.ts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Skip until the pnpm workspace exists
+        id: has
+        run: echo "ok=$([ -f pnpm-workspace.yaml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - if: steps.has.outputs.ok == 'true'
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - if: steps.has.outputs.ok == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: pnpm
+      - if: steps.has.outputs.ok == 'true'
+        name: Install, check, test, and fail if generated files are stale
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm -r --if-present run check
+          pnpm -r --if-present run test
+          git add -N . && git diff --exit-code
+
+  ci-gate:
+    name: ci-gate
+    if: always()
+    needs: [guard, changes, android, supabase, engine, ts]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Fail if any job failed or was cancelled (skipped is fine)
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then exit 1; fi
+          done

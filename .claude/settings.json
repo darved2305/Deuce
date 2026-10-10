@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status *)", "Bash(git diff *)", "Bash(git log *)", "Bash(git show *)",
+      "Bash(git fetch *)", "Bash(git switch *)", "Bash(git branch *)", "Bash(git add *)",
+      "Bash(git commit *)", "Bash(git rebase origin/main)", "Bash(git merge-base *)", "Bash(git config --get *)",
+      "Bash(git push -u origin HEAD)", "Bash(git push --force-with-lease origin HEAD)",
+      "Bash(gh pr create *)", "Bash(gh pr view *)", "Bash(gh pr diff *)", "Bash(gh pr checks *)",
+      "Bash(gh run list *)", "Bash(gh run view *)",
+      "Bash(uv run *)", "Bash(uv sync *)", "Bash(deno test *)", "Bash(deno check *)", "Bash(deno lint *)",
+      "Bash(deno fmt *)", "Bash(pnpm test *)", "Bash(pnpm run *)", "Bash(pnpm -r *)", "Bash(./gradlew *)",
+      "Bash(adb devices)", "Bash(adb logcat *)", "Bash(adb install *)",
+      "Bash(supabase db lint *)", "Bash(supabase functions serve *)", "Bash(npx ctx7@latest *)",
+      "Bash(modal app list *)", "Bash(modal app logs *)", "Bash(modal container list *)",
+      "Bash(./scripts/check-lane.sh)", "Bash(./scripts/check-pr.sh)"
+    ],
+    "ask": [
+      "Bash(pnpm add *)", "Bash(uv add *)", "Bash(supabase db push *)",
+      "Bash(supabase functions deploy *)", "Bash(modal deploy *)", "Bash(modal run *)",
+      "Bash(gh pr merge *)"
+    ],
+    "deny": [
+      "Bash(git push --force *)", "Bash(git push -f *)", "Bash(git push * main)", "Bash(git push origin main)",
+      "Bash(git reset --hard *)", "Bash(rm -rf *)",
+      "Read(.env)", "Read(.env.local)", "Read(.env.*.local)",
+      "Read(**/*.pem)", "Read(**/*.jks)", "Read(**/*.keystore)",
+      "Edit(/sdk/**)", "Edit(/LEDGER.md)", "Edit(**/pnpm-lock.yaml)", "Edit(**/uv.lock)", "Edit(**/deno.lock)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [ { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/lane-guard.sh", "timeout": 10 } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Edit|Write|MultiEdit",
+        "hooks": [ { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-lint.sh", "timeout": 60 } ] }
+    ]
+  }
+}

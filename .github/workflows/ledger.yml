@@ -1,0 +1,49 @@
+# After every merge to main, append one line to LEDGER.md from the merged PR's metadata.
+# Serialized so parallel merges never conflict. Pushes made with GITHUB_TOKEN do not re-trigger CI.
+name: ledger
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ledger
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  append:
+    if: "!contains(github.event.head_commit.message, '[ledger]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+      - name: Append ledger line
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          pr=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/pulls" --jq '.[0]')
+          if [ -z "$pr" ] || [ "$pr" = "null" ]; then echo "direct push, no PR: nothing to record"; exit 0; fi
+          num=$(jq -r .number <<<"$pr")
+          if grep -q "| #${num} |" LEDGER.md; then echo "#${num} already recorded"; exit 0; fi
+          body=$(jq -r '.body // ""' <<<"$pr")
+          field() { awk -v h="## $1" 'index($0,h)==1{f=1;next} /^## /{f=0} f && NF {print; exit}' <<<"$body" | tr '|' '/' | cut -c1-120; }
+          author=$(jq -r .user.login <<<"$pr")
+          title=$(jq -r .title <<<"$pr" | tr '|' '/' | cut -c1-80)
+          lane=$(jq -r .head.ref <<<"$pr" | sed -n 's#^\(p[1-4]\)/.*#\1#p')
+          decisions=$(field Decisions); proof=$(field Proof)
+          contracts=$( [ -f packages/contracts/package.json ] && jq -r '.version' packages/contracts/package.json || echo "v1" )
+          merged=$(date -u +%Y-%m-%dT%H:%MZ)
+          echo "| ${merged} | #${num} | @${author} | ${lane:-?} | ${title} | ${decisions:-none} | ${contracts} | ${proof:-see PR} |" >> LEDGER.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add LEDGER.md
+          git commit -m "ledger: record #${num} [ledger]"
+          for _ in 1 2 3; do git pull --rebase origin main && git push origin HEAD:main && exit 0; sleep 5; done
+          echo "could not push ledger line for #${num}" >&2; exit 1

@@ -1,0 +1,31 @@
+# secrets and local env
+.env
+.env.*
+!.env.example
+*.pem
+*.jks
+*.keystore
+# agent-local files
+.claude/settings.local.json
+CLAUDE.local.md
+.claude/worktrees/
+AGENTS.override.md
+# build output
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+android/.gradle/
+android/**/build/
+android/local.properties
+.DS_Store
+# large media and model weights never go in git (R2 / Modal image instead)
+*.mp4
+*.mov
+*.webm
+*.pt
+*.pth
+*.pth.tar
+*.npy
+*.onnx
+*.mlpackage
