@@ -1,0 +1,2 @@
+-- Intentionally empty (D-008): no synthetic seed data. Real demo records come
+-- from supabase/scripts/seed_demo_match.ts loading Person 4's labelled seed JSON.
