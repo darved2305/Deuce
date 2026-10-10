@@ -12,9 +12,23 @@ export type Deps = {
   verifyJwt: (jwt: string) => Promise<Claims | null>;
 };
 
+// A missing or malformed JWKS falls back to getClaims fetching the project's keys.
+type Jwks = NonNullable<
+  NonNullable<Parameters<SupabaseClient["auth"]["getClaims"]>[1]>["jwks"]
+>;
+
+function parseJwks(raw: string | undefined): Jwks | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.keys) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function verifyJwt(jwt: string): Promise<Claims | null> {
-  const rawJwks = Deno.env.get("SUPABASE_JWKS");
-  const jwks = rawJwks ? JSON.parse(rawJwks) : undefined;
+  const jwks = parseJwks(Deno.env.get("SUPABASE_JWKS"));
   const { data, error } = await userClient(jwt).auth.getClaims(
     jwt,
     jwks ? { jwks } : undefined,

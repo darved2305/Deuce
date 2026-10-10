@@ -16,6 +16,7 @@ export function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+// Paths include the function name: the root app mounts the API at /api (lib/app.ts).
 const PUBLIC_PATHS = new Set(["/api/v1/health", "/api/v1/openapi.json"]);
 
 export const internalAuth = createMiddleware<AppEnv>(async (c, next) => {
