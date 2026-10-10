@@ -27,6 +27,11 @@ def resize_chw(rgb: np.ndarray) -> np.ndarray:
     return np.moveaxis(np.asarray(img), -1, 0).astype(np.float64)
 
 
+def resize_chw_uint8(rgb: np.ndarray) -> np.ndarray:
+    """resize_chw kept as uint8 (exact: PIL's output is uint8) to hold many frames in memory."""
+    return resize_chw(rgb).astype(np.uint8)
+
+
 def ensemble_weight(seq_len: int) -> np.ndarray:
     """Official 'weight' mode: triangular positional weights, normalised."""
     w = np.ones(seq_len)

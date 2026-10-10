@@ -266,25 +266,6 @@ def run_official(mode: str = "full") -> dict:
             "torch": torch_info.strip(), "steps": outputs}  # fmt: skip
 
 
-def _windows(model, median, frames, seq_len: int, n_win: int, batch: int = 16):
-    """Yield TrackNet's (seq_len, H, W) heatmaps for every step-1 window, in order.
-
-    Input as the official dataset builds it: [median, f_i .. f_i+7], float64 / 255, then float32.
-    """
-    import numpy as np
-    import torch
-
-    for start in range(0, n_win, batch):
-        x = np.stack(
-            [
-                np.concatenate([median, *frames[i : i + seq_len]]) / 255.0
-                for i in range(start, min(start + batch, n_win))
-            ]
-        )
-        with torch.no_grad():
-            yield from model(torch.from_numpy(x).float().cuda()).cpu().numpy()
-
-
 def _read_labels(csv_path: Path) -> list[tuple[int, float, float]]:
     """(frame, x, y) rows sorted by frame; empty cells are 0 (official: fillna(0))."""
     import csv
@@ -318,6 +299,7 @@ def run_port(max_rallies: int = 0) -> dict:
 
     from elevate_engine.log import log
     from elevate_engine.tracknet import infer
+    from elevate_engine.tracknet import run as tracknet_run
     from elevate_engine.tracknet.model import from_checkpoint
     from elevate_engine.weights import load_checkpoints, load_manifest
 
@@ -356,7 +338,7 @@ def run_port(max_rallies: int = 0) -> dict:
             n_win = len(frames) - seq_len + 1
 
             types, preds = [], []
-            windows = _windows(model, median, frames, seq_len, n_win)
+            windows = tracknet_run.windows(model, median, frames, seq_len)
             for i, heat in enumerate(infer.ensemble_stream(windows, n_win)):
                 found = infer.blobs(heat)
                 agree["frames_with_extra_candidates"] += len(found) > 1
