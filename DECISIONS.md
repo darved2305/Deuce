@@ -564,7 +564,6 @@ Template (copy to the end of the file):
   Python `jsonschema` accepts it; 14 tests pass.
 - **PRs:** this PR.
 
-<<<<<<< Updated upstream
 ## D-261011-HW5 · CI fails when the API's vendored contracts are stale; contract PRs regenerate them
 - **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
 - **In one line:** In the context of `packages/contracts` being vendored into the Edge Function
@@ -669,47 +668,6 @@ Template (copy to the end of the file):
 - **Proof / evidence:** `pnpm --filter @elevate/contracts run check`; shared BWF rule vectors in
   `packages/rules/vectors/bwf_3x21.json`.
 - **PRs:** this PR.
-<<<<<<< HEAD
-=======
-## D-261011-HW9 · Additional four-lane plan (proposed, reference; post-demo queue)
-- **Status:** proposed
-- **Date:** pending team-lead ratification · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
-- **In one line:** In the context of the Phase 2–3 queue, facing camera-motion and evidence gaps,
-  propose a tiered set of small additions led by Person 1's always-on camera path and primitive
-  outputs, accepting separate contract work and real-footage proof before any capability is
-  called verified.
-- **Context:** `docs/plan/13-additional-plan.md` inserts the additions into each current queue;
-  `docs/lanes/person-1-spec.md` defines the engine stages; `docs/plan/14-inference-catalog.md`
-  defines the app-facing data catalog. The supplied reports show a real TrackNet baseline and
-  static back-wall false positives, while the integrated camera path, events, segments, and
-  insights remain incomplete.
-- **Decision:** Keep the camera path always on, with the identity path for a fixed camera. Person 1
-  emits measured timing, geometry, and confidence primitives; Person 3 persists them and derives
-  aggregates, patterns, and simulations; Person 2 selects presentation from data actually present.
-  Treat all additions as proposed tiers until the team lead ratifies queue order and the separate
-  contract amendments are reviewed.
-- **Alternatives:** (a) keep camera handling as an optional motion-gated branch, rejected because
-  downstream geometry needs one consistent coordinate path; (b) compute movement and match
-  aggregates in Android, rejected because Person 3 owns insights and Person 2 should present the
-  shared record.
-- **Blast radius:**
-  - Contracts: proposed additive `camera_path.v1`, `timeline.v1`, #20 and segment amendments, plus
-    optional metric/player/review/simulation fields; no schema is changed by this proposal.
-  - People and folders: Person 1 `engine/`; Person 2 `android/`; Person 3 `supabase/`; Person 4
-    `docs/`, `packages/`, `fixtures/`, and `scripts/`.
-  - Data/infra: real Modal runs remain under D-261010-VV1; R2 writes remain under
-    D-261011-HW2. No new services or credentials.
-  - Containment: proposed only; additive schemas require their own PR, generated artifacts, and
-    all affected lane sign-offs before implementation.
-- **Exit:** The team lead may accept, reorder, or supersede this proposal before implementation.
-  Already merged additive slices can be hidden or removed through their own reviewed PRs.
-- **Proof / evidence:** `research/out/plan-context/pr22-person1.md`, `pr24-person1.md`,
-  `issue20-contract-gaps.md`, `issue26-person3-status.md`, `inference-table.md`,
-  `research/out/engine-roadmap/roadmap.md`, and `research/out/S1-stabilisation-findings.md`.
-  Evidence and acceptance bars are recorded in `docs/plan/13-additional-plan.md`.
-- **PRs:** pending.
->>>>>>> Stashed changes
-=======
 
 ## D-261011-HW10 · Tonight's order: the live loop on the A55 first, polish tracks in parallel
 - **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
@@ -747,4 +705,41 @@ Template (copy to the end of the file):
 - **Blast radius:** Person 3 (finalize, confirm, compare, metrics PK); Person 1 (reviews in
   `vision_result.v1` send null confirmations); Person 2 (readers accept nulls). Contracts 1.7.0.
 - **PRs:** this PR.
->>>>>>> origin/main
+
+## D-261011-HW9 · Additional four-lane plan (proposed, reference; post-demo queue)
+- **Status:** proposed
+- **Date:** pending team-lead ratification · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of the Phase 2–3 queue, facing camera-motion and evidence gaps,
+  propose a tiered set of small additions led by Person 1's always-on camera path and primitive
+  outputs, accepting separate contract work and real-footage proof before any capability is
+  called verified.
+- **Context:** `docs/plan/13-additional-plan.md` inserts the additions into each current queue;
+  `docs/lanes/person-1-spec.md` defines the engine stages; `docs/plan/14-inference-catalog.md`
+  defines the app-facing data catalog. The supplied reports show a real TrackNet baseline and
+  static back-wall false positives, while the integrated camera path, events, segments, and
+  insights remain incomplete.
+- **Decision:** Keep the camera path always on, with the identity path for a fixed camera. Person 1
+  emits measured timing, geometry, and confidence primitives; Person 3 persists them and derives
+  aggregates, patterns, and simulations; Person 2 selects presentation from data actually present.
+  Treat all additions as proposed tiers until the team lead ratifies queue order and the separate
+  contract amendments are reviewed.
+- **Alternatives:** (a) keep camera handling as an optional motion-gated branch, rejected because
+  downstream geometry needs one consistent coordinate path; (b) compute movement and match
+  aggregates in Android, rejected because Person 3 owns insights and Person 2 should present the
+  shared record.
+- **Blast radius:**
+  - Contracts: proposed additive `camera_path.v1`, `timeline.v1`, #20 and segment amendments, plus
+    optional metric/player/review/simulation fields; no schema is changed by this proposal.
+  - People and folders: Person 1 `engine/`; Person 2 `android/`; Person 3 `supabase/`; Person 4
+    `docs/`, `packages/`, `fixtures/`, and `scripts/`.
+  - Data/infra: real Modal runs remain under D-261010-VV1; R2 writes remain under
+    D-261011-HW2. No new services or credentials.
+  - Containment: proposed only; additive schemas require their own PR, generated artifacts, and
+    all affected lane sign-offs before implementation.
+- **Exit:** The team lead may accept, reorder, or supersede this proposal before implementation.
+  Already merged additive slices can be hidden or removed through their own reviewed PRs.
+- **Proof / evidence:** `research/out/plan-context/pr22-person1.md`, `pr24-person1.md`,
+  `issue20-contract-gaps.md`, `issue26-person3-status.md`, `inference-table.md`,
+  `research/out/engine-roadmap/roadmap.md`, and `research/out/S1-stabilisation-findings.md`.
+  Evidence and acceptance bars are recorded in `docs/plan/13-additional-plan.md`.
+- **PRs:** pending.
