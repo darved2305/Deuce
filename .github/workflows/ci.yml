@@ -76,6 +76,7 @@ jobs:
               - 'web/**'
               - 'demo/**'
               - 'fixtures/**'
+              - 'engine/elevate_engine/models.json'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'

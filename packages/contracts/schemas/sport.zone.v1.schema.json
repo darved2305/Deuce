@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "enum": [
+    "F1",
+    "F2",
+    "F3",
+    "M1",
+    "M2",
+    "M3",
+    "B1",
+    "B2",
+    "B3",
+    "S",
+    "L"
+  ],
+  "type": "string"
+}

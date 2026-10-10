@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "ball_profile": {
+      "additionalProperties": false,
+      "properties": {
+        "behaviour": {
+          "enum": [
+            "ball",
+            "shuttle"
+          ],
+          "type": "string"
+        },
+        "diameter_mm": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "diameter_mm",
+        "behaviour"
+      ],
+      "type": "object"
+    },
+    "court_templates": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "length_m": {
+            "type": "number"
+          },
+          "lines": {
+            "items": {},
+            "type": "array"
+          },
+          "width_m": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "length_m",
+          "width_m",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "propertyNames": {
+        "enum": [
+          "singles",
+          "doubles"
+        ],
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "event_vocabulary": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "formats": {
+      "items": {
+        "enum": [
+          "singles",
+          "doubles"
+        ],
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "ruleset_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "sport": {
+      "enum": [
+        "badminton",
+        "table_tennis",
+        "tennis",
+        "free_play",
+        "squash",
+        "padel",
+        "pickleball"
+      ],
+      "type": "string"
+    },
+    "tracker_ids": {
+      "items": {
+        "enum": [
+          "tracknet_v3",
+          "wasb_hrnet_badminton",
+          "wasb_hrnet_tennis",
+          "dfine_s_coco",
+          "tapir_causal"
+        ],
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "zone_grid": {}
+  },
+  "required": [
+    "sport",
+    "formats",
+    "court_templates",
+    "ruleset_ids",
+    "ball_profile",
+    "event_vocabulary",
+    "zone_grid",
+    "tracker_ids"
+  ],
+  "type": "object"
+}

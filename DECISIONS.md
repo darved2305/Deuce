@@ -354,3 +354,40 @@ Template (copy to the end of the file):
 - **Proof / evidence:** local `supabase db reset`, `supabase db lint` and `supabase test db`
   (`supabase/tests/dispatch_test.sql`) in the PR; live proof comes with the dispatch routes slice.
 - **PRs:** #8
+
+## D-261010-HW2 · `@elevate/contracts` is the single source of truth for contracts v1
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of every lane needing the same data shapes, facing drift between
+  TypeScript, Deno, Python and Kotlin, we decided zod 4 schemas in `packages/contracts/src` with
+  generated JSON Schemas and spec-sync tests, and rejected hand-written schemas per lane.
+- **Context:** Person 3 (API, SDK, MCP) and Person 2 (Android) are blocked on the schemas; Person 1
+  validates engine output in CI.
+- **Decision:**
+  1. `packages/contracts/src` (zod 4.6.5) is the source. `schemas/*.schema.json` (draft 2020-12) are
+     generated and committed; CI fails if they are stale. Person 3 vendors `src/` into Deno;
+     Person 1 validates with Python `jsonschema`; Person 2 generates or validates Kotlin from
+     `schemas/`.
+  2. Producers validate strictly (unknown fields rejected); readers ignore unknown fields, so
+     additive changes never break a deployed reader. Breaking changes ship as `.v2` beside `.v1`.
+  3. Tests fail when `contracts.md` and the schemas disagree: every fenced JSON example and every
+     enum written in its prose.
+  4. Interpretations of v1 (no contract change): the engine posts only `analysis.started`,
+     `window.completed`, `window.failed`, `analysis.failed` to `/internal` (§3, D-261010-NP1);
+     times are never negative (§0); the badminton court template must equal
+     `badminton_<format>` (§2); a free-play floor rectangle carries its four named tapped corners
+     (§2); a match event with `contact_xy_m` needs `plane`, and an airborne event may carry
+     `image_xy` instead (§0; additive optional field).
+  5. Rules JSON Schema cannot express (range order, template vs format, contact needs plane) are
+     listed in the package README with a Python check.
+- **Alternatives:** (a) hand-written JSON Schema, rejected: a second source drifts; (b) OpenAPI as
+  the source, rejected: it does not cover R2 artifacts (`window_result.v1`) or Kotlin models.
+- **Blast radius:**
+  - People and folders: Person 1 validates `window_result.v1` / `vision_result.v1` from
+    `schemas/`; Person 2 builds models from `schemas/`; Person 3 vendors `src/` and uses it in
+    `@hono/zod-openapi`; Person 4 owns `packages/contracts`.
+  - Contracts: v1 unchanged except the additive optional `image_xy` on match events.
+  - Containment: open questions are listed in `packages/contracts/CHANGELOG.md` for the
+    contracts amendment PR (D-012 sign-off by all four).
+- **Exit:** revert the package PR; nothing else imports it yet.
+- **Proof / evidence:** the PR's Proof section (Python, Deno, Hono and CI runs).
+- **PRs:** this PR.

@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidates": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "attribution": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clip_id": {
+            "anyOf": [
+              {
+                "pattern": "^c_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_r_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_sh_[A-Za-z0-9_-]+$",
+                "type": "string"
+              }
+            ]
+          },
+          "distance": {
+            "type": "number"
+          },
+          "evidence": {
+            "additionalProperties": false,
+            "properties": {
+              "matches": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "of": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "rallies": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "won": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "won",
+              "of",
+              "matches",
+              "rallies"
+            ],
+            "type": "object"
+          },
+          "matched_features": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "provenance": {
+            "enum": [
+              "own",
+              "shared",
+              "team_reference",
+              "public_cc"
+            ],
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "similar_moment",
+              "worked_for_you",
+              "coach_pick",
+              "simulated"
+            ],
+            "type": "string"
+          },
+          "shot_id": {
+            "pattern": "^sh_[A-Za-z0-9_-]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "shot_id",
+          "clip_id",
+          "distance",
+          "matched_features",
+          "role",
+          "evidence",
+          "provenance",
+          "attribution"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "query_shot_id": {
+      "pattern": "^sh_[A-Za-z0-9_-]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "query_shot_id",
+    "candidates"
+  ],
+  "type": "object"
+}

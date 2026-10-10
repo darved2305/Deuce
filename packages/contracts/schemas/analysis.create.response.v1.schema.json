@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "analysis_id": {
+      "pattern": "^a_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "awaiting_upload",
+        "uploaded",
+        "queued",
+        "processing",
+        "partial",
+        "finalizing",
+        "completed",
+        "failed"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "analysis_id",
+    "state"
+  ],
+  "type": "object"
+}

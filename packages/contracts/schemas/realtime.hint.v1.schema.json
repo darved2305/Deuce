@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "analysis_id": {
+      "pattern": "^a_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "latest_seq": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "number"
+    }
+  },
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "latest_seq"
+  ],
+  "type": "object"
+}
