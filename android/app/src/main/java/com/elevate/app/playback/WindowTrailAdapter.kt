@@ -61,6 +61,7 @@ object WindowTrailAdapter {
         var unmatched = 0
         var userExcluded = 0
         var last = Long.MIN_VALUE
+        var lastIdx = -1
         for (i in 0 until n) {
             if (ball.state[i] == BallTrack.USER) { userExcluded++; continue }
             var tu = ball.tUs[i]
@@ -70,11 +71,23 @@ object WindowTrailAdapter {
                 tu = frames[f]
             }
             if (coverageUs.none { tu in it }) { unmatched++; continue }
-            // Two rows snapped onto one frame: the first wins (rows are time-sorted); count the other.
-            if (tu == last) { unmatched++; continue }
+            // Two rows on one frame (e.g. several shuttle candidates): keep the higher confidence one
+            // (null confidence ranks lowest) and count the other as unmatched.
+            if (tu == last) {
+                unmatched++
+                val prev = lastIdx
+                if (prev >= 0 && rank(ball.conf[i]) > rank(ball.conf[prev])) {
+                    keep[prev] = false
+                    t[i] = tu
+                    keep[i] = true
+                    lastIdx = i
+                }
+                continue
+            }
             t[i] = tu
             keep[i] = true
             last = tu
+            lastIdx = i
         }
         val idx = (0 until n).filter { keep[it] }
         if (idx.isEmpty()) return null
@@ -107,6 +120,8 @@ object WindowTrailAdapter {
     }
 
     /** Index of the frame nearest [us] within ±[tol], or -1. */
+    private fun rank(conf: Float) = if (conf.isNaN()) -1f else conf
+
     internal fun nearestFrame(frames: LongArray, us: Long, tol: Long): Int {
         if (frames.isEmpty()) return -1
         val i = TimeMapping.lowerBound(frames, us)

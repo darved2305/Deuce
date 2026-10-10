@@ -132,11 +132,17 @@ class WindowResultStore(
             rows += row
         }
         rows.sortBy { it.tUs }
-        // Two rows for the same frame inside one window: identical is harmless, different is untrustworthy.
+        // Several rows for one frame: identical copies collapse. Several *candidates* are normal
+        // (the tracker proposes more than one blob per frame; the reader picks among them). Two
+        // different observed/inferred/user positions for one frame contradict each other: rejected.
         val deduped = ArrayList<Row>(rows.size)
         for (group in rows.groupBy { it.tUs }.values) {
-            if (group.all { it == group[0] }) deduped += group[0]
-            else reasons += "t ${group[0].tUs} µs given ${group.size} times with different values"
+            val distinct = group.distinct()
+            when {
+                distinct.size == 1 -> deduped += distinct[0]
+                distinct.all { it.state == BallTrack.CANDIDATE } -> deduped += distinct
+                else -> reasons += "t ${group[0].tUs} µs given ${group.size} times with different values"
+            }
         }
         val players = result.players.count { p -> (p.getOrNull(0) as? JsonPrimitive)?.longOrNull?.let { it * 1000 in emit } == true }
         val w = Window(
@@ -166,11 +172,13 @@ class WindowResultStore(
     fun track(): BallTrack {
         cached?.let { return it }
         val versions = windows.values.map { it.engineVersion }.distinct()
-        // Higher window_seq first so that, after a stable sort by time, the later window wins a boundary tie.
-        val all = windows.values.reversed().flatMap { w -> w.rows.map { it to versions.indexOf(w.engineVersion) } }
-            .sortedBy { it.first.tUs }
-        val keep = ArrayList<Pair<Row, Int>>(all.size)
-        for (p in all) if (keep.lastOrNull()?.first?.tUs != p.first.tUs) keep += p
+        // One row per frame. At a window boundary the later window wins; inside one window, several
+        // candidates for a frame resolve to the highest confidence (null confidence ranks lowest).
+        val all = windows.values.flatMap { w -> w.rows.map { Triple(it, versions.indexOf(w.engineVersion), w.windowSeq) } }
+        val keep = all.groupBy { it.first.tUs }.toSortedMap().values.map { group ->
+            val lastWindow = group.maxOf { it.third }
+            group.filter { it.third == lastWindow }.maxBy { if (it.first.conf.isNaN()) -1f else it.first.conf }
+        }.map { it.first to it.second }
         val n = keep.size
         return BallTrack(
             tUs = LongArray(n) { keep[it].first.tUs },
