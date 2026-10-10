@@ -95,7 +95,12 @@ def track_windows(per_window: Sequence[dict], cfg: TrackingConfig) -> tuple[list
 
 
 def window_result(
-    analysis_id: str, plan: WindowPlan, res: dict, rows: Sequence[list], models: Sequence[str]
+    analysis_id: str,
+    plan: WindowPlan,
+    res: dict,
+    rows: Sequence[list],
+    models: Sequence[str],
+    players: Sequence[list] = (),
 ) -> dict:
     """window_result.v1 for one planned window from the tracked rows inside its range."""
     lo, hi = plan.emit
@@ -109,7 +114,9 @@ def window_result(
         "camera_motion_px": res["camera_motion_px"],
         "blur_index": res["blur_index"],
     }
-    return win.build(analysis_id, plan.seq, plan.decode, plan.emit, inside, quality, models)
+    return win.build(
+        analysis_id, plan.seq, plan.decode, plan.emit, inside, quality, models, players
+    )
 
 
 def window_for_posting(
