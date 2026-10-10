@@ -169,3 +169,81 @@ Template (copy to the end of the file):
   design and `docs/ui/`; layouts, motion and styling may change freely. The product rules
   (D-007, D-008) stay fixed. Big design changes get a DECISIONS entry.
 - **Blast radius:** `docs/ui/`, `android/` · Person 2.
+
+## D-261010-NP1 · Apply the audited Person-3 spec corrections before implementation
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @nikhilpravinpise (Person 3) · **Supersedes:** none
+- **In one line:** In the context of Person 3's first slices, facing blocking corrections found by
+  the pre-push audit, we decided to amend `person-3-spec.md` per `docs/AUDIT-FINDINGS.md` items
+  17-25 and rejected implementing the spec as written, to avoid baking in known bugs, accepting a
+  spec rewrite before any code lands.
+- **Context:** The independent audit exercised the scripts and SQL in a scratch copy and found
+  blockers (a double `/api` path prefix, PostgREST unable to increment `dispatch_attempts`,
+  Broadcast failures killing appends, an insights-on-Modal plan that collides with "only Person 1
+  deploys Modal", missing read endpoints the app already needs). Fixing them now is cheaper than
+  after code exists.
+- **Decision:** implement the spec with these corrections, all of which are now written into
+  `docs/lanes/person-3-spec.md`:
+  1. Mounting: `const api = new OpenAPIHono()` serves `/v1` routes and `api.doc('/v1/openapi.json')`;
+      `const root = new Hono().route('/api', api); Deno.serve(root.fetch)`. No `basePath` (it made the
+      spec emit `/api/v1/...` so generated SDKs would call `/api/api/v1`).
+  2. Internal event posts accept the contract `decode_window_us` / `emit_range_us` arrays, mapped to
+      the four `*_us` columns; `engine_version` optional, set on `analysis.started`; the cursor
+      returns the same arrays.
+  3. `append_event` is the audit's tested version: row lock on the run, `(type, window_seq)` dedupe
+      inside the lock (Modal retries return the existing row, no new `seq`), the state-transition
+      table, state + `engine_version` + `failure_reason` updated on the run, Broadcast failure becomes
+      a warning, never a failed append.
+  4. `analysis_runs` gains `finalized_at`, `dispatch_claimed_at` and `players`, `calibration`,
+      `capabilities`, `models` jsonb; a partial unique index allows at most one non-terminal run per
+      session; an `idempotency` table stores the response body for 24 h.
+  5. `ingest_vision_result(p_analysis_id, p_result jsonb)` persists the vision result in one
+      transaction, sets `finalized_at` (second call -> `already_finalized`), appends
+      `analysis.finalizing`, runs insights in SQL, then appends the single `analysis.completed`.
+      `analysis.finalizing` is removed from the Modal-allowed event list; `analysis.partial` stays in
+      the enum but is not emitted in V1; the first `window.completed` flips state to `partial`.
+  6. Dispatch: `analysis.queued` is appended BEFORE the Modal call; claiming is the atomic
+      `claim_dispatch` RPC (`dispatch_claimed_at` lease, stale after 60 s); `create_analysis_run`
+      does the idempotent insert; a `POST /v1/analyses` with a fresh `Idempotency-Key` while a live
+      run exists returns the live run (the partial unique index, not a second GPU job);
+      `session_spec` is the contracts section 2 body assembled by SQL.
+  7. Insights run as deterministic SQL inside `ingest_vision_result`, not as a Python job on Modal:
+      hero insight = eligible metric (tier not `unsupported`, denominator >= 5) ranked by
+      `abs(num/den - 0.5)` desc, `den` desc, key asc, else the longest observed rally clip; finalize
+      writes moments, insights only tags them; `compare_shot(...)` is a SQL function implementing
+      section 10.3 exactly. `services/insights/` is unused in V1.
+  8. RLS written in full: `sessions` insert additionally checks that `match_id` is owned; every
+      select-only policy spelled out; explicit `grant select ... to authenticated` and
+      `grant all ... to service_role`; deletes go through the admin client after an ownership check.
+  9. Child IDs supplied by Person 1 are kept verbatim with primary key `(match_id, id)`. The score is
+      the contiguous prefix of rallies with a user-confirmed winner, recomputed through vendored
+      `@elevate/rules`.
+  10. API surface additions go to `contracts.md` in their own all-four-sign-off PR:
+      `GET /v1/capabilities`, `GET /v1/analyses/{id}`, `GET /v1/matches`, `GET /v1/sessions/{id}`,
+      `GET /v1/matches/{id}/rallies` + `/{rid}`, `GET /v1/matches/{id}/moments`, `GET /v1/moments`,
+      `GET /v1/players/{id}/history`, `GET /v1/export/{id}.rally`, share-grants, embed-tokens,
+      developer-keys (moved to Phase 3: MCP needs them) and the `StubAnalysis` definition.
+  11. `packages/contracts` zod schemas are vendored into `api/lib/contracts_vendor` the same way as
+      rules (`supabase/scripts/sync-*.ts`, generated-header, CI freshness check). Helper scripts live
+      in `supabase/scripts/`, not `functions/scripts/`. Person 4 keeps `packages/rules`
+      zero-dependency with explicit `.ts` imports so Deno can run it unbundled.
+- **Alternatives:** (a) implement the spec as written - rejected, the audit found real bugs;
+  (b) keep insights on Modal - rejected, only Person 1 deploys Modal and it adds a second trigger
+  path plus new secrets for a deterministic job SQL does inside the same transaction;
+  (c) hand-maintain the API's zod schemas - rejected, contracts are law so they are vendored.
+- **Blast radius:**
+  - Contracts: sections 3, 7, 8 and the StubAnalysis note; version bump minor, additive only; the
+    `contracts.md` edits land in their own PR (D-012 sign-off by all four).
+  - People and folders: Person 3 `supabase/`, `sdk/`, `mcp/`, `docs/lanes/person-3-spec.md` implements
+    per above; Person 1 posts only `analysis.started`, `window.completed`, `window.failed`,
+    `analysis.failed` to `/internal` and receives `session_spec` as the section-2 body; Person 4
+    keeps `packages/rules` zero-dep with `.ts` imports and lands `capabilities.json`; Person 2 is
+    unaffected (additions only).
+  - Data/infra: migrations per spec section 5 as amended; env names `INTERNAL_API_TOKEN`,
+    `EMBED_SIGNING_KEY`, `API_BASE_URL`, `R2_*`, `MODAL_SUBMIT_*` (`.env.example` update requested
+    from Person 4); `services/insights/` stays empty in V1.
+  - Containment: additive-only; no app-visible contract removal; contract PR needs all four.
+- **Exit:** before the first code merge, revert by superseding this entry; after merges, changes go
+  through normal decisions. Point of no return is the contracts amendment PR merging.
+- **Proof / evidence:** `docs/AUDIT-FINDINGS.md` items 17-25 (tested in the audit's scratch copy);
+  the replacement `append_event` is quoted verbatim from there.
+- **PRs:** this PR; contracts amendment PR to follow.
