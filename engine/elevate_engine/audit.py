@@ -11,8 +11,10 @@ from pathlib import Path
 
 import av
 
-# A frame step longer than this multiple of the nominal step is a long step.
+# A frame step longer than this multiple of the base step is a long step.
 LONG_FACTOR = 1.5
+# The base step is this percentile of all positive steps.
+BASE_PERCENTILE = 0.10
 # Steps may jitter by this fraction of the nominal step (or two timebase ticks, whichever is
 # larger) before the clip counts as variable frame rate.
 VFR_TOLERANCE = 0.10
@@ -33,7 +35,10 @@ def audit_pts(pts: list[int], time_base: Fraction) -> dict:
     positive = [s for s in steps_ms if s > 0]
     if not positive:
         raise ValueError("all frames share one PTS; cannot audit timing")
-    long_limit_ms = LONG_FACTOR * statistics.median(positive)
+    # Base the threshold on the fast end (p10), not the median: if a frame-rate drop covers most
+    # of the clip, the median would become the slow step and hide both the drop and real gaps.
+    base_ms = sorted(positive)[int(BASE_PERCENTILE * (len(positive) - 1))]
+    long_limit_ms = LONG_FACTOR * base_ms
 
     def at_ms(i: int) -> int:
         return round((ordered[i] - ordered[0]) * tick_ms)

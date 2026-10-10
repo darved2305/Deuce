@@ -50,15 +50,17 @@ def test_probe_real_clip():
     assert report["gaps"] == audit_pts(DATA["pts"], TIME_BASE)["gaps"]
 
 
-def test_frame_rate_drop_is_vfr_not_gaps():
-    # The real timestamps with every other frame removed after 15 s: 30 fps becomes 15 fps.
-    pts = [p for i, p in enumerate(DATA["pts"]) if p < 15000 or i % 2 == 0]
+@pytest.mark.parametrize("drop_at_ms", [15000, 5000])  # 5000: the drop covers most steps
+def test_frame_rate_drop_is_vfr_not_gaps(drop_at_ms):
+    # The real timestamps with every other frame removed after the drop: 30 fps becomes 15 fps.
+    pts = [p for i, p in enumerate(DATA["pts"]) if p < drop_at_ms or i % 2 == 0]
     report = audit_pts(pts, TIME_BASE)
     assert report["vfr"] is True
     assert report["gaps"] == [{"after_ms": 833, "step_ms": 67.0}]
     [segment] = report["slow_segments"]
     assert segment["median_step_ms"] == pytest.approx(66.7, abs=0.5)
     assert segment["steps"] > 100
+    assert report["nominal_fps"] == pytest.approx(30.0, abs=0.05)
 
 
 def test_rejects_too_few_frames():
