@@ -1,0 +1,36 @@
+{
+  "tracknet_v3": {
+    "descriptor": {
+      "id": "tracknet_v3",
+      "name": "TrackNetV3 (TrackNet + InpaintNet rectification)",
+      "source_url": "https://github.com/qaz812345/TrackNetV3",
+      "file": "TrackNetV3_ckpts.zip",
+      "sha256": "8de68d34ea2457e368e22947f1309143d60a6a7f9ddccd31cd526d4c4571bcc4",
+      "bytes": 131653952,
+      "code_license": "MIT",
+      "weights_license": "MIT",
+      "trained_on": ["Shuttlecock Trajectory Dataset"],
+      "used_for": ["shuttle"]
+    },
+    "download_url": "https://drive.usercontent.google.com/download?id=1CfzE87a0f6LhBp0kniSl1-89zaLCZ8cA&confirm=t",
+    "members": {
+      "tracknet": "ckpts/TrackNet_best.pt",
+      "inpaintnet": "ckpts/InpaintNet_best.pt"
+    }
+  },
+  "dfine_s_coco": {
+    "descriptor": {
+      "id": "dfine_s_coco",
+      "name": "D-FINE-S (COCO)",
+      "source_url": "https://github.com/Peterande/D-FINE",
+      "file": "dfine_s_coco.pth",
+      "sha256": "48a6c8cc43eb57186843f752e2e8461ddd3326e0d3c575e71e6e960844683e89",
+      "bytes": 41841422,
+      "code_license": "Apache-2.0",
+      "weights_license": "Apache-2.0",
+      "trained_on": ["COCO"],
+      "used_for": ["players"]
+    },
+    "download_url": "https://github.com/Peterande/storage/releases/download/dfinev1.0/dfine_s_coco.pth"
+  }
+}
