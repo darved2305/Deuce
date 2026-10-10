@@ -58,3 +58,11 @@ def test_assembled_real_windows_validate_and_cover_the_range_in_order():
     spans = [tuple(v // 1000 for v in w["emit_range_us"]) for w in windows]
     assert spans[0][0] == 31000 and spans[-1][1] == 91000
     assert all(a[1] == b[0] for a, b in zip(spans, spans[1:], strict=False))
+
+
+def test_posting_each_window_with_its_neighbours_equals_the_full_assembly():
+    plans = pipeline.plan_windows(31000, 91000)
+    ws = per_window(31000, 91000)
+    full, _ = pipeline.assemble("a_x", plans, ws, BADMINTON)
+    for k in range(len(ws)):
+        assert pipeline.window_for_posting("a_x", plans, ws, k, BADMINTON) == full[k]

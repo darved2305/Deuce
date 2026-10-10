@@ -112,6 +112,17 @@ def window_result(
     return win.build(analysis_id, plan.seq, plan.decode, plan.emit, inside, quality, models)
 
 
+def window_for_posting(
+    analysis_id: str, plans: Sequence[WindowPlan], results: Sequence[dict], k: int,
+    cfg: TrackingConfig, models: Sequence[str] = ("tracknet_v3",),
+) -> dict:  # fmt: skip
+    """Window k tracked over its neighbours k-1..k+1 only (bounded work per window). On the
+    h13g working clip this equals tracking the whole range at once for every window."""
+    lo, hi = max(0, k - 1), min(len(results), k + 2)
+    rows, _ = track_windows(results[lo:hi], cfg)
+    return window_result(analysis_id, plans[k], results[k], rows, models)
+
+
 def assemble(
     analysis_id: str,
     plans: Sequence[WindowPlan],

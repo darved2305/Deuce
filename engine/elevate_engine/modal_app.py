@@ -92,8 +92,9 @@ def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
     from elevate_engine import window as win
     from elevate_engine.api import InternalApi
     from elevate_engine.log import log
-    from elevate_engine.r2 import R2, window_key
+    from elevate_engine.r2 import R2, WritesDisabled, window_key
     from elevate_engine.sports import BADMINTON
+    from elevate_engine.tracknet.run import sample_background
     from elevate_engine.video import duration_ms
 
     started = time.perf_counter()
@@ -105,6 +106,8 @@ def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
     posted = []
     try:
         r2 = R2.from_env()
+        if not r2.writes_enabled:  # kill switch (G9): fail before any GPU work
+            raise WritesDisabled("R2_WRITES_ENABLED is not true")
         local.parent.mkdir(parents=True, exist_ok=True)
         size = r2.download_original(r2_key, local)
         clips.commit()  # make the copy visible to the window containers
@@ -113,12 +116,12 @@ def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
         log("analyze.original", analysis_id=analysis_id, bytes=size, duration_ms=end,
             windows=len(plans))  # fmt: skip
         models_ = Models()
-        bg = models_.background.remote(rel, 0, end)
+        bg = sample_background(local, 0, end)  # on this CPU container, not a T4
         args = [(rel, list(p.decode), list(p.emit), bg) for p in plans]
         results: list[dict] = []
 
-        def post(k: int, rows: list) -> None:
-            w = pipeline.window_result(analysis_id, plans[k], results[k], rows, ["tracknet_v3"])
+        def post(k: int) -> None:
+            w = pipeline.window_for_posting(analysis_id, plans, results, k, BADMINTON)
             win.validate(w)
             stored = r2.put_json(
                 window_key(analysis_id, ENGINE_VERSION, k), (json.dumps(w) + "\n").encode()
@@ -135,10 +138,9 @@ def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
         for res in models_.candidates.starmap(args):  # results arrive in window order
             results.append(res)
             if len(results) >= 2:  # window k-1 is final once window k is known
-                rows, _ = pipeline.track_windows(results, BADMINTON)
-                post(len(results) - 2, rows)
-        rows, stats = pipeline.track_windows(results, BADMINTON)
-        post(len(results) - 1, rows)
+                post(len(results) - 2)
+        post(len(results) - 1)
+        _, stats = pipeline.track_windows(results, BADMINTON)
     except Exception as exc:
         reason = f"{type(exc).__name__}: {exc}"[:200]
         log("analyze.failed", analysis_id=analysis_id, reason=reason, windows_posted=len(posted))
