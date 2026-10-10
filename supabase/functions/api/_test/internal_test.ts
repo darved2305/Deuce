@@ -2,14 +2,19 @@ import assert from "node:assert/strict";
 import { fieldsToRpc, rowToWire } from "../lib/events.ts";
 import { type Call, type Handler, makeApp, ok, type Res } from "./fakes.ts";
 
-const RUN = { id: "a_1", match_id: "m_1", owner_id: "u1" };
-
 function build(
-  o: { append?: Res; existing?: unknown; insert?: Res[] } = {},
+  o: { append?: Res; existing?: unknown; insert?: Res[]; ingest?: Res } = {},
 ) {
   const log: Call[] = [];
   let storedEvent: Record<string, unknown> | null = null;
   let existingCalls = 0;
+  let currentRun = {
+    id: "a_1",
+    match_id: "m_1",
+    owner_id: "u1",
+    state: "processing",
+    last_seq: 1,
+  };
   const inserts = o.insert ?? [ok({ id: "art_new", analysis_id: "a_1" })];
   const admin: Handler = (c) => {
     if (c.kind === "rpc" && c.name === "append_event") {
@@ -36,7 +41,20 @@ function build(
       }
       return result;
     }
-    if (c.kind === "from" && c.table === "analysis_runs") return ok(RUN);
+    if (c.kind === "rpc" && c.name === "ingest_vision_result") {
+      if (o.ingest) return o.ingest;
+      if (currentRun.state === "completed") {
+        return {
+          data: null,
+          error: { code: "P0001", message: "already_finalized" },
+        };
+      }
+      currentRun = { ...currentRun, state: "completed", last_seq: 3 };
+      return ok(null);
+    }
+    if (c.kind === "from" && c.table === "analysis_runs") {
+      return ok(c.filters.id === "a_missing" ? null : currentRun);
+    }
     if (c.kind === "from" && c.table === "artifacts") {
       if (c.op === "select") {
         existingCalls++;
@@ -64,9 +82,10 @@ function call(
   path: string,
   body: unknown,
   token: string | null = "tok",
+  id = "a_1",
 ) {
   return app.fetch(
-    new Request(`http://localhost/api/internal/analyses/a_1/${path}`, {
+    new Request(`http://localhost/api/internal/analyses/${id}/${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -77,11 +96,102 @@ function call(
   );
 }
 
+const finalizeBody = {
+  vision_result: {
+    schema: "match.v1",
+    match_id: "m_1",
+    session_ids: ["s_1"],
+    sport: "badminton",
+    format: "singles",
+    ruleset: { id: "bwf_3x21", version: "2025-04" },
+    players: [
+      {
+        player_id: "p_me",
+        track_ids: ["t_me"],
+        label: "you",
+        identity: "user_confirmed",
+      },
+    ],
+    calibration: {
+      calibration_id: "cal_1",
+      plane: "court",
+      template: "badminton_singles",
+      method: "tap",
+      H: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+      H_cov: null,
+      residual_px: 0,
+      visible_fraction: 1,
+      tier: "A",
+    },
+    analysis: {
+      analysis_id: "a_1",
+      engine_version: "0.3.0",
+      state: "processing",
+      models: [],
+      artifacts: { ball_track: "art_ball", player_tracks: "art_players" },
+    },
+    capabilities: {
+      court: { tier: "core", status: "unknown" },
+      ball: { tier: "core", status: "unknown" },
+      reviews: { tier: "unsupported", status: "unknown" },
+      score: { tier: "unsupported", status: "unknown" },
+    },
+    rallies: [],
+    shots: [],
+    events: [],
+    reviews: [],
+    confirmed_points: [],
+    score: { timeline: [], games: [] },
+    metrics: [],
+    moments: [],
+    clips: [],
+    corrections: [],
+  },
+  clip_artifact_ids: [],
+};
+
 Deno.test("internal routes need the right token", async () => {
   const t = build();
   assert.equal((await call(t.app, "events", {}, null)).status, 401);
   assert.equal((await call(t.app, "events", {}, "bad")).status, 401);
   assert.equal((await call(t.app, "artifacts", {}, "bad")).status, 401);
+  assert.equal((await call(t.app, "finalize", {}, "bad")).status, 401);
+});
+
+Deno.test("finalize bad body -> 422 and marks the run failed", async () => {
+  const t = build();
+  const res = await call(t.app, "finalize", { vision_result: {} });
+  assert.equal(res.status, 422);
+  assert.equal((await res.json()).error.code, "validation_failed");
+  assert.ok(
+    t.log.some((entry) =>
+      entry.kind === "rpc" && entry.name === "append_event" &&
+      entry.args.p_type === "analysis.failed" &&
+      (entry.args.p_fields as Record<string, unknown>).reason ===
+        "invalid_vision_result"
+    ),
+  );
+});
+
+Deno.test("finalize unknown analysis -> 404", async () => {
+  const t = build();
+  const res = await call(t.app, "finalize", finalizeBody, "tok", "a_missing");
+  assert.equal(res.status, 404);
+  assert.equal((await res.json()).error.code, "not_found");
+});
+
+Deno.test("finalize persists summary; a retry -> 409 conflict", async () => {
+  const t = build();
+  const first = await call(t.app, "finalize", finalizeBody);
+  assert.equal(first.status, 200);
+  assert.deepEqual(await first.json(), {
+    analysis_id: "a_1",
+    state: "completed",
+    last_seq: 3,
+  });
+  const second = await call(t.app, "finalize", finalizeBody);
+  assert.equal(second.status, 409);
+  assert.equal((await second.json()).error.code, "conflict");
 });
 
 Deno.test("internal event type whitelist -> 422", async () => {

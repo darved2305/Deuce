@@ -1,0 +1,138 @@
+begin;
+select plan(21);
+
+insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
+values ('00000000-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111',
+        'authenticated', 'authenticated', 'p3-finalize@elevate.dev', '', now(), now(), now());
+
+create function pg_temp.ready_run(p_match text, p_session text, p_analysis text)
+returns void language plpgsql as $$
+begin
+  insert into public.matches (id, owner_id, sport, format, ruleset_id, ruleset_version)
+    values (p_match, '11111111-1111-1111-1111-111111111111', 'badminton', 'singles', 'bwf_singles', 'v1');
+  insert into public.sessions (id, match_id, owner_id, mode, source, who_is_me)
+    values (p_session, p_match, '11111111-1111-1111-1111-111111111111', 'match',
+      '{"kind":"upload","bytes":1024}'::jsonb, '{"image_xy":[1,12],"t_ms":0}'::jsonb);
+  insert into public.analysis_runs (id, session_id, match_id, owner_id, idempotency_key)
+    values (p_analysis, p_session, p_match, '11111111-1111-1111-1111-111111111111', p_analysis);
+  perform public.append_event(p_analysis, 'analysis.queued', '{}'::jsonb);
+  perform public.append_event(p_analysis, 'analysis.started', '{}'::jsonb);
+end $$;
+
+create function pg_temp.finalize_payload(
+  p_match text, p_analysis text, p_rallies jsonb, p_shots jsonb, p_events jsonb,
+  p_metrics jsonb, p_moments jsonb, p_clips jsonb
+) returns jsonb language sql immutable as $$
+  select jsonb_build_object(
+    'match_id', p_match,
+    'analysis', jsonb_build_object('analysis_id', p_analysis, 'engine_version', 'engine-test', 'models', '[]'::jsonb),
+    'players', '[]'::jsonb,
+    'calibration', jsonb_build_object('plane', 'court', 'template', 'badminton_singles',
+      'H', jsonb_build_array(1,0,0,0,1,0,0,0,1)),
+    'capabilities', '{}'::jsonb,
+    'rallies', p_rallies,
+    'shots', p_shots,
+    'events', p_events,
+    'metrics', p_metrics,
+    'moments', p_moments,
+    'clips', p_clips
+  )
+$$;
+
+select pg_temp.ready_run('m_ingest', 's_ingest', 'a_ingest');
+select public.ingest_vision_result('a_ingest', pg_temp.finalize_payload(
+  'm_ingest', 'a_ingest',
+  '[{"rally_id":"r_engine_07","index":1,"start_ms":0,"end_ms":5000,"shot_ids":["sh_engine_09"],"server":"p_me","winner":"p_me","winner_state":"candidate","end_reason":"landing","ball_coverage":0.8,"clip_id":null,"state":"observed"}]'::jsonb,
+  '[{"shot_id":"sh_engine_09","rally_id":"r_engine_07","index":0,"player_id":"p_me","contact_ms":1000,"contact_sigma_ms":20,"phase":"serve","reference_plane":"court","coordinate_frame_version":1,"roles":{"focal":{"player_id":"p_me","xy_m":[1,2],"state":"observed","conf":0.9},"opponent":{"player_id":"p_opp","xy_m":[2,3],"state":"observed","conf":0.8}},"incoming":{"source_zone":"F1","landing_zone":"B1","zones_state":"observed","family":"clear"},"chosen":{"target_zone":"B2","landing_xy_m":[4,5],"landing_state":"observed","family":"clear"},"flight_time_ms":500,"flight_time_state":"observed","context":{"score_before":[0,0],"pressure_bucket":"low","rally_len_so_far":0,"state":"observed"},"outcome":{"point_winner":"p_me","shots_to_end":1,"state":"candidate"},"quality":{"camera_quality_grade":"A"},"clip_id":null}]'::jsonb,
+  '[{"event_id":"e_engine_11","type":"landing","t_ms":1100,"t_sigma_ms":10,"rally_id":"r_engine_07","plane":"court","contact_xy_m":[1,2],"cov_m2":[[0,0],[0,0]],"cues":[],"state":"candidate","evidence":[]} ]'::jsonb,
+  '[{"key":"z_lower","definition_version":1,"player_id":"p_me","numerator":3,"denominator":5,"unit":"ratio","tier":"core","source_event_ids":[]},{"key":"b_tie","definition_version":1,"player_id":"p_me","numerator":9,"denominator":10,"unit":"ratio","tier":"core","source_event_ids":[]},{"key":"a_tie","definition_version":1,"player_id":"p_me","numerator":1,"denominator":10,"unit":"ratio","tier":"experimental","source_event_ids":[]},{"key":"unsupported_high","definition_version":1,"player_id":"p_me","numerator":10,"denominator":5,"unit":"ratio","tier":"unsupported","source_event_ids":[]}]'::jsonb,
+  '[{"moment_id":"mo_engine_12","rally_id":"r_engine_07","shot_id":"sh_engine_09","start_ms":900,"end_ms":1400,"contact_ms":1000,"tags":["landing"],"clip_id":"c_r_1"}]'::jsonb,
+  '[]'::jsonb
+));
+
+select is((select id from public.rallies where match_id = 'm_ingest' and id = 'r_engine_07'),
+  'r_engine_07', 'rally id is retained verbatim');
+select is((select id from public.shots where match_id = 'm_ingest' and id = 'sh_engine_09'),
+  'sh_engine_09', 'shot id is retained verbatim');
+select is((select id from public.vision_events where match_id = 'm_ingest' and id = 'e_engine_11'),
+  'e_engine_11', 'events are stored in vision_events with their verbatim ids');
+select is((select count(*)::integer from public.analysis_events where analysis_id = 'a_ingest'),
+  2, 'vision events are not inserted as analysis events');
+select is((select (roles#>>'{focal,xy_m,0}')::numeric from public.shots
+  where match_id = 'm_ingest' and id = 'sh_engine_09'), 4.18::numeric,
+  'far-side focal x is rotated by court width');
+select is((select (roles#>>'{focal,xy_m,1}')::numeric from public.shots
+  where match_id = 'm_ingest' and id = 'sh_engine_09'), 11.4::numeric,
+  'far-side focal y is rotated by court length');
+select is((select (contact_xy_m->>0)::numeric from public.vision_events
+  where match_id = 'm_ingest' and id = 'e_engine_11'), 4.18::numeric,
+  'far-side event coordinate is rotated');
+select is((select caption from public.insights where match_id = 'm_ingest' and kind = 'hero'),
+  '1 of 10 a tie', 'hero ranks by distance from one half, denominator, then key');
+select is((select evidence_moment_ids->>0 from public.insights
+  where match_id = 'm_ingest' and kind = 'hero'), 'mo_engine_12',
+  'hero evidence refers to a persisted moment');
+select is((select state from public.analysis_runs where id = 'a_ingest'), 'completed',
+  'insights completes the run');
+select is((select count(*)::integer from public.analysis_events
+  where analysis_id = 'a_ingest' and type = 'analysis.completed'), 1,
+  'one completed event is appended');
+select throws_ok(
+  $$select public.ingest_vision_result('a_ingest', '{}'::jsonb)$$,
+  'P0001', 'already_finalized', 'a repeated ingest raises already_finalized');
+
+select pg_temp.ready_run('m_fallback', 's_fallback', 'a_fallback');
+insert into public.artifacts (id, analysis_id, match_id, owner_id, kind, r2_key, bytes, sha256)
+values
+  ('art_short', 'a_fallback', 'm_fallback', '11111111-1111-1111-1111-111111111111', 'clip', 'clips/m_fallback/c_r_short.mp4', 100, repeat('a',64)),
+  ('art_short_poster', 'a_fallback', 'm_fallback', '11111111-1111-1111-1111-111111111111', 'poster', 'clips/m_fallback/c_r_short.jpg', 10, repeat('b',64)),
+  ('art_long', 'a_fallback', 'm_fallback', '11111111-1111-1111-1111-111111111111', 'clip', 'clips/m_fallback/c_r_long.mp4', 100, repeat('c',64)),
+  ('art_long_poster', 'a_fallback', 'm_fallback', '11111111-1111-1111-1111-111111111111', 'poster', 'clips/m_fallback/c_r_long.jpg', 10, repeat('d',64));
+select public.ingest_vision_result('a_fallback', pg_temp.finalize_payload(
+  'm_fallback', 'a_fallback',
+  '[{"rally_id":"r_short","index":1,"start_ms":0,"end_ms":2000,"shot_ids":[],"server":"p_me","winner":"p_me","winner_state":"observed","end_reason":"landing","ball_coverage":1,"clip_id":"c_r_short","state":"observed"},{"rally_id":"r_long","index":2,"start_ms":0,"end_ms":6000,"shot_ids":[],"server":"p_me","winner":"p_me","winner_state":"observed","end_reason":"landing","ball_coverage":1,"clip_id":"c_r_long","state":"observed"}]'::jsonb,
+  '[]'::jsonb,
+  '[]'::jsonb,
+  '[{"key":"unsupported","definition_version":1,"player_id":"p_me","numerator":10,"denominator":10,"unit":"ratio","tier":"unsupported","source_event_ids":[]}]'::jsonb,
+  '[{"moment_id":"mo_short","rally_id":"r_short","shot_id":"sh_unused_1","start_ms":0,"end_ms":1000,"contact_ms":500,"tags":[],"clip_id":"c_r_short"},{"moment_id":"mo_long","rally_id":"r_long","shot_id":"sh_unused_2","start_ms":0,"end_ms":1000,"contact_ms":500,"tags":[],"clip_id":"c_r_long"}]'::jsonb,
+  '[{"clip_id":"c_r_short","source":"own","rights":"own","owner":"p_me","match_id":"m_fallback","start_ms":0,"end_ms":2000,"contact_ms":1000,"rally_id":"r_short","remote":{"artifact_id":"art_short","poster_artifact_id":"art_short_poster"},"local":{"source_uri":"content://short","offset_ms":0},"attribution":null},{"clip_id":"c_r_long","source":"own","rights":"own","owner":"p_me","match_id":"m_fallback","start_ms":0,"end_ms":6000,"contact_ms":3000,"rally_id":"r_long","remote":{"artifact_id":"art_long","poster_artifact_id":"art_long_poster"},"local":{"source_uri":"content://long","offset_ms":0},"attribution":null}]'::jsonb
+));
+select is((select caption from public.insights where match_id = 'm_fallback' and kind = 'hero'),
+  'Longest of 2 observed rally clips', 'fallback chooses an observed clip when no metric qualifies');
+select is((select evidence_moment_ids->>0 from public.insights
+  where match_id = 'm_fallback' and kind = 'hero'), 'mo_long',
+  'fallback evidence refers to a real moment from the selected rally');
+select is((select count(*)::integer from public.analysis_events
+  where analysis_id = 'a_fallback' and type = 'analysis.completed'), 1,
+  'fallback also appends exactly one completed event');
+
+select pg_temp.ready_run('m_failure', 's_failure', 'a_failure');
+select public.ingest_vision_result('a_failure', pg_temp.finalize_payload(
+  'm_failure', 'a_failure', '[]'::jsonb, '[]'::jsonb, '[]'::jsonb,
+  '[{"key":"eligible_without_moment","definition_version":1,"player_id":"p_me","numerator":1,"denominator":5,"unit":"ratio","tier":"core","source_event_ids":[]}]'::jsonb,
+  '[]'::jsonb, '[]'::jsonb
+));
+select is((select state from public.analysis_runs where id = 'a_failure'), 'failed',
+  'insights exception fails the run');
+select ok((select reason like 'insights_failed:%' from public.analysis_events
+  where analysis_id = 'a_failure' and type = 'analysis.failed'),
+  'failure event includes the insights_failed reason');
+select is((select count(*)::integer from public.analysis_events
+  where analysis_id = 'a_failure' and type = 'analysis.failed'), 1,
+  'insights failure appends one failed event');
+
+select is((select count(*)::integer from information_schema.role_routine_grants
+  where routine_schema = 'public' and routine_name = 'ingest_vision_result'
+    and grantee = 'service_role' and privilege_type = 'EXECUTE'), 1,
+  'service_role can execute ingest_vision_result');
+select is((select count(*)::integer from information_schema.role_routine_grants
+  where routine_schema = 'public' and routine_name = 'ingest_vision_result'
+    and grantee in ('public','anon','authenticated') and privilege_type = 'EXECUTE'), 0,
+  'ingest_vision_result is revoked from public, anon, and authenticated');
+select is((select count(*)::integer from information_schema.role_routine_grants
+  where routine_schema = 'public' and routine_name = 'run_insights'
+    and grantee = 'service_role' and privilege_type = 'EXECUTE'), 1,
+  'service_role can execute run_insights');
+
+select * from finish();
+rollback;
