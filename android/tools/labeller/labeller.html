@@ -1,0 +1,150 @@
+<!doctype html>
+<!--
+  Elevate shuttle labeller (Person 2 tool). Opens next to a manifest.js + frames/ produced by
+  android/tools/labeller/extract_frames.sh. A person clicks the shuttle on each real frame; the
+  page records source-pixel coordinates against that frame's decoder PTS. Nothing is predicted,
+  interpolated or filled in: an unvisited frame is absent, "Not visible" is an explicit null.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shuttle labeller</title>
+<style>
+  :root { --ink:#1C1F45; --muted:#6E7090; --orange:#E8622A; --cream:#FFF8F2; --line:#EDE6E0; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.4 system-ui, sans-serif; background:var(--cream); color:var(--ink); }
+  header { display:flex; gap:12px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header b { font-size:16px; }
+  button { font:inherit; padding:8px 14px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+  button.primary { background:var(--orange); color:#fff; border-color:var(--orange); }
+  #stage { position:relative; margin:12px auto; width:min(96vw, calc((100vh - 130px) * 16 / 9)); cursor:crosshair; }
+  #img { width:100%; display:block; border-radius:8px; user-select:none; }
+  #marks { position:absolute; inset:0; pointer-events:none; }
+  #loupe { position:fixed; width:220px; height:220px; border:2px solid var(--orange); border-radius:50%;
+           pointer-events:none; background-repeat:no-repeat; display:none; box-shadow:0 4px 18px rgba(0,0,0,.25); }
+  #loupe::after { content:""; position:absolute; left:50%; top:50%; width:10px; height:10px; margin:-5px 0 0 -5px;
+           border:1px solid #fff; border-radius:50%; mix-blend-mode:difference; }
+  .muted { color:var(--muted); }
+  kbd { background:#fff; border:1px solid var(--line); border-radius:4px; padding:0 5px; }
+</style>
+</head>
+<body>
+<header>
+  <b>Shuttle labeller</b>
+  <span id="who"></span>
+  <span id="pos" class="muted"></span>
+  <span id="state"></span>
+  <button id="prev">◀ Prev</button>
+  <button id="none">Not visible (N)</button>
+  <button id="next">Skip ▶</button>
+  <button id="export" class="primary">Export JSON</button>
+  <span class="muted">Click the shuttle (cork). <kbd>N</kbd> not visible · <kbd>←</kbd>/<kbd>→</kbd> move · <kbd>Del</kbd> clear</span>
+</header>
+<div id="stage"><img id="img" alt="frame"><canvas id="marks"></canvas></div>
+<div id="loupe"></div>
+<script src="manifest.js"></script>
+<script>
+"use strict";
+const M = window.MANIFEST;
+// ?only=1,2,36 limits the session to those frame numbers (1-based), e.g. a re-click list.
+const ONLY = new URLSearchParams(location.search).get("only");
+if (ONLY) {
+  const keep = new Set(ONLY.split(",").map(n => parseInt(n, 10) - 1));
+  M.frames = M.frames.filter((f, k) => keep.has(k));
+}
+const KEY = "elevate-labels:" + M.clip_id + (ONLY ? ":only:" + ONLY : ":" + M.frames[0].t_us + "-" + M.frames[M.frames.length - 1].t_us);
+// labels[t_us] = [x, y] (source px) | null (looked, not visible). Missing key = not labelled.
+let labels = {};
+try { labels = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { labels = {}; }
+let i = 0;
+const firstUnlabelled = M.frames.findIndex(f => !(f.t_us in labels));
+if (firstUnlabelled >= 0) i = firstUnlabelled;
+
+const img = document.getElementById("img"), cv = document.getElementById("marks"), loupe = document.getElementById("loupe");
+const ZOOM = 4;
+
+function save() { try { localStorage.setItem(KEY, JSON.stringify(labels)); } catch (e) {} }
+function done() { return M.frames.filter(f => f.t_us in labels).length; }
+
+function show() {
+  const f = M.frames[i];
+  img.src = f.file;
+  document.getElementById("pos").textContent =
+    `frame ${i + 1}/${M.frames.length} · t=${(f.t_us / 1e6).toFixed(3)} s · labelled ${done()}/${M.frames.length}`;
+  const v = labels[f.t_us];
+  document.getElementById("state").textContent = v === undefined ? "—" : v === null ? "not visible" : `(${v[0]}, ${v[1]})`;
+  draw();
+}
+
+function draw() {
+  const r = img.getBoundingClientRect();
+  cv.width = r.width; cv.height = r.height;
+  const g = cv.getContext("2d"), s = r.width / M.width;
+  // Previous five labelled points (context only, faded); current point solid.
+  for (let k = Math.max(0, i - 5); k <= i; k++) {
+    const v = labels[M.frames[k].t_us];
+    if (!v) continue;
+    g.beginPath(); g.arc(v[0] * s, v[1] * s, k === i ? 7 : 4, 0, 7);
+    g.strokeStyle = k === i ? "#E8622A" : "rgba(232,98,42,.5)"; g.lineWidth = 2; g.stroke();
+  }
+}
+
+function toSource(ev) {
+  const r = img.getBoundingClientRect();
+  const x = (ev.clientX - r.left) * M.width / r.width, y = (ev.clientY - r.top) * M.height / r.height;
+  return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+}
+
+function go(d) { i = Math.min(M.frames.length - 1, Math.max(0, i + d)); show(); }
+function mark(v) { labels[M.frames[i].t_us] = v; save(); go(1); }
+
+img.addEventListener("click", ev => mark(toSource(ev)));
+img.addEventListener("mousemove", ev => {
+  const r = img.getBoundingClientRect(), s = r.width / M.width;
+  const [x, y] = toSource(ev);
+  loupe.style.display = "block";
+  loupe.style.left = (ev.clientX + 24) + "px"; loupe.style.top = (ev.clientY - 240) + "px";
+  loupe.style.backgroundImage = `url(${img.src})`;
+  loupe.style.backgroundSize = `${M.width * s * ZOOM}px ${M.height * s * ZOOM}px`;
+  loupe.style.backgroundPosition = `${-(x * s * ZOOM - 110)}px ${-(y * s * ZOOM - 110)}px`;
+});
+img.addEventListener("mouseleave", () => loupe.style.display = "none");
+img.addEventListener("load", draw);
+window.addEventListener("resize", draw);
+document.getElementById("prev").onclick = () => go(-1);
+document.getElementById("next").onclick = () => go(1);
+document.getElementById("none").onclick = () => mark(null);
+document.addEventListener("keydown", e => {
+  if (e.key === "n" || e.key === "N") mark(null);
+  else if (e.key === "ArrowLeft") go(-1);
+  else if (e.key === "ArrowRight") go(1);
+  else if (e.key === "Delete" || e.key === "Backspace") { delete labels[M.frames[i].t_us]; save(); show(); }
+});
+
+document.getElementById("export").onclick = () => {
+  const who = prompt("Your GitHub handle (who clicked these labels):", "@darved2305");
+  if (!who) return;
+  const frames = M.frames.filter(f => f.t_us in labels)
+    .map(f => ({ t_us: f.t_us, t_ms: Math.round(f.t_us / 1000), ball: labels[f.t_us] }));
+  const out = {
+    schema: "elevate.trail_labels.v1",
+    clip: { id: M.clip_id, file: M.file, video_stream_sha256: M.video_stream_sha256,
+            accepted_file_sha256: M.accepted_file_sha256,
+            width: M.width, height: M.height, rotation: M.rotation, time_base: M.time_base },
+    provenance: { state: "user", engine_version: "hand-labelled", labelled_by: who,
+                  tool: "android/tools/labeller/labeller.html", labelled_at: new Date().toISOString(),
+                  note: "Clicked by a person on decoded frames; frames absent from `frames` were not labelled; ball null = looked, not visible." },
+    range_us: [M.frames[0].t_us, M.frames[M.frames.length - 1].t_us],
+    frame_count_in_range: M.frames.length,
+    subset_frames: ONLY || null,
+    frames,
+  };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 1)], { type: "application/json" }));
+  a.download = `trail_labels_${M.clip_id}_${out.range_us[0]}_${out.range_us[1]}.json`;
+  a.click();
+};
+show();
+</script>
+</body>
+</html>
