@@ -642,4 +642,29 @@ Template (copy to the end of the file):
   - Contracts: 1.5.0, additive except `final` and the typed key on the manifest (no consumers yet).
 - **Exit:** supersede with a new entry; multipart stays the fallback.
 - **Proof / evidence:** contracts tests (18 pass); vendor `--check` up to date.
+
+## D-261011-HW7 · Record doubles service-court positions in RulesState
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of implementing BWF doubles service rotation, facing a RulesState
+  that records only the current server and cannot recover the receiver pair's positions, we decided
+  to add the optional `doubles_right_player` pair and rejected guessing positions after service
+  passes, to keep the same player serving and select the correct partner when service changes.
+- **Context:** BWF Laws 11.1.3-11.1.5 require receiving players to stay in their service courts,
+  and Law 11.3 determines when positions change. The existing state cannot preserve both players'
+  positions across rallies.
+- **Decision:** `rules.state.v1` may include `doubles_right_player`, whose two IDs name each team's
+  player in the right service court; the partner is in the left court. `@elevate/contracts` is
+  bumped to 1.6.0. Person 2's Kotlin port and Person 3's confirm-and-score consumer must preserve
+  and read this optional field before the contract change merges.
+- **Alternatives:** (a) infer positions from score and server, rejected because it loses the receiver
+  pair's fixed positions; (b) add both players' court labels, rejected as duplicate information.
+- **Blast radius:**
+  - Contracts: `rules.state.v1`, version bump minor to 1.6.0
+  - People and folders: Person 2 `android/` Kotlin port and Person 3 `supabase/` confirm-and-score
+    must sign off before merge; Person 4 owns TypeScript implementation
+  - Data/infra: no migration or secret changes
+  - Containment: additive-only optional field; affected-person approval remains a merge requirement
+- **Exit:** remove the optional field after both consumers no longer need doubles player positions.
+- **Proof / evidence:** `pnpm --filter @elevate/contracts run check`; shared BWF rule vectors in
+  `packages/rules/vectors/bwf_3x21.json`.
 - **PRs:** this PR.
