@@ -10,3 +10,4 @@ Contract version in force: **contracts v1** (D-012)
 |---|---|---|---|---|---|---|---|
 | 2026-10-10 | — | @HetanshWaghela | repo | Initial plan, docs, agent rules, CI | D-001…D-015 | v1 | docs/research/ |
 | 2026-10-10T15:37Z | #1 | @VrajVed | p1 | p1/engine-skeleton: engine skeleton with clip timing audit on Modal | none (stack versions as pinned in D-002; PyAV 19.0.1 confirmed to bundle FFmpeg 9.0.2) | v1 | Real Modal run on a real clip: https://modal.com/apps/voidinvariant/main/ap-oB2BQbvarg4S33MdPbv9Va |
+| 2026-10-10T15:59Z | #2 | @VrajVed | p1 | p1/model-weights: verified TrackNetV3 and D-FINE-S weights on a T4 | none (weights in a Volume, sha256 at load, once in `@modal.enter()` as in `engine/AGENTS.md`; torch pinned per D-002) | v1 | Real Modal runs on the final code: |
