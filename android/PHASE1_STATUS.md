@@ -115,7 +115,10 @@ shown.
 decoded frames, 40.00–43.98 s (PTS from ffmpeg showinfo, cross-checked with ffprobe, constant 20 ms).
 Every point was checked visually on 2–4× crops: 107 points kept, 34 removed (off the shuttle), 17
 "not visible" marks removed (shuttle visible), 42 "not visible" kept. Nothing was moved or added.
-**51 frames are queued for re-clicking** (`test-media/label/relabel.html`).
+Re-click pass (2026-10-11, @darved2305): 51 frames re-clicked, visually checked again: 47 kept, 4
+removed (48 off by about 11 px; 136 and 174 reused old coordinates on empty court; 137 marked not
+visible but the shuttle is in the server's hand). **Fixture now: 196 of 200 frames labelled, 153
+shuttle points, 43 not visible, 4 unlabelled** (frames 48, 136, 137, 174).
 
 ## Decisions taken in the Android lane
 - compileSdk 37: required by the pinned Compose UI 1.12.1 and core-ktx 1.19.1. targetSdk stays 36.
@@ -129,7 +132,7 @@ Every point was checked visually on 2–4× crops: 107 points kept, 34 removed (
 - S23 FE: not required (D-261011-DV2); unverified.
 - True VFR/slow-motion clip; portrait *badminton* clip (the Mendeley dataset is downloading).
 - Person 4's `fixture_trail.json`, `fixture_match.json` and `fixture_events.jsonl` (see `PHASE1_BLOCKERS.md`).
-- 51 label re-clicks; the trail then covers more frames.
+- 4 frames unlabelled (48, 136, 137, 174); optional re-click.
 - Independent review: done (`slice-reviewer`); 4 blocking findings addressed. Decision entry D-261011-DV1 proposed (needs Person 4).
 - Debug builds stamp PTS into frames: demos must use a release build.
 - Accessibility: TalkBack labels exist on controls; no full TalkBack pass or font-scale check yet.
