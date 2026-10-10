@@ -35,6 +35,9 @@ export const rulesStateSchema = z.strictObject({
   sport: builtSportSchema,
   format: matchFormatSchema,
   teams: z.tuple([z.array(playerIdSchema), z.array(playerIdSchema)]),
+  // Doubles partner positions cannot be reconstructed from the current server alone.
+  // Stores the player in each side's right service court; the other partner is on the left.
+  doubles_right_player: z.optional(z.tuple([playerIdSchema, playerIdSchema])),
   games: z.array(z.tuple([z.number().int().nonnegative(), z.number().int().nonnegative()])),
   current: z.tuple([z.number().int().nonnegative(), z.number().int().nonnegative()]),
   server: playerIdSchema,

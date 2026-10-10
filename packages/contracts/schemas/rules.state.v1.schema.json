@@ -20,6 +20,22 @@
       ],
       "type": "array"
     },
+    "doubles_right_player": {
+      "items": false,
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "pattern": "^p_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        {
+          "pattern": "^p_[A-Za-z0-9_-]+$",
+          "type": "string"
+        }
+      ],
+      "type": "array"
+    },
     "ends": {
       "additionalProperties": false,
       "properties": {
