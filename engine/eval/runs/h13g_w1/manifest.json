@@ -1,0 +1,67 @@
+{
+  "what": "Engine output for one real window, saved for Person 4's evaluation.",
+  "analysis_id_note": "Offline run: no API analysis behind this id.",
+  "clip": "h13g_singles.mp4",
+  "window_seq": 1,
+  "emit_ms": [
+    37000,
+    43000
+  ],
+  "decode_ms": [
+    37000,
+    43750
+  ],
+  "engine_version": "0.1.0",
+  "engine_commit": "bd8fd7ab8b6fd27de0c1ed225d38615a6e3311fe",
+  "models": [
+    {
+      "id": "tracknet_v3",
+      "name": "TrackNetV3 (TrackNet + InpaintNet rectification)",
+      "source_url": "https://github.com/qaz812345/TrackNetV3",
+      "file": "TrackNetV3_ckpts.zip",
+      "sha256": "8de68d34ea2457e368e22947f1309143d60a6a7f9ddccd31cd526d4c4571bcc4",
+      "bytes": 131653952,
+      "code_license": "MIT",
+      "weights_license": "MIT",
+      "trained_on": [
+        "Shuttlecock Trajectory Dataset"
+      ],
+      "used_for": [
+        "shuttle"
+      ]
+    },
+    {
+      "id": "dfine_s_coco",
+      "name": "D-FINE-S (COCO)",
+      "source_url": "https://github.com/Peterande/D-FINE",
+      "file": "dfine_s_coco.pth",
+      "sha256": "48a6c8cc43eb57186843f752e2e8461ddd3326e0d3c575e71e6e960844683e89",
+      "bytes": 41841422,
+      "code_license": "Apache-2.0",
+      "weights_license": "Apache-2.0",
+      "trained_on": [
+        "COCO"
+      ],
+      "used_for": [
+        "players"
+      ]
+    }
+  ],
+  "summary": {
+    "frames_decoded": 338,
+    "frames_emitted": 300,
+    "ball_rows": 302,
+    "persons": 145,
+    "quality": {
+      "ball_coverage": 0.68,
+      "camera_motion_px": 0.05,
+      "blur_index": 0.1417
+    },
+    "total_s": 60.9
+  },
+  "quality_definitions": "Assemble one window_result.v1 (contracts \u00a75) from measured engine outputs.\n\nEvery number is measured on the real frames of the window; nothing is filled in:\n- ball_coverage: fraction of emitted frames with at least one ball candidate.\n- camera_motion_px: median global shift between consecutive frames (phase correlation on\n  512x288 grey frames, sub-pixel peak by parabolic fit), scaled to source pixels. Near 0\n  means a still camera.\n- blur_index: 1 / (1 + var(Laplacian) / 100) on 512x288 grey frames, median over the window.\n  0 = sharp, towards 1 = blurry. A defined engine measure, comparable across windows of the\n  engine, not a standard unit.\nPlayer rows stay empty until association and calibration exist: the contract requires a track\nid and a foot position in metres, which this engine does not produce yet.\n",
+  "sha256": {
+    "window_result.json": "07c00f408d9e5f4643af100e206bdd51d46d516eeec50aa61517cf1cdfc65c07",
+    "persons.json": "3b909ed414f2052b5f1f28513b51bdd2c7816a0795395fb27611270b714a095c"
+  }
+}
