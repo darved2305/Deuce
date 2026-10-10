@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0
+
+Contracts amendment for issue #20 (D-261011-HW6). Corrections made before any deployed reader
+consumes these shapes, so they stay `.v1`:
+- `internal.event.request.v1`: optional `engine_version`; `window_seq` required on
+  `window.completed` and `window.failed`.
+- `analysis.event.v1` and `analysis.events.page.v1`: every §3 event type (the 1.0.0 to 1.3.0 schemas
+  wrongly allowed only the engine's four); `engine_version` optional and nullable.
+- `upload.parts.response.v1`: `{parts: [{n, url, expires_at}]}` instead of a bare URL list.
+- New: `analysis.get.response.v1`, `session.get.response.v1`, `upload.complete.response.v1`,
+  `upload.abort.response.v1`, `health.response.v1`, and `knownErrorCodes` (code to HTTP status).
+
 ## 1.3.0
 
 - `elevate.trail_labels.v1` is the shape of `fixture_trail.json` (contracts §11, D-261011-HW4): Person 2's

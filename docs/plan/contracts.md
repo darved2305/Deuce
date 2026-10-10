@@ -38,7 +38,13 @@ so nobody waits. Changes need all four to agree; bump the schema version; announ
   never an API key in a browser.
 - **Internal (Modal → API):** `X-Internal-Token` (scoped secret), routes under `/internal`.
 - Errors: `{error: {code, message, details?}}`; 409 for idempotency conflicts, 429 with
-  `retry_after_s` when quotas are spent. Mutations accept `Idempotency-Key`.
+  top-level `retry_after_s` when quotas are spent. Mutations accept `Idempotency-Key`. Codes in use
+  (code: HTTP status; `knownErrorCodes` in `packages/contracts`): `unauthorized` 401, `not_found` /
+  `analysis_not_found` 404, `conflict` / `idempotency_conflict` / `analysis_run_conflict` 409,
+  `upload_too_large` 413, `validation_failed` / `invalid_body` 422, `storage_budget_reached` /
+  `daily_upload_limit` / `too_many_part_requests` / `daily_download_limit` 429, `internal` 500,
+  `dispatch_in_flight` / `engine_unavailable` / `uploads_paused` 503 (D-261011-HW6).
+- `GET /v1/health` → `{"status": "ok"}`.
 - RLS: every row carries `owner_id = auth.uid()` (or a share grant); Realtime private channels
   authorised by RLS on `realtime.messages` for the analysis owner.
 
@@ -72,11 +78,13 @@ or null, `"free_play_seed": {"t_ms": 2400, "image_xy": [812, 431]}`.
 Response: `{session_id, match_id, upload: {upload_id, r2_key: "orig/{session_id}/source.mp4",
 part_size: 8388608, max_concurrency: 2}}`.
 
-- `POST /v1/sessions/{id}/upload/parts {part_numbers: [1,2,3]}` → presigned `PUT` URLs (short
-  expiry; re-requestable for the same part).
-- `POST /v1/sessions/{id}/upload/complete {parts: [{n, etag}]}` → idempotent; a repeated call
-  returns the same completed state.
-- `POST /v1/sessions/{id}/upload/abort`.
+- `POST /v1/sessions/{id}/upload/parts {part_numbers: [1,2,3]}` → `{parts: [{n, url, expires_at}]}`,
+  presigned `PUT` URLs (short expiry; re-requestable for the same part).
+- `POST /v1/sessions/{id}/upload/complete {parts: [{n, etag}]}` → `{status: "completed", bytes}`;
+  idempotent, a repeated call returns the same completed state.
+- `POST /v1/sessions/{id}/upload/abort` → `{status: "aborted"}`.
+- `GET /v1/sessions/{id}` → `{session_id, match_id, mode, upload_mode, source, created_at, upload:
+  {status, part_size, bytes, part_count, completed_at} | null}`.
 - Later upgrade `upload_mode: "segments"`: `SegmentManifest {seq, pts_start_us, pts_end_us,
   starts_on_sync_sample, bytes, sha256, r2_key}` per remuxed segment.
 
@@ -94,8 +102,10 @@ one `analysis.completed`.
 
 **Writes from Modal go through Person 3's internal API** (Person 1 never writes Postgres):
 
-- `POST /internal/analyses/{id}/events {type, window_seq?, decode_window_us?, emit_range_us?, artifact_id?, reason?}`
-  → Person 3 assigns `seq` in one transaction, stores the row, then Broadcasts.
+- `POST /internal/analyses/{id}/events {type, window_seq?, decode_window_us?, emit_range_us?, artifact_id?, reason?, engine_version?}`
+  → Person 3 assigns `seq` in one transaction, stores the row, then Broadcasts. The engine posts only
+  `analysis.started`, `window.completed`, `window.failed`, `analysis.failed`; `window_seq` is required
+  on the two window types (the dedupe key is `(type, window_seq)`).
 - `POST /internal/analyses/{id}/artifacts {kind, r2_key, bytes, sha256}` → `{artifact_id}`.
 - `POST /internal/analyses/{id}/finalize {vision_result: <match.v1 without insights>, clip_artifact_ids: []}`.
 
@@ -110,7 +120,12 @@ Event row (`analysis_events`):
 
 Types: `analysis.queued`, `analysis.started`, `window.completed`, `window.failed` (with `reason`),
 `analysis.partial`, `analysis.finalizing`, `analysis.completed`, `analysis.failed`, and the domain
-event `point.confirmed`. Only `emit_range_us` advances visible coverage.
+event `point.confirmed`. Only `emit_range_us` advances visible coverage. Every type can appear in the
+cursor; `engine_version` is absent or null on events the API emits itself.
+
+`GET /v1/analyses/{id}` → `{analysis_id, session_id, match_id, state, engine_version | null,
+last_seq, failure_reason | null, created_at, updated_at, finalized_at | null}` (never the Modal call
+ID or dispatch columns).
 
 Realtime: private channel `analysis:{analysis_id}`, Broadcast event name `analysis_seq`, payload
 exactly `{"schema_version": 1, "analysis_id": "a_…", "latest_seq": 13}`. It is a hint only.

@@ -243,3 +243,34 @@ test("the app's bundled trail labels are identical to fixtures/fixture_trail.jso
 function cloneExampleJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
+
+// Issue #20 (contracts amendment, D-261011-HW6).
+test("#20: read events carry every §3 type; engine_version is optional on them", () => {
+  const queued = {
+    event_id: "e_doc", analysis_id: "a_doc", match_id: "m_doc", seq: 1, schema_version: 1,
+    type: "analysis.queued", created_at: "2026-10-11T00:00:00Z",
+  };
+  for (const type of ["analysis.queued", "analysis.finalizing", "analysis.completed", "point.confirmed"]) {
+    assert.equal(zodAccepts("analysis.event.v1", { ...queued, type }), true, `read event ${type}`);
+    assert.equal(jsonAccepts("analysis.event.v1", { ...queued, type }), true, `read event ${type} (JSON Schema)`);
+  }
+  assert.equal(zodAccepts("analysis.event.v1", { ...queued, engine_version: null }), true);
+});
+
+test("#20: the engine may send engine_version; window events need window_seq", () => {
+  const started = { type: "analysis.started", engine_version: "0.3.0" };
+  assert.equal(zodAccepts("internal.event.request.v1", started), true);
+  assert.equal(jsonAccepts("internal.event.request.v1", started), true);
+  for (const type of ["window.completed", "window.failed"]) {
+    const noSeq = { type, reason: "decode_error", emit_range_us: [0, 6000000] };
+    assert.equal(zodAccepts("internal.event.request.v1", noSeq), false, `${type} without window_seq`);
+    assert.equal(jsonAccepts("internal.event.request.v1", noSeq), false, `${type} without window_seq (JSON Schema)`);
+  }
+});
+
+test("#20: upload part URLs come with their part number and expiry", () => {
+  const ok = { parts: [{ n: 1, url: "https://example.r2.cloudflarestorage.com/x?X-Amz-Signature=doc", expires_at: "2026-10-11T00:10:00Z" }] };
+  assert.equal(zodAccepts("upload.parts.response.v1", ok), true);
+  assert.equal(jsonAccepts("upload.parts.response.v1", ok), true);
+  assert.equal(zodAccepts("upload.parts.response.v1", ["https://example.com/a"]), false, "bare URL list is the old shape");
+});

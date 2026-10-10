@@ -11,7 +11,7 @@ if [ -z "$lane" ]; then lane=$(git config --get elevate.lane || true); fi
 if [ -z "$lane" ]; then echo "check-lane: no lane (name the branch p{n}/slice or set elevate.lane)" >&2; exit 1; fi
 [ "${ALLOW_CROSS_LANE:-0}" = "1" ] && { echo "check-lane: cross-lane allowed"; exit 0; }
 
-allowed=$(jq -r --arg l "$lane" '((.[$l] // []) + (.shared // []))[]' "$root/.claude/lanes.json")
+allowed=$(jq -r --arg l "$lane" '((.[$l] // []) + (.shared // []))[]' "$root/.claude/lanes.json" | tr -d '\r')
 bad=0
 while IFS= read -r rel; do
   ok=0
