@@ -668,3 +668,11 @@ Template (copy to the end of the file):
 - **Proof / evidence:** `pnpm --filter @elevate/contracts run check`; shared BWF rule vectors in
   `packages/rules/vectors/bwf_3x21.json`.
 - **PRs:** this PR.
+
+## D-261011-HW11 · Window fixtures are named by their real window_seq
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** the `fixture_window_0003.json` name in contracts §11
+- **In one line:** The first real engine window is window 1 (#37), so the fixture is
+  `fixture_window_0001.json`; the validator accepts any `fixture_window_<n>.json` instead of
+  inventing a window 3.
+- **Blast radius:** Person 2 and Person 3 load window fixtures by pattern; contracts unchanged.
+- **PRs:** this PR.
