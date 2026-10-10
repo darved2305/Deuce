@@ -2,20 +2,34 @@ import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { knownErrorCodes } from "./contracts_vendor/api.ts";
 
-export type ErrorCode = keyof typeof knownErrorCodes | "analysis_limit_reached";
+export type ErrorCode =
+  | keyof typeof knownErrorCodes
+  | "analysis_limit_reached"
+  | "upload_parts_invalid"
+  | "storage_busy";
 export type ErrorStatus =
   | typeof knownErrorCodes[keyof typeof knownErrorCodes]
-  | 429;
+  | 409
+  | 429
+  | 503;
+
+const LOCAL_ERROR_CODES = {
+  analysis_limit_reached: 429,
+  upload_parts_invalid: 409,
+  storage_busy: 503,
+} as const;
+
+const ERROR_STATUSES: Record<ErrorCode, ErrorStatus> = {
+  ...knownErrorCodes,
+  ...LOCAL_ERROR_CODES,
+};
 
 function assertErrorContract(
   status: ErrorStatus,
   code: ErrorCode,
   retryAfterS?: number,
 ): void {
-  const expected = code === "analysis_limit_reached"
-    ? 429
-    : knownErrorCodes[code];
-  if (expected !== status) {
+  if (ERROR_STATUSES[code] !== status) {
     throw new TypeError(`error code ${code} does not use HTTP ${status}`);
   }
   if (
@@ -37,13 +51,14 @@ export class ApiFailure extends Error {
     readonly code: ErrorCode,
     message: string,
     readonly details?: unknown,
-    readonly retry_after_s?: number,
+    readonly retryAfterS?: number,
   ) {
     super(message);
-    assertErrorContract(status, code, retry_after_s);
+    assertErrorContract(status, code, retryAfterS);
   }
 }
 
+// retry_after_s is a sibling of `error` (error.envelope.v1).
 export function errorBody(
   code: ErrorCode,
   message: string,
@@ -64,6 +79,7 @@ export function fail(
   details?: unknown,
   retryAfterS?: number,
 ) {
+  if (retryAfterS !== undefined) c.header("Retry-After", String(retryAfterS));
   assertErrorContract(status, code, retryAfterS);
   return c.json(errorBody(code, message, details, retryAfterS), status);
 }
@@ -103,15 +119,15 @@ export function onError(err: Error, c: Context): Response {
       err.code,
       err.message,
       err.details,
-      err.retry_after_s,
+      err.retryAfterS,
     );
   }
   if (err instanceof HTTPException) {
+    if (err.status === 400) {
+      return fail(c, 422, "invalid_body", err.message);
+    }
     const code = STATUS_CODES[err.status] ?? "internal";
-    if (
-      code !== "analysis_limit_reached" &&
-      knownErrorCodes[code] === err.status
-    ) {
+    if (ERROR_STATUSES[code] === err.status) {
       return fail(c, err.status as ErrorStatus, code, err.message);
     }
     return fail(c, 500, "internal", "internal error");
