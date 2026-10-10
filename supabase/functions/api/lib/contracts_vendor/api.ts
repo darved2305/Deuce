@@ -36,7 +36,7 @@ import {
   trackIdSchema,
   zoneIdSchema,
 } from "./common.ts";
-import { origR2KeySchema, r2ObjectKeySchema } from "./keys.ts";
+import { origR2KeySchema, r2ObjectKeySchema, segmentR2KeySchema } from "./keys.ts";
 const strictObject = z.strictObject;
 const integer = z.number().int();
 const nonNegativeInteger = integer.nonnegative();
@@ -67,6 +67,7 @@ export const knownErrorCodes = {
   too_many_part_requests: 429,
   daily_download_limit: 429,
   internal: 500,
+  segment_gap: 409,
   dispatch_in_flight: 503,
   engine_unavailable: 503,
   uploads_paused: 503,
@@ -250,14 +251,47 @@ export const uploadCompleteRequestSchema = strictObject({
   ),
 });
 
-export const segmentManifestSchema = strictObject({
+// §2 chunked upload (D-261011-HW3, D-261011-HW8). Times are on the ORIGINAL video's timeline.
+// `final` marks the last segment of the session; the engine stops waiting after it.
+const segmentFields = {
   seq: nonNegativeInteger,
   pts_start_us: microsecondsSchema,
   pts_end_us: microsecondsSchema,
   starts_on_sync_sample: z.boolean(),
   bytes: nonNegativeInteger,
   sha256: sha256Schema,
-  r2_key: z.string(),
+  final: z.boolean(),
+};
+
+export const segmentManifestSchema = strictObject({
+  ...segmentFields,
+  r2_key: segmentR2KeySchema,
+});
+
+// POST /v1/sessions/{id}/segments: register the next segment and get its PUT URL. seq must be
+// at most (highest registered seq + 1): no gaps; re-registering the same seq is idempotent.
+export const segmentRegisterRequestSchema = strictObject(segmentFields);
+
+export const segmentRegisterResponseSchema = strictObject({
+  seq: nonNegativeInteger,
+  r2_key: segmentR2KeySchema,
+  put_url: z.string().url(),
+  expires_at: isoTimestampSchema,
+});
+
+// POST /v1/sessions/{id}/segments/{seq}/complete: the object is in R2. Idempotent. After
+// segment 0 completes the app calls POST /v1/analyses as for a whole-file upload.
+export const segmentCompleteResponseSchema = strictObject({
+  ...segmentFields,
+  r2_key: segmentR2KeySchema,
+  completed_at: isoTimestampSchema,
+});
+
+// GET /internal/analyses/{id}/segments?after_seq=n: completed segments the engine has not seen,
+// in seq order (the contiguous completed prefix only). The engine never lists R2.
+export const internalSegmentsPageSchema = strictObject({
+  segments: z.array(segmentManifestSchema),
+  final_seq: nonNegativeInteger.nullable(),
 });
 
 export const analysisStateSchema = z.enum([
@@ -294,7 +328,8 @@ export const analysisCreateResponseSchema = strictObject({
 
 export const modalSubmitRequestSchema = strictObject({
   analysis_id: analysisIdSchema,
-  r2_key: origR2KeySchema,
+  // multipart: the original; segments: segment 0 (the engine then polls /internal/.../segments).
+  r2_key: z.union([origR2KeySchema, segmentR2KeySchema]),
   session_spec: sessionCreateRequestSchema,
 });
 

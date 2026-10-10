@@ -274,3 +274,16 @@ test("#20: upload part URLs come with their part number and expiry", () => {
   assert.equal(jsonAccepts("upload.parts.response.v1", ok), true);
   assert.equal(zodAccepts("upload.parts.response.v1", ["https://example.com/a"]), false, "bare URL list is the old shape");
 });
+
+test("segments: register needs no gaps in shape, keys are typed, the engine page is ordered data", async () => {
+  const { buildSegmentKey, segmentKeyRegex } = await import("../src/keys.ts");
+  const key = buildSegmentKey("s_doc", 3);
+  assert.match(key, segmentKeyRegex);
+  const reg = { seq: 0, pts_start_us: 0, pts_end_us: 6000000, starts_on_sync_sample: true, bytes: 10485760, sha256: "0".repeat(64), final: false };
+  assert.equal(zodAccepts("segment.register.request.v1", reg), true);
+  assert.equal(jsonAccepts("segment.register.request.v1", reg), true);
+  assert.equal(zodAccepts("segment.register.request.v1", { ...reg, final: undefined }), false, "final is required");
+  const page = { segments: [{ ...reg, r2_key: buildSegmentKey("s_doc", 0) }], final_seq: null };
+  assert.equal(zodAccepts("internal.segments.page.v1", page), true);
+  assert.equal(zodAccepts("internal.segments.page.v1", { ...page, segments: [{ ...reg, r2_key: "orig/s_doc/source.mp4" }] }), false, "segment keys only");
+});

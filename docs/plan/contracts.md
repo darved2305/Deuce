@@ -85,8 +85,20 @@ part_size: 8388608, max_concurrency: 2}}`.
 - `POST /v1/sessions/{id}/upload/abort` → `{status: "aborted"}`.
 - `GET /v1/sessions/{id}` → `{session_id, match_id, mode, upload_mode, source, created_at, upload:
   {status, part_size, bytes, part_count, completed_at} | null}`.
-- Later upgrade `upload_mode: "segments"`: `SegmentManifest {seq, pts_start_us, pts_end_us,
-  starts_on_sync_sample, bytes, sha256, r2_key}` per remuxed segment.
+- Chunked upload, `upload_mode: "segments"` (core, D-261011-HW3, D-261011-HW8). The phone remuxes the
+  original into ~6 s keyframe-aligned segments, times kept on the original timeline:
+  - `POST /v1/sessions/{id}/segments {seq, pts_start_us, pts_end_us, starts_on_sync_sample, bytes,
+    sha256, final}` → `{seq, r2_key: "seg/{session_id}/{seq}.mp4", put_url, expires_at}`. `seq` is at
+    most the highest registered seq + 1 (else 409 `segment_gap`); re-registering a seq is idempotent.
+    `final: true` marks the last segment. Up to 2 segments in flight.
+  - `POST /v1/sessions/{id}/segments/{seq}/complete` → the stored `SegmentManifest` plus
+    `completed_at`; idempotent. After segment 0 completes, the app calls `POST /v1/analyses` as for a
+    whole-file upload.
+  - Engine: `POST {MODAL_SUBMIT_URL}` carries segment 0's `r2_key`; the engine then polls
+    `GET /internal/analyses/{id}/segments?after_seq={n}` → `{segments: [SegmentManifest], final_seq |
+    null}` (the contiguous completed prefix, in order) and never lists R2.
+  - `SegmentManifest {seq, pts_start_us, pts_end_us, starts_on_sync_sample, bytes, sha256, final,
+    r2_key}`. Whole-file multipart stays as the fallback.
 
 ## 3. Analysis and events
 
@@ -138,7 +150,7 @@ screen is visible.
 
 ## 4. Artifacts and keys
 
-Deterministic R2 keys: `orig/{session_id}/source.mp4`,
+Deterministic R2 keys: `orig/{session_id}/source.mp4`, `seg/{session_id}/{seq}.mp4`,
 `analysis/{analysis_id}/{engine_version}/windows/{window_seq}.json`,
 `analysis/{analysis_id}/{engine_version}/tracks/{kind}.json`,
 `clips/{match_id}/{clip_id}.mp4`, `clips/{match_id}/{clip_id}.jpg`.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.0
+
+Chunked real-time upload contract (D-261011-HW3, D-261011-HW8): `segment.manifest.v1` gains `final`
+and a typed `seg/{session_id}/{seq}.mp4` key; new `segment.register.request.v1`,
+`segment.register.response.v1`, `segment.complete.response.v1`, `internal.segments.page.v1`;
+`modal.submit.request.v1` accepts segment 0's key; error code `segment_gap` (409); key builder
+`buildSegmentKey`.
+
 ## 1.4.0
 
 Contracts amendment for issue #20 (D-261011-HW6). Corrections made before any deployed reader

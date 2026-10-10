@@ -13,6 +13,8 @@ const clipIdPattern = "c_[A-Za-z0-9_-]+";
 const segmentPattern = "[^/]+";
 
 export const origKeyRegex = new RegExp(`^orig/${sessionIdPattern}/source\\.mp4$`);
+// D-261011-HW3 chunked upload: one object per ~6 s segment, deleted after 1 day (Cloudflare rule).
+export const segmentKeyRegex = new RegExp(`^seg/${sessionIdPattern}/[0-9]+\\.mp4$`);
 export const analysisWindowKeyRegex = new RegExp(
   `^analysis/${analysisIdPattern}/${segmentPattern}/windows/[0-9]+\\.json$`,
 );
@@ -27,12 +29,14 @@ export const clipJpgKeyRegex = new RegExp(
 );
 
 export const origR2KeySchema = z.string().regex(origKeyRegex);
+export const segmentR2KeySchema = z.string().regex(segmentKeyRegex);
 export const analysisWindowR2KeySchema = z.string().regex(analysisWindowKeyRegex);
 export const analysisTracksR2KeySchema = z.string().regex(analysisTracksKeyRegex);
 export const clipMp4R2KeySchema = z.string().regex(clipMp4KeyRegex);
 export const clipJpgR2KeySchema = z.string().regex(clipJpgKeyRegex);
 export const r2ObjectKeySchema = z.union([
   origR2KeySchema,
+  segmentR2KeySchema,
   analysisWindowR2KeySchema,
   analysisTracksR2KeySchema,
   clipMp4R2KeySchema,
@@ -42,6 +46,12 @@ export const r2ObjectKeySchema = z.union([
 export function buildOrigKey(sessionId: string): string {
   sessionIdSchema.parse(sessionId);
   return `orig/${sessionId}/source.mp4`;
+}
+
+export function buildSegmentKey(sessionId: string, seq: number): string {
+  sessionIdSchema.parse(sessionId);
+  if (!Number.isInteger(seq) || seq < 0) throw new Error("seq must be a non-negative integer");
+  return `seg/${sessionId}/${seq}.mp4`;
 }
 
 export function buildAnalysisWindowKey(
