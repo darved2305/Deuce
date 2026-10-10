@@ -125,6 +125,9 @@ jobs:
         with:
           deno-version: v2.9.7
       - if: steps.has.outputs.ok == 'true'
+        name: Vendored contracts match packages/contracts
+        run: deno run --allow-read supabase/scripts/sync-contracts.ts --check
+      - if: steps.has.outputs.ok == 'true'
         working-directory: supabase/functions
         run: |
           deno fmt --check

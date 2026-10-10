@@ -137,7 +137,8 @@ export const sessionCreateRequestSchema = strictObject({
   }),
   free_play_seed: freePlaySeedSchema.nullable(),
   rally_candidates: z.array(rallyCandidateSchema),
-  upload_mode: z.literal("multipart"),
+  // D-261011-HW3: chunked real-time upload is core; multipart stays as the fallback.
+  upload_mode: z.enum(["multipart", "segments"]),
 }).superRefine((session, ctx) => {
   // Free play has no court format; racket sports always have one.
   if ((session.sport === "free_play") !== (session.format === "none")) {
