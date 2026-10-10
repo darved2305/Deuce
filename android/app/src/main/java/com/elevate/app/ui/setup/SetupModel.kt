@@ -113,6 +113,9 @@ data class SetupState(
 
     val nextCorner: Corner? get() = Corner.entries.firstOrNull { it !in corners }
 
+    /** How many placed corners lie outside the picture (their position is an estimate). */
+    val offFrameCorners: Int get() = corners.values.count { CourtGeometry.isOffFrame(it, srcW, srcH) }
+
     val courtCheck: CourtCheck get() = CourtGeometry.check(corners, srcW, srcH)
 
     /** Why Next is off on this step; null when it is on. */
@@ -197,7 +200,7 @@ fun reduce(s: SetupState, a: SetupAction): SetupState = when (a) {
     is SetupAction.DragStart ->
         if (s.step == Step.Court && a.corner in s.corners) s.copy(history = s.history + listOf(s.corners)) else s
     is SetupAction.Drag ->
-        if (s.step == Step.Court && a.corner in s.corners) s.copy(corners = s.corners + (a.corner to clamp(s, a.p))) else s
+        if (s.step == Step.Court && a.corner in s.corners) s.copy(corners = s.corners + (a.corner to CourtGeometry.clampExtended(a.p, s.srcW, s.srcH))) else s
     SetupAction.Undo -> when (s.step) {
         Step.Court -> if (s.history.isEmpty()) s else s.copy(corners = s.history.last(), history = s.history.dropLast(1))
         Step.Ball -> s.copy(ball = null)

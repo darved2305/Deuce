@@ -53,6 +53,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -60,6 +61,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -69,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.elevate.app.domain.calibration.Corner
+import com.elevate.app.domain.calibration.CourtGeometry
 import com.elevate.app.domain.calibration.FitTransform
 import com.elevate.app.domain.calibration.ImagePoint
 import com.elevate.app.domain.media.SourceFacts
@@ -192,7 +195,9 @@ private fun Picture(f: SetupFrame.Ready, s: SetupState, dispatch: (SetupAction) 
     BoxWithConstraints(modifier.background(c.court)) {
         val viewW = constraints.maxWidth.toDouble()
         val viewH = constraints.maxHeight.toDouble()
-        val t = remember(viewW, viewH, f.srcW, f.srcH) { FitTransform(viewW, viewH, f.srcW.toDouble(), f.srcH.toDouble()) }
+        // Free space around the picture, so a corner dragged just past its edge stays on the canvas.
+        val padPx = with(density) { 40.dp.toPx() }.toDouble()
+        val t = remember(viewW, viewH, f.srcW, f.srcH, padPx) { FitTransform(viewW, viewH, f.srcW.toDouble(), f.srcH.toDouble(), padPx) }
         var dragging by remember { mutableStateOf<Corner?>(null) }
         val current by rememberUpdatedState(s)
         val hitPx = with(density) { 32.dp.toPx() }
@@ -220,7 +225,11 @@ private fun Picture(f: SetupFrame.Ready, s: SetupState, dispatch: (SetupAction) 
                             val ev = awaitPointerEvent()
                             val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
                             if (!ch.pressed) break
-                            dispatch(SetupAction.Drag(hit, t.toSourceClamped(ch.position.x + dx, ch.position.y + dy)))
+                            // Not pinned to the frame: near corners are often really below or beside it.
+                            // The handle itself stays on the canvas so it can always be grabbed again.
+                            val vx = (ch.position.x + dx).toDouble().coerceIn(0.0, viewW)
+                            val vy = (ch.position.y + dy).toDouble().coerceIn(0.0, viewH)
+                            dispatch(SetupAction.Drag(hit, t.toSourceExtended(vx, vy)))
                             ch.consume()
                         }
                     } finally {
@@ -250,7 +259,7 @@ private fun Picture(f: SetupFrame.Ready, s: SetupState, dispatch: (SetupAction) 
                 dstOffset = IntOffset(t.offsetX.roundToInt(), t.offsetY.roundToInt()),
                 dstSize = IntSize((f.srcW * t.scale).roundToInt(), (f.srcH * t.scale).roundToInt()),
             )
-            if (s.sport != Sport.FreePlay) drawCourt(s, t)
+            if (s.sport != Sport.FreePlay) drawCourt(s, t, f.srcW.toDouble(), f.srcH.toDouble())
             s.ball?.let { if (s.sport == Sport.FreePlay) drawMarker(t.toView(it), Color(0xFFE0A100)) }
             s.me?.let { drawMarker(t.toView(it), c.orange) }
             dragging?.let { k -> s.corners[k]?.let { drawLoupe(f, t, it, CornerColors.getValue(k)) } }
@@ -260,7 +269,9 @@ private fun Picture(f: SetupFrame.Ready, s: SetupState, dispatch: (SetupAction) 
         if (s.sport != Sport.FreePlay) {
             for ((k, p) in s.corners) {
                 val (x, y) = t.toView(p)
-                PointLabel(k.label, CornerColors.getValue(k), x, y, "${k.label} corner")
+                val off = CourtGeometry.isOffFrame(p, f.srcW.toDouble(), f.srcH.toDouble())
+                PointLabel(k.label, CornerColors.getValue(k), x, y, if (off) "${k.label} corner, outside the picture" else "${k.label} corner")
+                if (off) OffFrameTag(x, y)
             }
         }
         s.ball?.takeIf { s.sport == Sport.FreePlay }?.let { val (x, y) = t.toView(it); PointLabel("Ball", Color(0xFF8A5A00), x, y, "Ball") }
@@ -286,16 +297,44 @@ private fun PointLabel(text: String, color: Color, x: Double, y: Double, descrip
     )
 }
 
-private fun DrawScope.drawCourt(s: SetupState, t: FitTransform) {
+/** Small "off-frame" tag under a handle that sits outside the picture. */
+@Composable
+private fun OffFrameTag(x: Double, y: Double) {
+    val d = LocalDensity.current
+    val dx = with(d) { 16.dp.toPx() }
+    val dy = with(d) { 14.dp.toPx() }
+    Text(
+        "off-frame",
+        style = MaterialTheme.typography.labelSmall,
+        color = Color.White,
+        modifier = Modifier
+            .offset { IntOffset((x + dx).roundToInt(), (y + dy).roundToInt()) }
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color.Black.copy(alpha = 0.65f))
+            .padding(horizontal = 6.dp, vertical = 1.dp)
+            .clearAndSetSemantics { },
+    )
+}
+
+private fun DrawScope.drawCourt(s: SetupState, t: FitTransform, srcW: Double, srcH: Double) {
     val pts = Corner.entries.mapNotNull { k -> s.corners[k]?.let { k to t.toView(it) } }
     val line = 2.dp.toPx()
     for (i in 0 until pts.size - 1) segment(pts[i].second, pts[i + 1].second, line)
     if (pts.size == 4) segment(pts[3].second, pts[0].second, line)
     for ((k, p) in pts) {
         val o = Offset(p.first.toFloat(), p.second.toFloat())
-        drawCircle(Color.White, radius = 11.dp.toPx(), center = o)
-        drawCircle(CornerColors.getValue(k), radius = 8.dp.toPx(), center = o)
-        drawCircle(Color.White, radius = 2.dp.toPx(), center = o)
+        if (CourtGeometry.isOffFrame(s.corners.getValue(k), srcW, srcH)) {
+            // Outside the picture: a dashed ring with a hollow centre, so it reads as an estimate.
+            val dash = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx()))
+            drawCircle(Color.Black.copy(alpha = 0.5f), radius = 11.dp.toPx(), center = o)
+            drawCircle(Color.White, radius = 10.dp.toPx(), center = o, style = Stroke(width = 4.dp.toPx(), pathEffect = dash))
+            drawCircle(CornerColors.getValue(k), radius = 10.dp.toPx(), center = o, style = Stroke(width = 2.dp.toPx(), pathEffect = dash))
+            drawCircle(CornerColors.getValue(k), radius = 2.dp.toPx(), center = o)
+        } else {
+            drawCircle(Color.White, radius = 11.dp.toPx(), center = o)
+            drawCircle(CornerColors.getValue(k), radius = 8.dp.toPx(), center = o)
+            drawCircle(Color.White, radius = 2.dp.toPx(), center = o)
+        }
     }
 }
 
@@ -509,6 +548,13 @@ private fun ReviewStep(s: SetupState) {
             Row2("Ball", if (s.ball != null) "marked at ${seconds(s.frameMs)}" else "not marked")
         } else {
             Row2("Court corners", "${s.corners.size} of 4 placed${s.template?.let { " · $it" } ?: ""}")
+        }
+        if (s.offFrameCorners > 0) {
+            Text(
+                "${s.offFrameCorners} ${if (s.offFrameCorners == 1) "corner" else "corners"} placed outside the picture (estimated)",
+                style = MaterialTheme.typography.bodyMedium,
+                color = c.inkMuted,
+            )
         }
         Row2("You", if (s.me != null) "marked at ${seconds(s.frameMs)}" else "not marked")
         Row2("Frame", seconds(s.frameMs))
