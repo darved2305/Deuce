@@ -77,6 +77,7 @@ jobs:
               - 'demo/**'
               - 'fixtures/**'
               - 'engine/elevate_engine/models.json'
+              - 'supabase/migrations/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'

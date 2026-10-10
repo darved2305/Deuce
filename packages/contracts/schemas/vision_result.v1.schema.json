@@ -633,7 +633,8 @@
     "format": {
       "enum": [
         "singles",
-        "doubles"
+        "doubles",
+        "none"
       ],
       "type": "string"
     },
@@ -1548,10 +1549,7 @@
         "badminton",
         "table_tennis",
         "tennis",
-        "free_play",
-        "squash",
-        "padel",
-        "pickleball"
+        "free_play"
       ],
       "type": "string"
     }

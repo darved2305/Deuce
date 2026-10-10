@@ -347,3 +347,26 @@ Template (copy to the end of the file):
 - **Exit:** revert the package PR; nothing else imports it yet.
 - **Proof / evidence:** the PR's Proof section (Python, Deno, Hono and CI runs).
 - **PRs:** this PR.
+
+## D-261010-HW3 · Contracts enums equal the database CHECK constraints
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of the API validating requests with `@elevate/contracts` before
+  writing to Postgres, facing enums that differed from Person 3's CHECK constraints, we decided the
+  contracts accept exactly what the database accepts (tested), and rejected leaving them looser.
+- **Context:** Audit of `main` after PR #10: the contracts allowed 7 sports (database: 4), lacked
+  format `none` (database has it for free play), and left `mode` and artifact `kind` as free
+  strings (database: fixed lists). A request could pass validation and then fail in Postgres.
+- **Decision:** sessions, matches and rules use the 4 built sports (sport packs keep all 7);
+  format adds `none`, used exactly when sport is `free_play`; `mode` and artifact `kind` use the
+  database's lists. A test reads `supabase/migrations/*.sql` and fails when they differ; CI's
+  `ts` job now also runs on migration changes. Package 1.1.0.
+- **Alternatives:** (a) widen the database to 7 sports, rejected: squash, padel and pickleball are
+  unsupported until built (§9); (b) no test, rejected: the next migration would drift silently.
+- **Blast radius:**
+  - People and folders: Person 3 (a migration that changes one of these CHECKs now needs the same
+    change in `packages/contracts`, or the `ts` job fails); Person 1 posts artifact kinds from the
+    list; Person 2 models get the narrower enums.
+  - Contracts: v1, tightened to match the database; additive `none` format.
+- **Exit:** supersede with a new entry; change both the migration and the package together.
+- **Proof / evidence:** the PR's Proof section.
+- **PRs:** this PR.

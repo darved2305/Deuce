@@ -81,6 +81,26 @@ export const sportSchema = z.enum([
 
 export const formatSchema = z.enum(["singles", "doubles"]);
 
+// §9: only built packs can have sessions and matches (squash, padel and pickleball are listed as
+// unsupported). Same values as the matches.sport check in supabase/migrations.
+export const builtSportSchema = z.enum(["badminton", "table_tennis", "tennis", "free_play"]);
+
+// Free play has no court format. Same values as the matches.format check.
+export const matchFormatSchema = z.enum(["singles", "doubles", "none"]);
+
+// Same values as the sessions.mode check.
+export const sessionModeSchema = z.enum(["match", "practice", "free_play"]);
+
+// Same values as the artifacts.kind check; §4 keys and §7 analysis.artifacts use these names.
+export const artifactKindSchema = z.enum([
+  "window_result",
+  "ball_track",
+  "player_tracks",
+  "match_vision",
+  "clip",
+  "poster",
+]);
+
 export const surfacePlaneSchema = z.enum(["court", "tabletop", "floor"]);
 
 export const zoneIdSchema = z.enum([
@@ -130,6 +150,10 @@ export type CapabilityTier = z.infer<typeof capabilityTierSchema>;
 export type CapabilityStatus = z.infer<typeof capabilityStatusSchema>;
 export type Sport = z.infer<typeof sportSchema>;
 export type Format = z.infer<typeof formatSchema>;
+export type BuiltSport = z.infer<typeof builtSportSchema>;
+export type MatchFormat = z.infer<typeof matchFormatSchema>;
+export type SessionMode = z.infer<typeof sessionModeSchema>;
+export type ArtifactKind = z.infer<typeof artifactKindSchema>;
 export type SurfacePlane = z.infer<typeof surfacePlaneSchema>;
 export type ZoneId = z.infer<typeof zoneIdSchema>;
 export type CanonicalModelId = z.infer<typeof canonicalModelIdSchema>;
