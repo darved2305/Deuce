@@ -73,6 +73,12 @@ Deno.test("GET artifact owner receives a signed URL expiring in 300 seconds", as
       c.args.p_class_a === 0 && c.args.p_class_b === 1
     ),
   );
+  assert.ok(
+    t.adminLog.some((c) =>
+      c.kind === "rpc" && c.name === "r2_take_download" &&
+      c.args.p_owner === "u1" && c.args.p_limit === 200
+    ),
+  );
 });
 
 Deno.test("GET artifact returns 404 to a non-owner without a share grant", async () => {
@@ -83,14 +89,17 @@ Deno.test("GET artifact returns 404 to a non-owner without a share grant", async
   assert.deepEqual(t.signedKeys, []);
 });
 
-Deno.test("GET artifact falls back to an active share grant", async () => {
+Deno.test("GET artifact remains owner-only even with an active share grant", async () => {
   const t = build({
     owned: null,
     artifact: ARTIFACT,
     grants: [{ scope: "read", revoked_at: null }],
   });
-  assert.equal((await get(t.app)).status, 200);
-  assert.deepEqual(t.signedKeys, [ARTIFACT.r2_key]);
+  const res = await get(t.app);
+  assert.equal(res.status, 404);
+  assert.equal((await res.json()).error.code, "not_found");
+  assert.deepEqual(t.signedKeys, []);
+  assert.equal(t.adminLog.length, 0);
 });
 
 Deno.test("GET artifact enforces the daily download cap", async () => {
