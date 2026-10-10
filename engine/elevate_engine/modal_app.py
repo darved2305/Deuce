@@ -25,10 +25,18 @@ MODELS_PATH = "/models"
 UV_VERSION = "0.11.15"
 
 
+SCHEMAS_LOCAL = ENGINE_DIR.parent / "packages" / "contracts" / "schemas"
+SCHEMAS_REMOTE = "/contracts/schemas"
+
+
 def _source(image: modal.Image) -> modal.Image:
-    # Ship the package's .py files and the models.json manifest.
-    return image.add_local_python_source(
-        "elevate_engine", ignore=lambda p: p.suffix not in {".py", ".json"}
+    # Ship the package's .py files, the models.json manifest and the contract JSON Schemas.
+    return (
+        image.env({"ELEVATE_SCHEMAS": SCHEMAS_REMOTE})
+        .add_local_dir(str(SCHEMAS_LOCAL), SCHEMAS_REMOTE)
+        .add_local_python_source(
+            "elevate_engine", ignore=lambda p: p.suffix not in {".py", ".json"}
+        )
     )
 
 
@@ -51,14 +59,80 @@ submit_secret = modal.Secret.from_name("elevate-submit")  # MODAL_SUBMIT_TOKEN
 app = modal.App("elevate-engine", image=image)
 
 
-@app.function(region="ap", timeout=600)
-def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
-    """Stub until Phase 2: records that the job ran. CPU only, so no GPU is billed yet."""
-    from elevate_engine.log import log
+internal_secret = modal.Secret.from_name("elevate-internal")  # INTERNAL_API_TOKEN, API_BASE_URL
+r2_secret = modal.Secret.from_name("elevate-r2")  # R2_* incl. R2_WRITES_ENABLED
+ENGINE_VERSION = "0.1.0"
+WINDOW_MS = 6000
 
+
+@app.function(
+    gpu="T4",
+    region="ap",
+    image=gpu_image,
+    secrets=[internal_secret, r2_secret],
+    volumes={MODELS_PATH: models},
+    timeout=1800,
+    cpu=4,
+)
+def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
+    """Thin path (Phase 2): window 0 of the original, end to end.
+
+    analysis.started -> read the original from R2 once -> window_result.v1 for window 0 ->
+    PUT to its contract key -> register the artifact -> window.completed. Any failure posts
+    analysis.failed with a reason. Later windows come with p1/full-windows.
+    """
+    import tempfile
+    import time
+
+    from elevate_engine import window as win
+    from elevate_engine.api import InternalApi
+    from elevate_engine.log import log
+    from elevate_engine.r2 import R2, window_key
+    from elevate_engine.tracknet.model import from_checkpoint
+    from elevate_engine.weights import load_checkpoints, load_manifest
+
+    started = time.perf_counter()
+    api = InternalApi.from_env()
     log("analyze.start", analysis_id=analysis_id, r2_key=r2_key, sport=session_spec.get("sport"))
-    log("analyze.done", analysis_id=analysis_id, stub=True)
-    return {"analysis_id": analysis_id, "stub": True}
+    api.event(analysis_id, {"type": "analysis.started", "engine_version": ENGINE_VERSION})
+    try:
+        r2 = R2.from_env()
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "source.mp4"
+            size = r2.download_original(r2_key, src)
+            log("analyze.original", analysis_id=analysis_id, bytes=size)
+            ckpt, _ = load_checkpoints(Path(MODELS_PATH), "tracknet_v3", load_manifest())[
+                "tracknet"
+            ]
+            model, seq_len = from_checkpoint(ckpt)
+            window, summary = win.from_file(
+                model.cuda(), seq_len, src, analysis_id, 0, (0, WINDOW_MS)
+            )
+        win.validate(window)
+        data = (json.dumps(window) + "\n").encode()
+        stored = r2.put_json(window_key(analysis_id, ENGINE_VERSION, 0), data)
+        artifact_id = api.artifact(
+            analysis_id, "window_result", stored["r2_key"], stored["bytes"], stored["sha256"]
+        )
+        api.event(analysis_id, {
+            "type": "window.completed",
+            "window_seq": 0,
+            "decode_window_us": window["decode_window_us"],
+            "emit_range_us": window["emit_range_us"],
+            "artifact_id": artifact_id,
+        })  # fmt: skip
+    except Exception as exc:
+        reason = f"{type(exc).__name__}: {exc}"[:200]
+        log("analyze.failed", analysis_id=analysis_id, reason=reason)
+        try:
+            api.event(analysis_id, {"type": "analysis.failed", "reason": reason})
+        except Exception as report_exc:  # keep the original error as the one that surfaces
+            log("analyze.report_failed", analysis_id=analysis_id, error=repr(report_exc)[:200])
+        raise
+    result = {"analysis_id": analysis_id, "artifact_id": artifact_id, **stored, **summary,
+              "total_s": round(time.perf_counter() - started, 1)}  # fmt: skip
+    log("analyze.done", **result)
+    return result
 
 
 @app.function(region="ap", secrets=[submit_secret], timeout=60)
@@ -315,17 +389,14 @@ class Models:
     def window(
         self, clip: str, analysis_id: str, window_seq: int, emit_ms: list, overlap_ms: int = 750
     ) -> dict:
-        """One window_result.v1 for [emit_ms) of a clip: TrackNet candidates and measured
-        quality (decoded with overlap_ms of context after the emitted range), plus the raw
-        D-FINE person detections in the emitted range as a separate, non-contract output."""
+        """One window_result.v1 for [emit_ms) of a clip in elevate-clips (see window.from_file),
+        plus the raw D-FINE person detections in the emitted range as a separate output."""
         import time
 
         from elevate_engine import window as win
         from elevate_engine.dfine import run as dfine
-        from elevate_engine.tracknet import infer
-        from elevate_engine.tracknet import run as tracknet_run
         from elevate_engine.tracknet.model import from_checkpoint
-        from elevate_engine.video import frames_in_range, source_size
+        from elevate_engine.video import frames_in_range
 
         if not hasattr(self, "tracknet"):
             model, self.seq_len = from_checkpoint(self.checkpoints["tracknet"])
@@ -336,34 +407,15 @@ class Models:
         started = time.perf_counter()
         path = Path(CLIPS_PATH) / clip
         lo, hi = int(emit_ms[0]), int(emit_ms[1])
-        decode = (lo, hi + overlap_ms)
-        decoded = list(frames_in_range(path, *decode, infer.resize_chw_uint8))
-        t_ms = [f.t_ms for f in decoded]
-        frames = [f.image for f in decoded]
-        blobs = list(tracknet_run.track(self.tracknet, self.seq_len, frames))
-        src_w, src_h = source_size(path)
-        rows = tracknet_run.ball_rows(t_ms, blobs, src_w, src_h)
-        emitted = [i for i, t in enumerate(t_ms) if lo <= t < hi]
-        quality = win.quality(
-            [frames[i] for i in emitted],
-            sum(1 for i in emitted if blobs[i]),
-            src_w / infer.WIDTH,
-        )
-        window = win.build(
-            analysis_id, window_seq, decode, (lo, hi), rows, quality, ["tracknet_v3"]
+        window, summary = win.from_file(
+            self.tracknet, self.seq_len, path, analysis_id, window_seq, (lo, hi), overlap_ms
         )
         keep = dfine.sampler(12.0)
         sampled = [f for f in frames_in_range(path, lo, hi) if keep(f.t_ms)]
         boxes = dfine.detect(*self.dfine, [f.image for f in sampled])
         persons = [[f.t_ms, *b] for f, fb in zip(sampled, boxes, strict=True) for b in fb]
-        summary = {
-            "frames_decoded": len(t_ms),
-            "frames_emitted": len(emitted),
-            "ball_rows": len(window["ball"]),
-            "persons": len(persons),
-            "quality": quality,
-            "total_s": round(time.perf_counter() - started, 1),
-        }
+        summary = {**summary, "persons": len(persons),
+                   "total_s": round(time.perf_counter() - started, 1)}  # fmt: skip
         log_event = {"window_seq": window_seq, "emit_ms": [lo, hi], **summary}
         from elevate_engine.log import log
 
