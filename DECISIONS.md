@@ -43,7 +43,7 @@ Template (copy to the end of the file):
 2. Modal spend ceiling: decided in D-261010-VV1 ($30 total).
 3. The demo clip (working and eval clips are decided in D-261010-HW1).
 4. Default badminton ruleset (proposed `bwf_3x21`).
-5. Retention default (proposed: server copy of an original deleted after analysis unless kept).
+5. Retention of results and clips beyond 14 days (originals: deleted after 1 day, D-261011-HW2).
 6. Referee call-coverage threshold for the evaluation (set before results are seen).
 
 ---
@@ -414,3 +414,51 @@ Template (copy to the end of the file):
 - **Proof / evidence:** local `supabase db reset`, `supabase db lint` and `supabase test db`
   (`supabase/tests/dispatch_test.sql`) in the PR; live proof comes with the dispatch routes slice.
 - **PRs:** #8
+
+## D-261011-HW1 · Cloudflare stays at $0: free tier only, enforced in code, config and a card limit
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of R2 storing every upload and Workers AI being available, facing
+  Cloudflare having no hard spending cap, we decided to keep usage under half the free tier with
+  code guards, bucket configuration and a low-limit card, and rejected relying on budget alerts.
+- **Context:** Cloudflare's budget alerts only email; nothing stops usage. R2 bills beyond 10
+  GB-month, 1M Class A and 10M Class B ops; every multipart part is a Class A op.
+- **Decision:** follow `docs/ops/cloudflare-budget.md`: budget = half of each free dimension;
+  guards G1-G9 in the API and engine; lifecycle rules (originals 3 days, results and clips 30
+  days, abandoned multipart 1 day); no public access; Standard storage only; Workers Free plan
+  only; scoped tokens; daily 2-minute check; kill switch `R2_WRITES_ENABLED`.
+- **Alternatives:** (a) budget alerts only, rejected: they do not stop spend; (b) no R2, rejected:
+  the upload flow (D-004) needs object storage.
+- **Blast radius:**
+  - People and folders: Person 3 implements G1-G7 and G9 in `supabase/` (new 429/413/503 error
+    codes and an `r2_usage_monthly` table); Person 1 implements G8 in `engine/`; the Cloudflare
+    account owner applies layers 2 and 3 and does the daily check; Person 2 shows the 429/503
+    messages in the app.
+  - Contracts: none (error codes are free strings in the §1 envelope).
+  - Data/infra: R2 lifecycle rules delete originals after 3 days (closes the retention open item
+    for originals).
+- **Exit:** raise a budget with a new entry; never remove the guards.
+- **Proof / evidence:** limits and commands from developers.cloudflare.com (R2 pricing, R2 object
+  lifecycles, Workers AI pricing, Wrangler R2 commands, usage-based billing), read 2026-10-11.
+- **PRs:** this PR.
+
+## D-261011-HW2 · Cloudflare budget is 20% of the free tier, with an automatic pause at 10%
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** the numbers in D-261011-HW1
+- **In one line:** In the context of D-261011-HW1, facing the team's requirement that the free tier
+  is never even approached ("not even $1"), we decided a hard budget of 20% of each free limit with
+  an automatic pause at 10%, and rejected the earlier 50% budget.
+- **Context:** Our counters are estimates (retries, failed requests and ranged reads also count at
+  Cloudflare), so the margin has to be large.
+- **Decision:** in `docs/ops/cloudflare-budget.md`: storage 2 GiB (pause at 1 GiB), Class A
+  200,000/month (pause at 100,000), Class B 2,000,000 (pause at 1,000,000); one video at most 300
+  MiB; 5 sessions per user and 30 uploads per day; upload-part URLs live 10 minutes; 200 download
+  URLs per user per day; 40 clips per analysis; new guards G10 (automatic pause) and G11 (the app
+  retries a part at most 3 times); originals deleted after 1 day, results and clips after 14 days.
+- **Alternatives:** (a) keep 50%, rejected by the team; (b) no R2, rejected: uploads need it.
+- **Blast radius:**
+  - People and folders: Person 3 implements the tighter G1-G6 and new G10 in `supabase/`; Person 1
+    caps clips at 40 (G8); Person 2 implements G11 and shows the pause message; the Cloudflare
+    account owner applies the 1-day and 14-day lifecycle rules.
+  - Contracts: none.
+- **Exit:** a new entry; never above 50% of any free limit.
+- **Proof / evidence:** same Cloudflare sources as D-261011-HW1.
+- **PRs:** this PR.
