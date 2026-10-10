@@ -7,8 +7,8 @@
 //
 // It uses the real lib/r2.ts: create multipart -> presign 2 parts of 8 MiB -> PUT them with
 // fetch (the equivalent curl is printed) -> complete -> HEAD and compare the size. The object
-// is the first 16 MiB of the file under probe/<timestamp>/source.mp4 (remove it afterwards in
-// the Cloudflare dashboard or let a lifecycle rule do it). Exits non-zero on any mismatch.
+// is the first 16 MiB of the file under orig/probe_<timestamp>/source.mp4 (the orig/ 1-day
+// lifecycle rule removes it). Exits non-zero on any mismatch.
 import { createR2, R2Error } from "../functions/api/lib/r2.ts";
 
 const PART = 8 * 1024 * 1024;
@@ -60,7 +60,7 @@ const r2 = createR2({
   secretAccessKey: need("R2_SECRET_ACCESS_KEY"),
   bucket: need("R2_BUCKET"),
 });
-const key = `probe/${Date.now()}/source.mp4`;
+const key = `orig/probe_${Date.now()}/source.mp4`;
 let uploadId: string | null = null;
 
 try {
