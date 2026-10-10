@@ -32,6 +32,17 @@ export type ErrorStatus =
   | 502
   | 503;
 
+export class ApiFailure extends Error {
+  constructor(
+    readonly status: ErrorStatus,
+    readonly code: ErrorCode,
+    message: string,
+    readonly details?: unknown,
+  ) {
+    super(message);
+  }
+}
+
 export function errorBody(code: ErrorCode, message: string, details?: unknown) {
   return {
     error: { code, message, ...(details === undefined ? {} : { details }) },
@@ -75,6 +86,9 @@ export function notFound(c: Context): Response {
 }
 
 export function onError(err: Error, c: Context): Response {
+  if (err instanceof ApiFailure) {
+    return fail(c, err.status, err.code, err.message, err.details);
+  }
   if (err instanceof HTTPException) {
     const code = STATUS_CODES[err.status] ?? "internal";
     return fail(c, err.status as ErrorStatus, code, err.message);
