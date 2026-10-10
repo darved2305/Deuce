@@ -88,3 +88,41 @@ in **source pixels after rotation** (contracts §0), validated against
 Known limits: `h13g_singles` at 41.78 s does not show the near baseline, so the corners tapped in
 the proof exercise the mapping, not a real calibration. "Tap to change" restarts the flow instead
 of reloading the previous corners. TalkBack pass not done.
+
+## Recorded engine run on the real video (G5 on recorded engine output)
+
+Person 1's real TrackNetV3 run on `h13g_singles` window 1 (#37, `engine/eval/runs/h13g_w1`,
+emit 37.00–43.00 s, 302 candidate rows on 204 of the 300 emitted frames) is copied into the app
+at build time and offered only on a file whose sha256 matched the hand-label fixture for the same
+clip. Row: "TrackNetV3 · recorded engine run · candidates · a candidate on 204 of 300 frames ·
+highest confidence per frame (302 rows) · engine 0.1.0, not live". Drawn as cyan hollow rings with
+dashed joins (never the solid orange of confirmed points), keyed to frame PTS like the hand trail.
+
+Bug found and fixed on the real file: `WindowResultStore` rejected **both** rows whenever a frame
+had two candidates (93 frames lost, including the real shuttle at 37.02 s). Several candidates
+per frame are now kept and the highest confidence wins; contradictory observed rows are still
+rejected. `RecordedEngineRunTest` pins 204 frames and the 37.02 s pick on the real file.
+
+A55: paused at PTS 41.280000, the candidate ring is drawn at display (443, 596) = source
+(922.5, 723.8) through the video rect (`proof/phase2/engine_run/01_engine_candidates_41s.png`,
+zoom `02_zoom_41s.png`). Against the hand labels: 1.4–7.2 px on 41.10–41.30 s; 70 of 77 frames that
+have both within 15 px.
+
+Also fixed: in portrait the controls sheet squeezed the video once a row was added; it is now
+capped at 55 % of the height and scrolls.
+
+## End-to-end run on the A55 against the deployed backend (2026-10-11)
+
+Pick `h13g_singles` → clip check → setup (4 corners, you at 41.26 s) → **Upload & analyse**:
+
+| Step | Result |
+|---|---|
+| Session created on the deployed API | `s_3df758f240434f74820e829033966138` |
+| Upload over LTE (Airtel) | 10 min, **0 of 8 parts confirmed**, then `SSLHandshakeException` on `upload/parts` → stopped. Two bugs found: URL fetch outside the per-part retry (fixed, regression test); rate/ETA from socket-buffered bytes showed "0.4 MiB/s · 4 min left" while ~0.02 MiB/s was confirmed (fixed: rate, ETA and bar from server-confirmed parts only) |
+| App reinstalled (process death) → restored from disk → Retry over Wi-Fi | notification **"Uploaded · server confirmed 63,698,735 bytes · 60.7 MiB stored"** (= the file's size) |
+| `POST /v1/analyses` | analysis `a_73b8c407edb6440a953f0204796370e6`, event 1 `analysis.queued` at 03:37:29; Analysing screen shows the real stages |
+| Relaunch | upload restored as completed, start re-sent with the same Idempotency-Key → **same analysis** (no duplicate GPU job); "0.0 of 484.5 s analysed" (duration from the saved session request) |
+| Engine | **no `analysis.started` / `window.completed` after the run** → Person 1 (engine posting events) and Person 3 (`GET /v1/artifacts/{id}`, `GET /v1/matches/{id}`) |
+
+Also fixed during the run: a retry after a failure ended at once on the stale "failed" progress
+value (the waiter now follows the saved upload phase; device-verified path: completed → start).

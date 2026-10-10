@@ -62,3 +62,15 @@ def source_size(path: str | Path) -> tuple[int, int]:
     with av.open(str(path)) as container:
         stream = container.streams.video[0]
         return stream.width, stream.height
+
+
+def duration_ms(path: str | Path) -> int:
+    """End of the last frame in ms from the first presented frame (packet PTS, no decoding)."""
+    with av.open(str(path)) as container:
+        stream = container.streams.video[0]
+        pts = sorted(p.pts for p in container.demux(stream) if p.size and p.pts is not None)
+        if len(pts) < 2:
+            raise ValueError("need at least 2 frames")
+        tick = float(stream.time_base)
+        step = float(np.median(np.diff(pts[-50:]))) if len(pts) > 2 else pts[1] - pts[0]
+        return round((pts[-1] - pts[0] + step) * tick * 1000)

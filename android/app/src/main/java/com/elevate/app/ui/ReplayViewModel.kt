@@ -1,5 +1,23 @@
 package com.elevate.app.ui
 
+import android.os.Build
+import com.elevate.app.data.analysis.AnalysisClient
+import com.elevate.app.data.analysis.HttpAnalysisClient
+import com.elevate.app.data.session.Ruleset
+import com.elevate.app.data.session.SessionCreateRequest
+import com.elevate.app.data.session.SessionSource
+import com.elevate.app.data.upload.SourceAccess
+import com.elevate.app.data.upload.UploadPhase
+import com.elevate.app.data.upload.UploadProgress
+import com.elevate.app.data.upload.UploadRuntime
+import com.elevate.app.data.upload.UploadScheduler
+import com.elevate.app.data.upload.UriAccess
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.coroutines.delay
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
@@ -41,7 +59,29 @@ sealed interface Screen {
         val setupAtUs: Long? = null,
         /** What the user chose in the setup flow (contracts §2 session fields), once done. */
         val setup: SetupResult? = null,
+        /** Recorded engine output for this exact file, if Person 1 recorded a run on it. */
+        val engine: EngineOffer? = null,
+        /** sha256 of the file's bytes (also `source.sha256` in the session request), once measured. */
+        val sha256: String? = null,
     ) : Screen
+
+    enum class Panel { None, Analysing, Overview }
+
+    /** Real states only: each step changes on a server answer, never on a timer. */
+    sealed interface Pipeline {
+        data object Idle : Pipeline
+        data object Uploading : Pipeline
+        data class StartingAnalysis(val sessionId: String) : Pipeline
+        data class Started(val analysisId: String, val sessionId: String, val matchId: String?, val dispatched: Boolean, val state: String) : Pipeline
+        data class Failed(val stage: String, val reason: String) : Pipeline
+    }
+
+    /** A recorded engine run offered on the open file; [shown] = drawn instead of the hand labels. */
+    data class EngineOffer(
+        val run: com.elevate.app.data.engine.RecordedEngineRun,
+        val trail: com.elevate.app.data.engine.RecordedEngineRun.CandidateTrail,
+        val shown: Boolean = false,
+    )
 }
 
 @UnstableApi
@@ -50,6 +90,15 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     val controller = PlayerController(app)
     private val inspector = VideoInspector(app.contentResolver)
     private val probe = MediaProbe(app.contentResolver)
+    private val engineRuns: List<com.elevate.app.data.engine.RecordedEngineRun> by lazy {
+        val assets = app.assets
+        val runs = assets.list(ENGINE_DIR).orEmpty()
+        com.elevate.app.data.engine.RecordedEngineRun.load(runs.flatMap { run ->
+            assets.list("$ENGINE_DIR/$run").orEmpty().map { f ->
+                "$run/$f" to assets.open("$ENGINE_DIR/$run/$f").bufferedReader().use { it.readText() }
+            }
+        })
+    }
     private val repository: MatchRepository = DefaultMatchRepository(
         fixtures = FixtureSource {
             val assets = app.assets
@@ -70,7 +119,10 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     /** null while the first health check runs. */
     val backend: StateFlow<BackendStatus?> = _backend.asStateFlow()
 
-    init { refreshBackend() }
+    init {
+        refreshBackend()
+        restorePipeline()
+    }
 
     fun refreshBackend() {
         viewModelScope.launch { _backend.value = repository.backendStatus() }
@@ -113,6 +165,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
             val annotations = try {
                 val fp = withContext(Dispatchers.IO) { inspector.fingerprint(uri) }
+                _screen.update { s -> if (s is Screen.Replay && s.uri == uri) s.copy(sha256 = fp.sha256) else s }
                 repository.annotationsFor(fp)
             } catch (e: IOException) {
                 AnnotationState.Failed("could not read the file to identify it: ${e.message}")
@@ -121,8 +174,18 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             }
             val current = _screen.value
             if (current is Screen.Replay && current.uri == uri) {
-                controller.setTrack((annotations as? AnnotationState.Available)?.track)
-                _screen.value = current.copy(annotations = annotations)
+                val hand = (annotations as? AnnotationState.Available)?.track
+                controller.setTrack(hand)
+                // A recorded engine run is offered only on a file whose bytes matched the fixture
+                // for the same clip id (the run's manifest has no file hash of its own).
+                val offer = hand?.let { h ->
+                    withContext(Dispatchers.Default) {
+                        engineRuns.firstOrNull { it.clipId == h.clip.clipId }?.let { run ->
+                            run.candidateTrack(h.clip)?.let { Screen.EngineOffer(run, it) }
+                        }
+                    }
+                }
+                _screen.update { s -> if (s is Screen.Replay && s.uri == uri) s.copy(annotations = annotations, engine = offer) else s }
             }
         }
     }
@@ -140,6 +203,178 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     fun finishSetup(result: SetupResult) =
         _screen.update { s -> if (s is Screen.Replay) s.copy(setupAtUs = null, setup = result) else s }
+
+    /** Draws the recorded engine candidates instead of the hand labels, or back. One trail at a time. */
+    fun showEngine(show: Boolean) {
+        val s = _screen.value as? Screen.Replay ?: return
+        val offer = s.engine ?: return
+        val hand = (s.annotations as? AnnotationState.Available)?.track
+        controller.setTrack(if (show) offer.trail.track else hand)
+        controller.setOverlayVisible(true)
+        _screen.value = s.copy(engine = offer.copy(shown = show), overlayVisible = true)
+    }
+
+    val uploadRuntime: UploadRuntime by lazy { UploadRuntime.get(getApplication()) }
+
+    val analysisClient: AnalysisClient by lazy {
+        HttpAnalysisClient(BuildConfig.API_BASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY, tokenProvider = { uploadRuntime.auth.accessToken() })
+    }
+
+    private var pipelineJob: Job? = null
+
+    private val _pipeline = MutableStateFlow<Screen.Pipeline>(Screen.Pipeline.Idle)
+    /** Upload → analysis, app-wide: it survives leaving the video and process death (state on disk). */
+    val pipeline: StateFlow<Screen.Pipeline> = _pipeline.asStateFlow()
+
+    private val _panel = MutableStateFlow(Screen.Panel.None)
+    val panel: StateFlow<Screen.Panel> = _panel.asStateFlow()
+
+    /**
+     * Facts of the uploaded source, read back from the saved session request (real probe values), so
+     * the analysis screens keep their denominators after a restart: duration µs, width, height.
+     */
+    fun pipelineSource(): Triple<Long?, Int?, Int?>? = runCatching {
+        val st = uploadRuntime.coordinator.current() ?: return null
+        val src = kotlinx.serialization.json.Json.parseToJsonElement(st.createRequestJson).jsonObject.getValue("source").jsonObject
+        fun num(k: String) = (src[k] as? JsonPrimitive)?.content?.toDoubleOrNull()
+        Triple(num("duration_ms")?.toLong()?.takeIf { it > 0 }?.let { it * 1000 }, num("width")?.toInt(), num("height")?.toInt())
+    }.getOrNull()
+
+    /** Title of the video the pipeline belongs to, for the analysis screens. */
+    var pipelineTitle: String = "Your match"
+        private set
+
+    /** On launch: an unfinished upload saved on disk resumes and goes on to the analysis. */
+    private fun restorePipeline() {
+        if (!UploadRuntime.isConfigured) return
+        viewModelScope.launch {
+            val cur = withContext(Dispatchers.IO) { runCatching { uploadRuntime.coordinator.current() }.getOrNull() } ?: return@launch
+            when (cur.phase) {
+                UploadPhase.Creating, UploadPhase.Uploading, UploadPhase.Completing -> {
+                    _pipeline.value = Screen.Pipeline.Uploading
+                    UploadScheduler.start(getApplication(), cur.bytes)
+                    pipelineJob = viewModelScope.launch { finishPipeline() }
+                }
+                UploadPhase.Completed -> pipelineJob = viewModelScope.launch { finishPipeline() }
+                else -> _pipeline.value = Screen.Pipeline.Failed("upload", cur.failure?.message ?: "upload stopped; tap to resume")
+            }
+        }
+    }
+
+    /**
+     * Uploads the original file to R2 through the deployed API and starts the real analysis.
+     * The session request is built only from measured facts (probe + sha256) and the user's setup.
+     */
+    fun analyse() {
+        val s = _screen.value as? Screen.Replay ?: return
+        val facts = (s.preflight as? PreflightState.Done)?.takeIf { !it.blocked }?.facts ?: return
+        val setup = s.setup ?: return
+        val sha = s.sha256 ?: return
+        if (!UploadRuntime.isConfigured) {
+            _pipeline.value = Screen.Pipeline.Failed("setup", "Elevate cloud is not configured in this build")
+            return
+        }
+        pipelineJob?.cancel()
+        pipelineTitle = s.title
+        _pipeline.value = Screen.Pipeline.Uploading
+        pipelineJob = viewModelScope.launch {
+            val app = getApplication<Application>()
+            try {
+                val access = withContext(Dispatchers.IO) { UriAccess.prepare(app, s.uri, facts.bytes, sha) }
+                val j = setup.toJson()
+                fun str(k: String) = (j.getValue(k) as JsonPrimitive).content
+                val request = SessionCreateRequest(
+                    sport = str("sport"),
+                    format = str("format"),
+                    ruleset = Ruleset(setup.ruleset.id, setup.ruleset.version),
+                    mode = str("mode"),
+                    source = SessionSource.from(facts, sha, Build.MODEL),
+                    calibrationInput = j.getValue("calibration_input"),
+                    whoIsMe = j.getValue("who_is_me"),
+                    freePlaySeed = j.getValue("free_play_seed"),
+                    // Sound candidates are off (SOUND_RALLIES.md): none are sent.
+                    rallyCandidates = JsonArray(emptyList()),
+                    uploadMode = "multipart",
+                )
+                uploadRuntime.coordinator.prepare(request, sourceUri = s.uri.toString(), stagedPath = (access as? SourceAccess.Staged)?.file?.path)
+                if (!UploadScheduler.start(app, facts.bytes)) {
+                    _pipeline.value = Screen.Pipeline.Failed("upload", "The system refused to start the upload")
+                    return@launch
+                }
+                finishPipeline()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _pipeline.value = Screen.Pipeline.Failed("upload", e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    /** Waits for the server to confirm the upload, then starts the analysis (idempotent per upload). */
+    private suspend fun finishPipeline() {
+        val rt = uploadRuntime
+        var stage = "upload"
+        try {
+            // Watch the saved phase on disk, not the progress stream: after a failure the stream still
+            // holds the old Failed value, which ended a retry at once (seen on the A55). A failure only
+            // counts once the job has been active again; a job that never starts is reported after 30 s.
+            var active = false
+            var waitedMs = 0L
+            while (true) {
+                val cur = withContext(Dispatchers.IO) { rt.coordinator.current() } ?: error("upload state missing")
+                when (cur.phase) {
+                    UploadPhase.Completed -> break
+                    UploadPhase.Failed, UploadPhase.Aborted -> if (active || waitedMs >= 30_000) {
+                        _pipeline.value = Screen.Pipeline.Failed("upload", cur.failure?.let { "${it.code}: ${it.message}" } ?: "upload stopped")
+                        return
+                    }
+                    else -> active = true
+                }
+                delay(1_000)
+                waitedMs += 1_000
+            }
+            val st = withContext(Dispatchers.IO) { rt.coordinator.current() } ?: error("upload state missing after completion")
+            val sessionId = st.sessionId ?: error("no session id after completion")
+            stage = "analysis"
+            _pipeline.value = Screen.Pipeline.StartingAnalysis(sessionId)
+            // One key per upload: a start retried after process death returns the same analysis (contracts §3).
+            val started = analysisClient.startAnalysis(sessionId, "analyse-${st.localId}")
+            _pipeline.value = Screen.Pipeline.Started(started.response.analysisId, sessionId, st.matchId, started.dispatched, started.response.state)
+            _panel.value = Screen.Panel.Analysing
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _pipeline.value = Screen.Pipeline.Failed(stage, e.message ?: e.javaClass.simpleName)
+        }
+    }
+
+    /** Retry after a failure: resumes the saved upload (accepted parts are kept), or redoes the analysis start. */
+    fun retryPipeline() {
+        val cur = runCatching { uploadRuntime.coordinator.current() }.getOrNull()
+        if (cur == null) { analyse(); return }
+        pipelineJob?.cancel()
+        _pipeline.value = Screen.Pipeline.Uploading
+        if (cur.phase != UploadPhase.Completed) UploadScheduler.start(getApplication(), cur.bytes)
+        pipelineJob = viewModelScope.launch { finishPipeline() }
+    }
+
+    fun cancelUpload() {
+        pipelineJob?.cancel()
+        viewModelScope.launch {
+            UploadScheduler.stop(getApplication())
+            uploadRuntime.coordinator.cancel()
+            _pipeline.value = Screen.Pipeline.Idle
+        }
+    }
+
+    fun showPanel(panel: Screen.Panel) { _panel.value = panel }
+
+    /** From the overview: back to the player at the rally start. */
+    fun openRally(startMs: Long) {
+        showPanel(Screen.Panel.None)
+        controller.pause()
+        controller.seekTo(startMs)
+    }
 
     fun setOverlayVisible(visible: Boolean) {
         controller.setOverlayVisible(visible)
@@ -160,5 +395,6 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         const val FIXTURE_DIR = "fixtures"
+        const val ENGINE_DIR = "engine_runs"
     }
 }
