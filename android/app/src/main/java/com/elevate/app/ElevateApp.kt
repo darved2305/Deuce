@@ -70,6 +70,7 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
         ) notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
+    val pill by vm.pipelinePill.collectAsStateWithLifecycle()
     val pipelineUi = PipelineUi(
         state = pipeline,
         upload = upload,
@@ -77,6 +78,7 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
         onRetryUpload = vm::retryPipeline,
         onCancelUpload = vm::cancelUpload,
         onOpenAnalysis = { vm.showPanel(Screen.Panel.Analysing) },
+        pill = pill,
     )
     val openFacts = ((screen as? Screen.Replay)?.preflight as? PreflightState.Done)?.facts
     val started = pipeline as? Screen.Pipeline.Started

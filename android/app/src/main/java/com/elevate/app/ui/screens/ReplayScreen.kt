@@ -462,6 +462,8 @@ class PipelineUi(
     val onRetryUpload: () -> Unit = {},
     val onCancelUpload: () -> Unit = {},
     val onOpenAnalysis: () -> Unit = {},
+    /** One-line live status ("Sending · 12.0/60.7 MiB", "Analysing · 18/485 s"); null when idle. */
+    val pill: String? = null,
 )
 
 /** After setup: start the real upload + analysis, then show real progress and the server's answers. */
@@ -475,6 +477,22 @@ private fun PipelineRow(screen: Screen.Replay, ui: PipelineUi) {
 @Composable
 fun PipelineStatus(ui: PipelineUi, ready: Boolean = true) {
     val c = Elevate.colors
+    // While anything runs, the full status lives on the Analysing screen: here, one tappable line.
+    val pill = ui.pill
+    if (pill != null && ui.state !is Screen.Pipeline.Failed && ui.state != Screen.Pipeline.Idle) {
+        Row(
+            Modifier.fillMaxWidth().clip(CircleShape).background(c.mint)
+                .clickable(onClickLabel = "Open analysis", role = Role.Button, onClick = ui.onOpenAnalysis)
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(10.dp).clip(CircleShape).background(c.mintInk))
+            Spacer(Modifier.size(12.dp))
+            Text(pill, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp), color = c.ink, modifier = Modifier.weight(1f))
+            Text("Open", style = MaterialTheme.typography.labelLarge, color = c.orangeText)
+        }
+        return
+    }
     when (val p = ui.state) {
         Screen.Pipeline.Idle ->
             if (ready) PrimaryButton("Upload & analyse", onClick = ui.onAnalyse, modifier = Modifier.padding(top = 4.dp))
