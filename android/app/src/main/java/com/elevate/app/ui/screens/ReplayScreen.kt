@@ -1,41 +1,36 @@
 package com.elevate.app.ui.screens
 
-import com.elevate.app.data.upload.UploadProgress
-import com.elevate.app.ui.upload.UploadProgressCard
-import com.elevate.app.domain.media.PreflightState
-import com.elevate.app.domain.media.Severity
-import com.elevate.app.domain.media.SourceFacts
-import com.elevate.app.domain.media.codecLabel
-import java.util.Locale
-import androidx.compose.runtime.saveable.rememberSaveable
 import android.content.pm.ApplicationInfo
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -52,16 +47,19 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,12 +67,23 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.ContentFrame
+import com.elevate.app.data.upload.UploadProgress
+import com.elevate.app.domain.media.PreflightState
+import com.elevate.app.domain.media.Severity
+import com.elevate.app.domain.media.SourceFacts
+import com.elevate.app.domain.media.codecLabel
 import com.elevate.app.domain.model.AnnotationState
 import com.elevate.app.playback.PlaybackUiState
 import com.elevate.app.playback.PlayerController
 import com.elevate.app.ui.Screen
+import com.elevate.app.ui.components.ElevateCard
+import com.elevate.app.ui.components.ElevateHeader
 import com.elevate.app.ui.components.ElevateIcons
+import com.elevate.app.ui.components.PrimaryButton
+import com.elevate.app.ui.components.VideoChip
 import com.elevate.app.ui.theme.Elevate
+import com.elevate.app.ui.upload.UploadProgressCard
+import java.util.Locale
 import kotlinx.coroutines.delay
 
 @UnstableApi
@@ -107,11 +116,20 @@ fun ReplayScreen(
     val debuggable = (LocalContext.current.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     LaunchedEffect(debuggable) { controller.setPresentationTimeStamp(debuggable) }
 
+    val title = displayTitle(screen.title)
+    val facts = (screen.preflight as? PreflightState.Done)?.facts
+    val subtitle = videoSubtitle(
+        width = facts?.displayWidth ?: screen.info.width,
+        height = facts?.displayHeight ?: screen.info.height,
+        fps = facts?.let { it.pts?.fpsMeasured ?: it.containerFps?.toDouble() },
+        durationMs = facts?.durationMs ?: screen.info.durationMs,
+    )
+
     BoxWithConstraints(Modifier.fillMaxSize().background(c.court)) {
         val landscape = maxWidth > maxHeight
         val sheetMax = maxHeight * 0.55f
         val video: @Composable (Modifier) -> Unit = { m ->
-            VideoArea(screen, state, controller, onChooseAnother, m)
+            VideoArea(title, state, controller, onChooseAnother, m)
         }
         val controls: @Composable (Modifier) -> Unit = { m ->
             ControlsSheet(screen, state, controller, positionMs, onOverlayVisible, onSetUp, onShowEngine, pipeline, m)
@@ -119,76 +137,44 @@ fun ReplayScreen(
         if (landscape) {
             Row(Modifier.fillMaxSize().safeDrawingPadding()) {
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    TopBar(screen.title, onBack)
+                    ElevateHeader(title, onBack = onBack, subtitle = subtitle, dark = true)
                     video(Modifier.weight(1f).fillMaxWidth())
                 }
-                controls(Modifier.width(360.dp).fillMaxHeight().verticalScroll(rememberScrollState()))
+                controls(Modifier.width(360.dp).fillMaxHeight())
             }
         } else {
-            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-                TopBar(screen.title, onBack)
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
+                ElevateHeader(title, onBack = onBack, subtitle = subtitle, dark = true)
                 video(Modifier.weight(1f).fillMaxWidth())
                 // The video stays the hero: the sheet takes at most 55 % of the height and scrolls inside it.
-                controls(Modifier.fillMaxWidth().heightIn(max = sheetMax).verticalScroll(rememberScrollState()))
+                controls(Modifier.fillMaxWidth().heightIn(max = sheetMax))
             }
         }
-    }
-}
-
-@Composable
-private fun TopBar(title: String, onBack: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.12f))
-                .clickable(onClickLabel = "Back to import", role = Role.Button, onClick = onBack),
-            contentAlignment = Alignment.Center,
-        ) { Icon(ElevateIcons.Back, contentDescription = "Back", tint = Color.White) }
-        Spacer(Modifier.size(12.dp))
-        Text(title, color = Color.White, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @UnstableApi
 @Composable
 private fun VideoArea(
-    screen: Screen.Replay,
+    title: String,
     state: PlaybackUiState,
     controller: PlayerController,
     onChooseAnother: () -> Unit,
     modifier: Modifier,
 ) {
-    val c = Elevate.colors
     Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
         val player by controller.playerFlow.collectAsState()
-        ContentFrame(player = player, modifier = Modifier.fillMaxSize().semantics { contentDescription = "Video: ${screen.title}" })
+        ContentFrame(player = player, modifier = Modifier.fillMaxSize().semantics { contentDescription = "Video: $title" })
         if (state.error != null) {
-            Column(
-                Modifier.padding(24.dp).clip(RoundedCornerShape(24.dp)).background(Color.White).padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("This video can't be played", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(6.dp))
-                Text(state.error, style = MaterialTheme.typography.bodyMedium)
+            ElevateCard(Modifier.padding(24.dp)) {
+                Text("This video can't be played", style = MaterialTheme.typography.titleMedium, color = Elevate.colors.ink)
+                Spacer(Modifier.height(4.dp))
+                Text(state.error, style = MaterialTheme.typography.bodyMedium, color = Elevate.colors.inkMuted)
                 Spacer(Modifier.height(16.dp))
-                Button(onClick = onChooseAnother, shape = CircleShape, colors = ButtonDefaults.buttonColors(containerColor = c.orange)) {
-                    Text("Choose another video")
-                }
+                PrimaryButton("Choose another video", onClick = onChooseAnother)
             }
         }
-        Text(
-            "Your video · original frames",
-            color = Color.White,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(12.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.55f))
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-        )
+        VideoChip("Your video · original frames", Modifier.align(Alignment.BottomStart).padding(12.dp), icon = ElevateIcons.Film)
     }
 }
 
@@ -215,7 +201,10 @@ private fun ControlsSheet(
         modifier
             .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
             .background(Color.White)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Slider(
             value = shownMs.toFloat(),
@@ -226,40 +215,46 @@ private fun ControlsSheet(
             colors = SliderDefaults.colors(thumbColor = c.orange, activeTrackColor = c.orange, inactiveTrackColor = c.line),
             modifier = Modifier.semantics { contentDescription = "Timeline" },
         )
-        Text(
-            "${formatTime(shownMs)} / ${formatTime(state.durationMs)}",
-            style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace, fontSize = 15.sp),
-        )
-        Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            RoundButton(ElevateIcons.Replay, "Replay from start", filled = false) { controller.replay() }
+            val tnum = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum", fontSize = 16.sp)
+            Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
+                Text(formatTime(shownMs), style = tnum, color = c.ink, maxLines = 1)
+                Text(
+                    "/ ${formatTime(state.durationMs)}",
+                    style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                    color = c.inkMuted,
+                    maxLines = 1,
+                )
+            }
             val playing = state.playWhenReady && !state.ended
-            RoundButton(if (playing) ElevateIcons.Pause else ElevateIcons.Play, if (playing) "Pause" else "Play", filled = true) { controller.togglePlay() }
-            Spacer(Modifier.weight(1f))
+            PlayButton(
+                icon = when { state.ended -> ElevateIcons.Replay; playing -> ElevateIcons.Pause; else -> ElevateIcons.Play },
+                label = when { state.ended -> "Replay from start"; playing -> "Pause"; else -> "Play" },
+            ) { controller.togglePlay() }
             SpeedSelector(state.speed) { controller.setSpeed(it) }
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(4.dp))
         AnnotationRow(screen, onOverlayVisible)
         EngineRow(screen.engine, onShowEngine)
-        Spacer(Modifier.height(8.dp))
         PreflightRow(screen.preflight)
         SetupRow(screen, onSetUp)
         PipelineRow(screen, pipeline)
+        AnalyseButton(screen, onSetUp)
     }
 }
 
 @Composable
-private fun RoundButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, filled: Boolean, onClick: () -> Unit) {
+private fun PlayButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     val c = Elevate.colors
     Box(
         Modifier
-            .size(if (filled) 64.dp else 52.dp)
+            .size(56.dp)
             .clip(CircleShape)
-            .background(if (filled) c.orange else c.cream)
+            .background(c.orange)
             .clickable(onClickLabel = label, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, contentDescription = null, tint = if (filled) Color.White else c.ink) }
+    ) { Icon(icon, contentDescription = null, tint = Color.White) }
 }
 
 private val SPEEDS = listOf(0.25f to "¼×", 0.5f to "½×", 1f to "1×")
@@ -267,103 +262,141 @@ private val SPEEDS = listOf(0.25f to "¼×", 0.5f to "½×", 1f to "1×")
 @Composable
 private fun SpeedSelector(speed: Float, onSpeed: (Float) -> Unit) {
     val c = Elevate.colors
-    Row(
-        Modifier.clip(CircleShape).background(c.cream).padding(4.dp).selectableGroup(),
-    ) {
+    Row(Modifier.clip(CircleShape).background(c.cream).padding(4.dp).selectableGroup()) {
         SPEEDS.forEach { (value, label) ->
             val selected = speed == value
             Box(
                 Modifier
-                    .size(width = 52.dp, height = 44.dp)
+                    .size(width = 46.dp, height = 44.dp)
                     .clip(CircleShape)
                     .background(if (selected) Color.White else Color.Transparent)
                     .selectable(selected = selected, role = Role.RadioButton, onClick = { onSpeed(value) })
                     .semantics { contentDescription = "Speed $value times" },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label, color = if (selected) c.orange else c.inkMuted, style = MaterialTheme.typography.labelLarge)
+                Text(label, color = if (selected) c.orangeText else c.inkMuted, style = MaterialTheme.typography.labelLarge)
             }
         }
     }
 }
 
+/**
+ * One compact single-line card: icon tile · title · short value (a real count with its denominator) ·
+ * optional switch. Tapping the card expands its [detail]; the switch toggles on its own.
+ */
 @Composable
-private fun AnnotationRow(screen: Screen.Replay, onOverlayVisible: (Boolean) -> Unit) {
+private fun CompactRow(
+    icon: ImageVector,
+    title: String,
+    bg: Color,
+    iconTint: Color,
+    value: String? = null,
+    valueDescription: String? = null,
+    toggle: Pair<Boolean, (Boolean) -> Unit>? = null,
+    toggleLabel: String? = null,
+    onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
+    detail: (@Composable () -> Unit)? = null,
+) {
     val c = Elevate.colors
-    val a = screen.annotations
-    val (title, detail, bg) = when (a) {
-        AnnotationState.Checking -> Triple("Checking for annotations…", "Matching this file's bytes to known recordings", c.cream)
-        AnnotationState.NoneForThisVideo -> Triple("No annotations for this video", "Only the original footage is shown", c.cream)
-        is AnnotationState.Failed -> Triple("Annotations unavailable", a.reason, c.errorSurface)
-        AnnotationState.UnsupportedHdr -> Triple("Trail not available for HDR video yet", "This recording is HDR; it plays without overlays", c.cream)
-        is AnnotationState.Available -> {
-            val t = a.track
-            val who = if (t.provenance.isHandLabelled) "Hand-labelled${t.provenance.labelledBy?.let { " by $it" } ?: ""}" else "Engine ${t.provenance.engineVersion}"
-            Triple(
-                "$who · shuttle trail",
-                annotationDetail(t),
-                c.mint,
-            )
-        }
-    }
-    val available = a is AnnotationState.Available
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(bg)
-            .then(if (available) Modifier.toggleable(value = screen.overlayVisible, role = Role.Switch, onValueChange = onOverlayVisible) else Modifier)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(ElevateIcons.Trail, contentDescription = null, tint = if (available) c.mintInk else c.inkMuted, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.size(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
-            Text(detail, style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
-        }
-        if (available) {
-            Switch(
-                checked = screen.overlayVisible,
-                onCheckedChange = null,
-                colors = SwitchDefaults.colors(checkedTrackColor = c.orange, checkedThumbColor = Color.White, uncheckedBorderColor = c.line),
-            )
-        }
-    }
-}
-
-/** What the file itself says: measured facts, then any finding. Nothing here is a model output. */
-@Composable
-private fun PreflightRow(p: PreflightState) {
-    val c = Elevate.colors
-    var open by rememberSaveable { mutableStateOf(false) }
-    val (title, detail) = when (p) {
-        PreflightState.Checking -> "Checking the clip…" to "Reading its tracks and frame timing"
-        is PreflightState.Failed -> "Clip check failed" to p.reason
-        is PreflightState.Done -> {
-            val n = p.findings.size
-            (if (p.blocked) "Can't be analysed" else if (n == 0) "Clip check · no issues" else "Clip check · $n to note") to
-                preflightSummary(p.facts)
-        }
-    }
-    val findings = (p as? PreflightState.Done)?.findings.orEmpty()
+    var open by rememberSaveable(title) { mutableStateOf(false) }
+    val tap: (() -> Unit)? = onClick ?: detail?.let { { open = !open } }
     Column(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(if (p is PreflightState.Done && p.blocked || p is PreflightState.Failed) c.errorSurface else c.cream)
-            .then(if (findings.isNotEmpty()) Modifier.toggleable(value = open, role = Role.Button, onValueChange = { open = it }) else Modifier)
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .semantics(mergeDescendants = true) {},
+            .background(bg)
+            .then(
+                if (tap != null) {
+                    Modifier.clickable(onClickLabel = onClickLabel ?: if (open) "Hide details" else "Show details", role = Role.Button, onClick = tap)
+                } else Modifier,
+            )
+            .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
-        Text(detail, style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
-        if (open) findings.forEach { f ->
-            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                val dot = when (f.severity) { Severity.Block -> c.error; Severity.Warn -> c.orange; Severity.Info -> c.lavenderInk }
-                Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
-                Spacer(Modifier.size(10.dp))
-                Text(f.text, style = MaterialTheme.typography.labelMedium, color = c.ink)
+        Row(Modifier.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.7f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp)) }
+            Spacer(Modifier.size(12.dp))
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
+                color = c.ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (value != null) {
+                Text(
+                    value,
+                    style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+                    color = c.inkMuted,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .then(if (valueDescription != null) Modifier.semantics { contentDescription = valueDescription } else Modifier),
+                )
+            }
+            if (detail != null && onClick == null) {
+                Icon(
+                    ElevateIcons.ChevronDown,
+                    contentDescription = null,
+                    tint = c.inkMuted,
+                    modifier = Modifier.padding(start = 6.dp).size(18.dp).rotate(if (open) 180f else 0f),
+                )
+            }
+            if (toggle != null) {
+                Spacer(Modifier.size(8.dp))
+                Switch(
+                    checked = toggle.first,
+                    onCheckedChange = toggle.second,
+                    colors = SwitchDefaults.colors(checkedTrackColor = c.orange, checkedThumbColor = Color.White, uncheckedBorderColor = c.line),
+                    modifier = Modifier.semantics {
+                        if (toggleLabel != null) contentDescription = toggleLabel
+                        stateDescription = if (toggle.first) "Shown" else "Hidden"
+                    },
+                )
+            }
+        }
+        if (open && detail != null) {
+            Column(Modifier.padding(start = 44.dp, top = 4.dp, bottom = 4.dp)) { detail() }
+        }
+    }
+}
+
+@Composable
+private fun DetailText(text: String, color: Color = Elevate.colors.inkMuted) {
+    Text(text, style = MaterialTheme.typography.labelMedium, color = color)
+}
+
+@Composable
+private fun AnnotationRow(screen: Screen.Replay, onOverlayVisible: (Boolean) -> Unit) {
+    val c = Elevate.colors
+    when (val a = screen.annotations) {
+        AnnotationState.Checking -> CompactRow(ElevateIcons.Trail, "Looking for a trail…", c.cream, c.inkMuted)
+        AnnotationState.NoneForThisVideo -> CompactRow(ElevateIcons.Trail, "No trail for this video", c.cream, c.inkMuted) {
+            DetailText("Only the original footage is shown.")
+        }
+        is AnnotationState.Failed -> CompactRow(ElevateIcons.Trail, "Trail unavailable", c.errorSurface, c.error) { DetailText(a.reason, c.ink) }
+        AnnotationState.UnsupportedHdr -> CompactRow(ElevateIcons.Trail, "No trail on HDR video yet", c.cream, c.inkMuted) {
+            DetailText("This recording is HDR; it plays without overlays.")
+        }
+        is AnnotationState.Available -> {
+            val t = a.track
+            val s = trailSummary(t)
+            CompactRow(
+                icon = ElevateIcons.Trail,
+                title = s.title,
+                bg = c.mint,
+                iconTint = c.mintInk,
+                value = s.value,
+                valueDescription = s.spoken,
+                toggle = screen.overlayVisible to onOverlayVisible,
+                toggleLabel = "Shuttle trail",
+            ) {
+                t.provenance.labelledBy?.let { DetailText("Labelled by $it") }
+                DetailText(annotationDetail(t))
             }
         }
     }
@@ -378,32 +411,46 @@ private fun EngineRow(offer: Screen.EngineOffer?, onShowEngine: (Boolean) -> Uni
     offer ?: return
     val c = Elevate.colors
     val t = offer.trail.track
-    val range = "${"%.2f".format(java.util.Locale.ROOT, t.rangeStartUs / 1e6)}–${"%.2f".format(java.util.Locale.ROOT, t.rangeEndUs / 1e6)} s"
+    val range = "${"%.2f".format(Locale.ROOT, t.rangeStartUs / 1e6)}–${"%.2f".format(Locale.ROOT, t.rangeEndUs / 1e6)} s"
     val models = offer.run.modelIds.joinToString(", ") { if (it == "tracknet_v3") "TrackNetV3" else it }
-    Spacer(Modifier.height(8.dp))
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(c.lavender)
-            .toggleable(value = offer.shown, role = Role.Switch, onValueChange = onShowEngine)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    CompactRow(
+        icon = ElevateIcons.Bolt,
+        title = "Recorded engine run",
+        bg = c.lavender,
+        iconTint = c.lavenderInk,
+        value = "${offer.trail.framesWithCandidate}/${t.framesInRange}",
+        valueDescription = "a candidate on ${offer.trail.framesWithCandidate} of ${t.framesInRange} frames",
+        toggle = offer.shown to onShowEngine,
+        toggleLabel = "Engine candidates",
     ) {
-        Column(Modifier.weight(1f)) {
-            Text("$models · recorded engine run · candidates", style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
-            Text(
-                "$range · a candidate on ${offer.trail.framesWithCandidate} of ${t.framesInRange} frames · " +
-                    "highest confidence per frame (${offer.trail.rowsTotal} rows) · engine ${offer.run.engineVersion}, not live",
-                style = MaterialTheme.typography.labelMedium,
-                color = c.inkMuted,
-            )
+        DetailText("$models candidates · $range · a candidate on ${offer.trail.framesWithCandidate} of ${t.framesInRange} frames")
+        DetailText("Highest confidence per frame (${offer.trail.rowsTotal} rows) · engine ${offer.run.engineVersion}, not live")
+    }
+}
+
+/** What the file itself says: measured facts, then any finding. Nothing here is a model output. */
+@Composable
+private fun PreflightRow(p: PreflightState) {
+    val c = Elevate.colors
+    when (p) {
+        PreflightState.Checking -> CompactRow(ElevateIcons.Check, "Checking the clip…", c.cream, c.inkMuted)
+        is PreflightState.Failed -> CompactRow(ElevateIcons.Check, "Clip check failed", c.errorSurface, c.error) { DetailText(p.reason, c.ink) }
+        is PreflightState.Done -> CompactRow(
+            icon = ElevateIcons.Check,
+            title = preflightTitle(p.blocked, p.findings.size),
+            bg = if (p.blocked) c.errorSurface else c.cream,
+            iconTint = if (p.blocked) c.error else if (p.findings.isEmpty()) c.mintInk else c.orange,
+        ) {
+            DetailText(preflightSummary(p.facts))
+            p.findings.forEach { f ->
+                Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val dot = when (f.severity) { Severity.Block -> c.error; Severity.Warn -> c.orange; Severity.Info -> c.lavenderInk }
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+                    Spacer(Modifier.size(10.dp))
+                    DetailText(f.text, c.ink)
+                }
+            }
         }
-        Switch(
-            checked = offer.shown,
-            onCheckedChange = null,
-            colors = SwitchDefaults.colors(checkedTrackColor = c.lavenderInk, checkedThumbColor = Color.White, uncheckedBorderColor = c.line),
-        )
     }
 }
 
@@ -421,7 +468,6 @@ class PipelineUi(
 @Composable
 private fun PipelineRow(screen: Screen.Replay, ui: PipelineUi) {
     if (screen.setup == null && ui.state == Screen.Pipeline.Idle) return
-    Spacer(Modifier.height(8.dp))
     PipelineStatus(ui, ready = screen.sha256 != null)
 }
 
@@ -430,14 +476,11 @@ private fun PipelineRow(screen: Screen.Replay, ui: PipelineUi) {
 fun PipelineStatus(ui: PipelineUi, ready: Boolean = true) {
     val c = Elevate.colors
     when (val p = ui.state) {
-        Screen.Pipeline.Idle -> if (ready) Button(
-            onClick = ui.onAnalyse,
-            shape = CircleShape,
-            colors = ButtonDefaults.buttonColors(containerColor = c.orange, contentColor = Color.White),
-            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-        ) { Text("Upload & analyse", style = MaterialTheme.typography.labelLarge) } else StatusCard("Identifying the file…", "Measuring its sha256 before upload", c.cream)
+        Screen.Pipeline.Idle ->
+            if (ready) PrimaryButton("Upload & analyse", onClick = ui.onAnalyse, modifier = Modifier.padding(top = 4.dp))
+            else StatusCard("Preparing the file…", "Measuring its fingerprint before upload", c.cream)
         Screen.Pipeline.Uploading -> UploadProgressCard(ui.upload, onRetry = ui.onRetryUpload, onCancel = ui.onCancelUpload)
-        is Screen.Pipeline.StartingAnalysis -> StatusCard("Uploaded · starting analysis…", "Session ${p.sessionId}", c.cream)
+        is Screen.Pipeline.StartingAnalysis -> StatusCard("Uploaded · starting analysis…", "Waiting for the server", c.cream)
         is Screen.Pipeline.Started -> Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.mint)
                 .clickable(onClickLabel = "Open analysis progress", role = Role.Button, onClick = ui.onOpenAnalysis)
@@ -446,15 +489,20 @@ fun PipelineStatus(ui: PipelineUi, ready: Boolean = true) {
             Text(
                 if (p.dispatched) "Analysis started · ${p.state}" else "Analysis ${p.state}",
                 style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
+                color = c.ink,
             )
-            Text("${p.analysisId} · tap for live progress", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+            Text("Tap for live progress", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
         }
         is Screen.Pipeline.Failed -> Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.errorSurface)
                 .clickable(onClickLabel = "Try again", role = Role.Button, onClick = ui.onRetryUpload)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
-            Text("${p.stage.replaceFirstChar { it.uppercase() }} failed · tap to try again", style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
+            Text(
+                "${p.stage.replaceFirstChar { it.uppercase() }} failed · tap to try again",
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
+                color = c.ink,
+            )
             Text(p.reason, style = MaterialTheme.typography.labelMedium, color = c.ink)
         }
     }
@@ -463,42 +511,89 @@ fun PipelineStatus(ui: PipelineUi, ready: Boolean = true) {
 @Composable
 private fun StatusCard(title: String, detail: String, bg: Color) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(bg).padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
+        Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp), color = Elevate.colors.ink)
         Text(detail, style = MaterialTheme.typography.labelMedium, color = Elevate.colors.inkMuted)
     }
 }
 
-/** Entry to the setup flow once the clip can be analysed, then a factual summary of what was chosen. */
+/** Once set up: a one-line factual summary of what the user chose; tapping it reopens setup. */
 @Composable
 private fun SetupRow(screen: Screen.Replay, onSetUp: () -> Unit) {
     val c = Elevate.colors
+    val r = screen.setup ?: return
     val p = screen.preflight as? PreflightState.Done ?: return
     if (p.blocked) return
-    Spacer(Modifier.height(8.dp))
-    val r = screen.setup
-    if (r == null) {
-        Button(
-            onClick = onSetUp,
-            shape = CircleShape,
-            colors = ButtonDefaults.buttonColors(containerColor = c.orange, contentColor = Color.White),
-            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-        ) { Text("Set up analysis", style = MaterialTheme.typography.labelLarge) }
-    } else {
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.mint)
-                .clickable(onClickLabel = "Change setup", role = Role.Button, onClick = onSetUp)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            Text("Set up · ${r.summary()}", style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
-            Text("Tap to change", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
-        }
-    }
+    CompactRow(
+        icon = ElevateIcons.Sliders,
+        title = r.shortSummary(),
+        bg = c.mint,
+        iconTint = c.mintInk,
+        value = "Edit",
+        valueDescription = r.summary(),
+        onClick = onSetUp,
+        onClickLabel = "Change setup",
+    )
 }
+
+/** The screen's main action before setup: open the setup flow for a clip that can be analysed. */
+@Composable
+private fun AnalyseButton(screen: Screen.Replay, onSetUp: () -> Unit) {
+    if (screen.setup != null) return
+    val p = screen.preflight as? PreflightState.Done ?: return
+    if (p.blocked) return
+    PrimaryButton("Analyse this match", onClick = onSetUp, modifier = Modifier.padding(top = 4.dp))
+}
+
+/** e.g. "Badminton singles · 4 corners". Only what the user chose. */
+private fun com.elevate.app.ui.setup.SetupResult.shortSummary(): String =
+    "${sport.label} ${format.label.lowercase()} · ${if (calibrationInput != null) "4 corners" else "no court"}"
 
 /** e.g. "Badminton singles · 4 court corners · you at 0:41.20". Only what the user chose. */
 private fun com.elevate.app.ui.setup.SetupResult.summary(): String {
     val corners = if (calibrationInput != null) "4 court corners" else "no court"
     return "${sport.label} ${format.label.lowercase()} · $corners · you at ${formatTime(whoIsMe.tMs)}"
+}
+
+/** Short trail line: who made it, then its count with the denominator ("153/196" labelled frames). */
+internal data class TrailSummary(val title: String, val value: String, val spoken: String)
+
+internal fun trailSummary(t: com.elevate.app.domain.model.TrailTrack): TrailSummary = TrailSummary(
+    title = if (t.provenance.isHandLabelled) "Hand-labelled trail" else "Engine ${t.provenance.engineVersion} trail",
+    value = "${t.observedFrames}/${t.labelledFrames}",
+    spoken = "shuttle seen in ${t.observedFrames} of ${t.labelledFrames} labelled frames",
+)
+
+internal fun preflightTitle(blocked: Boolean, findings: Int): String = when {
+    blocked -> "Can't be analysed"
+    findings == 0 -> "Clip check · no issues"
+    else -> "Clip check · $findings to note"
+}
+
+/**
+ * Header title: the file's display name without its extension. Gallery pickers often hand back the
+ * MediaStore id as the name ("1000219389.mp4"), which means nothing to a player: show "Your match".
+ */
+internal fun displayTitle(name: String?): String {
+    val trimmed = name?.trim().orEmpty()
+    val base = trimmed.substringBeforeLast('.', missingDelimiterValue = trimmed)
+    return if (base.isBlank() || base.all { it.isDigit() }) "Your match" else base
+}
+
+/** Header subtitle from measured facts only, e.g. "1080p50 · 8:04". Unknown parts are left out. */
+internal fun videoSubtitle(width: Int?, height: Int?, fps: Double?, durationMs: Long?): String? {
+    val short = if (width != null && height != null && width > 0 && height > 0) minOf(width, height) else null
+    val res = short?.let { s -> "${s}p" + (fps?.takeIf { it > 0 }?.let { Math.round(it).toString() } ?: "") }
+    val dur = durationMs?.takeIf { it > 0 }?.let { formatClock(it) }
+    return listOfNotNull(res, dur).joinToString(" · ").ifEmpty { null }
+}
+
+/** Whole-second clock: "8:04", "1:02:09". */
+internal fun formatClock(ms: Long): String {
+    val s = ms.coerceAtLeast(0) / 1000
+    val h = s / 3600
+    val m = (s % 3600) / 60
+    val sec = s % 60
+    return if (h > 0) String.format(Locale.ROOT, "%d:%02d:%02d", h, m, sec) else String.format(Locale.ROOT, "%d:%02d", m, sec)
 }
 
 /** Display size, codec, measured frame spacing, audio: e.g. "1920×1080 · H.264 · 20.0 ms frames (50 fps) · audio 44.1 kHz". */

@@ -42,4 +42,25 @@ object ElevateIcons {
         moveTo(4f, 18f); curveTo(8f, 6f, 14f, 4f, 20f, 8f)
         moveTo(20f, 8f); lineTo(20.01f, 8f)
     }
+    /** Filming tip: aim at the court (two rings). */
+    val Target = icon("target") {
+        moveTo(12f, 3f); arcTo(9f, 9f, 0f, true, true, 11.99f, 3f); close()
+        moveTo(12f, 8f); arcTo(4f, 4f, 0f, true, true, 11.99f, 8f); close()
+    }
+    /** Filming tip: frame rate. */
+    val Bolt = icon("bolt") { moveTo(13f, 2f); lineTo(4f, 14f); lineTo(12f, 14f); lineTo(11f, 22f); lineTo(20f, 10f); lineTo(12f, 10f); close() }
+    /** Filming tip: keep the camera still. */
+    val Eye = icon("eye") {
+        moveTo(2f, 12f); curveTo(5f, 6f, 19f, 6f, 22f, 12f); curveTo(19f, 18f, 5f, 18f, 2f, 12f); close()
+        moveTo(12f, 9f); arcTo(3f, 3f, 0f, true, true, 11.99f, 9f); close()
+    }
+    /** Expand / collapse a row. */
+    val ChevronDown = icon("chevron_down") { moveTo(6f, 9f); lineTo(12f, 15f); lineTo(18f, 9f) }
+    /** Clip check. */
+    val Check = icon("check") { moveTo(5f, 12.5f); lineTo(10f, 17f); lineTo(19f, 7f) }
+    /** Setup (sliders). */
+    val Sliders = icon("sliders") {
+        moveTo(4f, 7f); lineTo(20f, 7f); moveTo(4f, 17f); lineTo(20f, 17f)
+        moveTo(9f, 4f); lineTo(9f, 10f); moveTo(15f, 14f); lineTo(15f, 20f)
+    }
 }
