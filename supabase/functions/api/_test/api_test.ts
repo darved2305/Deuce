@@ -89,6 +89,13 @@ Deno.test("/v1/* with invalid Bearer -> 401 envelope", async () => {
   assert.equal(body.error.code, "unauthorized");
 });
 
+Deno.test("public exemption is exact-path only", async () => {
+  const res = await root.fetch(
+    new Request("http://localhost/api/v1/sessions/v1/health"),
+  );
+  assert.equal(res.status, 401);
+});
+
 Deno.test("timingSafeEqual", () => {
   assert.ok(timingSafeEqual("abc", "abc"));
   assert.ok(!timingSafeEqual("abc", "abd"));

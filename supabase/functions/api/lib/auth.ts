@@ -1,5 +1,4 @@
 import { createMiddleware } from "hono/factory";
-import { env } from "./env.ts";
 import { userClient } from "./db.ts";
 import { fail } from "./errors.ts";
 
@@ -17,26 +16,30 @@ export function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
-  const path = c.req.path;
-  if (path.endsWith("/v1/health") || path.endsWith("/v1/openapi.json")) {
-    return await next();
+const PUBLIC_PATHS = new Set(["/api/v1/health", "/api/v1/openapi.json"]);
+
+export const internalAuth = createMiddleware<AppEnv>(async (c, next) => {
+  const token = c.req.header("X-Internal-Token");
+  const expected = Deno.env.get("INTERNAL_API_TOKEN");
+  if (!token || !expected || !timingSafeEqual(token, expected)) {
+    return fail(c, 401, "unauthorized", "unauthorized");
   }
-  if (path.includes("/internal/")) {
-    const token = c.req.header("X-Internal-Token");
-    const expected = Deno.env.get("INTERNAL_API_TOKEN");
-    if (!token || !expected || !timingSafeEqual(token, expected)) {
-      return fail(c, 401, "unauthorized", "unauthorized");
-    }
-    return await next();
-  }
+  return await next();
+});
+
+export const userAuth = createMiddleware<AppEnv>(async (c, next) => {
+  if (PUBLIC_PATHS.has(c.req.path)) return await next();
   const header = c.req.header("Authorization") ?? "";
   if (!header.startsWith("Bearer ")) {
     return fail(c, 401, "unauthorized", "missing bearer token");
   }
   const jwt = header.slice("Bearer ".length);
-  const jwks = JSON.parse(env("SUPABASE_JWKS"));
-  const { data, error } = await userClient(jwt).auth.getClaims(jwt, { jwks });
+  const rawJwks = Deno.env.get("SUPABASE_JWKS");
+  const jwks = rawJwks ? JSON.parse(rawJwks) : undefined;
+  const { data, error } = await userClient(jwt).auth.getClaims(
+    jwt,
+    jwks ? { jwks } : undefined,
+  );
   const claims = data?.claims as
     | { sub?: unknown; is_anonymous?: unknown }
     | undefined;
