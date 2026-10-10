@@ -43,7 +43,9 @@ so nobody waits. Changes need all four to agree; bump the schema version; announ
   `analysis_not_found` 404, `conflict` / `idempotency_conflict` / `analysis_run_conflict` 409,
   `upload_too_large` 413, `validation_failed` / `invalid_body` 422, `storage_budget_reached` /
   `daily_upload_limit` / `too_many_part_requests` / `daily_download_limit` 429, `internal` 500,
-  `dispatch_in_flight` / `engine_unavailable` / `uploads_paused` 503 (D-261011-HW6).
+  `dispatch_in_flight` / `engine_unavailable` / `uploads_paused` / `storage_busy` 503; also
+  `upload_parts_invalid` / `upload_not_complete` / `invalid_transition` 409 and `analysis_limit_reached` 429
+  (D-261011-HW6, D-261011-HW13).
 - `GET /v1/health` → `{"status": "ok"}`.
 - RLS: every row carries `owner_id = auth.uid()` (or a share grant); Realtime private channels
   authorised by RLS on `realtime.messages` for the analysis owner.

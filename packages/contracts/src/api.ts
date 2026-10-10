@@ -57,6 +57,9 @@ export const knownErrorCodes = {
   conflict: 409,
   idempotency_conflict: 409,
   analysis_run_conflict: 409,
+  upload_parts_invalid: 409,
+  upload_not_complete: 409,
+  invalid_transition: 409,
   upload_too_large: 413,
   validation_failed: 422,
   invalid_body: 422,
@@ -64,11 +67,13 @@ export const knownErrorCodes = {
   daily_upload_limit: 429,
   too_many_part_requests: 429,
   daily_download_limit: 429,
+  analysis_limit_reached: 429,
   internal: 500,
   segment_gap: 409,
   dispatch_in_flight: 503,
   engine_unavailable: 503,
   uploads_paused: 503,
+  storage_busy: 503,
 } as const;
 
 export const healthResponseSchema = strictObject({

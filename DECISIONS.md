@@ -743,3 +743,11 @@ Template (copy to the end of the file):
   `research/out/engine-roadmap/roadmap.md`, and `research/out/S1-stabilisation-findings.md`.
   Evidence and acceptance bars are recorded in `docs/plan/13-additional-plan.md`.
 - **PRs:** pending.
+
+## D-261011-HW13 · Error codes from the deployed API (contracts 1.7.1)
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **Decision:** `knownErrorCodes` adds `upload_parts_invalid`, `upload_not_complete`, `invalid_transition`
+  (409), `analysis_limit_reached` (429, the 3-analyses-per-session cap), `storage_busy` (503, the
+  fail-closed budget counter), as emitted by Person 3's #28/#29.
+- **Blast radius:** Person 2 maps them to messages; contracts 1.7.1, additive.
+- **PRs:** this PR.
