@@ -41,7 +41,16 @@ sealed interface Screen {
         val setupAtUs: Long? = null,
         /** What the user chose in the setup flow (contracts §2 session fields), once done. */
         val setup: SetupResult? = null,
+        /** Recorded engine output for this exact file, if Person 1 recorded a run on it. */
+        val engine: EngineOffer? = null,
     ) : Screen
+
+    /** A recorded engine run offered on the open file; [shown] = drawn instead of the hand labels. */
+    data class EngineOffer(
+        val run: com.elevate.app.data.engine.RecordedEngineRun,
+        val trail: com.elevate.app.data.engine.RecordedEngineRun.CandidateTrail,
+        val shown: Boolean = false,
+    )
 }
 
 @UnstableApi
@@ -50,6 +59,15 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     val controller = PlayerController(app)
     private val inspector = VideoInspector(app.contentResolver)
     private val probe = MediaProbe(app.contentResolver)
+    private val engineRuns: List<com.elevate.app.data.engine.RecordedEngineRun> by lazy {
+        val assets = app.assets
+        val runs = assets.list(ENGINE_DIR).orEmpty()
+        com.elevate.app.data.engine.RecordedEngineRun.load(runs.flatMap { run ->
+            assets.list("$ENGINE_DIR/$run").orEmpty().map { f ->
+                "$run/$f" to assets.open("$ENGINE_DIR/$run/$f").bufferedReader().use { it.readText() }
+            }
+        })
+    }
     private val repository: MatchRepository = DefaultMatchRepository(
         fixtures = FixtureSource {
             val assets = app.assets
@@ -121,8 +139,18 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             }
             val current = _screen.value
             if (current is Screen.Replay && current.uri == uri) {
-                controller.setTrack((annotations as? AnnotationState.Available)?.track)
-                _screen.value = current.copy(annotations = annotations)
+                val hand = (annotations as? AnnotationState.Available)?.track
+                controller.setTrack(hand)
+                // A recorded engine run is offered only on a file whose bytes matched the fixture
+                // for the same clip id (the run's manifest has no file hash of its own).
+                val offer = hand?.let { h ->
+                    withContext(Dispatchers.Default) {
+                        engineRuns.firstOrNull { it.clipId == h.clip.clipId }?.let { run ->
+                            run.candidateTrack(h.clip)?.let { Screen.EngineOffer(run, it) }
+                        }
+                    }
+                }
+                _screen.update { s -> if (s is Screen.Replay && s.uri == uri) s.copy(annotations = annotations, engine = offer) else s }
             }
         }
     }
@@ -140,6 +168,16 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     fun finishSetup(result: SetupResult) =
         _screen.update { s -> if (s is Screen.Replay) s.copy(setupAtUs = null, setup = result) else s }
+
+    /** Draws the recorded engine candidates instead of the hand labels, or back. One trail at a time. */
+    fun showEngine(show: Boolean) {
+        val s = _screen.value as? Screen.Replay ?: return
+        val offer = s.engine ?: return
+        val hand = (s.annotations as? AnnotationState.Available)?.track
+        controller.setTrack(if (show) offer.trail.track else hand)
+        controller.setOverlayVisible(true)
+        _screen.value = s.copy(engine = offer.copy(shown = show), overlayVisible = true)
+    }
 
     fun setOverlayVisible(visible: Boolean) {
         controller.setOverlayVisible(visible)
@@ -160,5 +198,6 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         const val FIXTURE_DIR = "fixtures"
+        const val ENGINE_DIR = "engine_runs"
     }
 }
