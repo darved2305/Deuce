@@ -28,12 +28,20 @@ import com.elevate.app.data.DefaultMatchRepository
 import com.elevate.app.data.api.ApiSource
 import com.elevate.app.data.fixture.FixtureSource
 import com.elevate.app.data.media.MediaProbe
+import com.elevate.app.domain.calibration.CourtCalibration
+import com.elevate.app.domain.calibration.CourtModel
+import com.elevate.app.domain.calibration.Homography
+import com.elevate.app.domain.calibration.ImagePoint
 import com.elevate.app.domain.media.Preflight
 import com.elevate.app.domain.media.PreflightState
+import com.elevate.app.ui.setup.PointsPx
 import com.elevate.app.ui.setup.SetupResult
 import com.elevate.app.domain.model.AnnotationState
 import com.elevate.app.domain.repository.BackendStatus
 import com.elevate.app.domain.repository.MatchRepository
+import androidx.media3.effect.OverlayEffect
+import androidx.media3.effect.TextureOverlay
+import com.elevate.app.playback.CourtOverlay
 import com.elevate.app.playback.PlayerController
 import com.elevate.app.playback.VideoInspector
 import kotlinx.coroutines.Dispatchers
@@ -63,6 +71,10 @@ sealed interface Screen {
         val engine: EngineOffer? = null,
         /** sha256 of the file's bytes (also `source.sha256` in the session request), once measured. */
         val sha256: String? = null,
+        /** Whole-court view from the setup's four corner taps, once a homography exists. */
+        val court: CourtCalibration? = null,
+        /** The "Court" toggle: whether the court lines are drawn on the video. */
+        val courtVisible: Boolean = true,
     ) : Screen
 
     enum class Panel { None, Analysing, Overview }
@@ -88,6 +100,10 @@ sealed interface Screen {
 class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     val controller = PlayerController(app)
+    /** Court lines through the corner-tap homography; sits beside the trail in the effect list. */
+    private val courtOverlay = CourtOverlay()
+    /** Whether the open player has the overlay pipeline (SDR only; HDR drops it, see [open]). */
+    private var playerHasOverlays = false
     private val inspector = VideoInspector(app.contentResolver)
     private val probe = MediaProbe(app.contentResolver)
     private val engineRuns: List<com.elevate.app.data.engine.RecordedEngineRun> by lazy {
@@ -144,6 +160,12 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             controller.open(uri, withOverlay = !info.isHdr)
+            // open() may rebuild the player (SDR↔HDR), which resets the effect list; add the court
+            // overlay beside the trail on every overlay-capable player (setVideoEffects may run
+            // after prepare — media3 1.11.1 ExoPlayer doc). On HDR the pipeline has no overlays.
+            playerHasOverlays = !info.isHdr
+            attachCourtOverlay()
+            courtOverlay.setCalibration(null)
             controller.setOverlayVisible(true)
             _screen.value = Screen.Replay(uri, info.displayName ?: "Your video", info)
             // Preflight runs beside the fingerprint below: its sample walk can take longer than the sha256.
@@ -201,8 +223,63 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     fun cancelSetup() = _screen.update { s -> if (s is Screen.Replay) s.copy(setupAtUs = null) else s }
 
-    fun finishSetup(result: SetupResult) =
-        _screen.update { s -> if (s is Screen.Replay) s.copy(setupAtUs = null, setup = result) else s }
+    fun finishSetup(result: SetupResult) {
+        val court = (_screen.value as? Screen.Replay)?.let { courtCalibration(it, result) }
+        courtOverlay.setCalibration(court)
+        _screen.update { s ->
+            if (s is Screen.Replay) {
+                s.copy(setupAtUs = null, setup = result, court = court, courtVisible = court != null)
+            } else s
+        }
+        // Repaint the paused frame so the lines appear without pressing play.
+        redrawOverlay()
+    }
+
+    /** The court geometry from the setup's corner taps, or null without four corners + a solve. */
+    private fun courtCalibration(s: Screen.Replay, r: SetupResult): CourtCalibration? {
+        val cal = r.calibrationInput ?: return null
+        val corners = CourtModel.outerCorners(cal.template) ?: return null
+        val taps = cal.pointsPx.inContractOrder() ?: return null
+        val h = Homography.fromFourPoints(corners, taps) ?: return null
+        // The image space the taps were made in (contracts §0): the probe's display size, with the
+        // decoded frame size as the fallback.
+        val facts = (s.preflight as? PreflightState.Done)?.facts
+        val w = facts?.displayWidth ?: controller.state.value.videoWidth
+        val ht = facts?.displayHeight ?: controller.state.value.videoHeight
+        if (w <= 0 || ht <= 0) return null
+        return CourtCalibration(cal.template, h, w, ht)
+    }
+
+    /** near_left, near_right, far_right, far_left as image points; null on a malformed point. */
+    private fun PointsPx.inContractOrder(): List<ImagePoint>? {
+        val c = listOf(nearLeft, nearRight, farRight, farLeft)
+        if (c.any { it.size < 2 }) return null
+        return c.map { ImagePoint(it[0], it[1]) }
+    }
+
+    /** The "Court" toggle: the lines draw or hide; the state lives on the screen. */
+    fun setCourtVisible(visible: Boolean) {
+        courtOverlay.visible = visible
+        _screen.update { s -> if (s is Screen.Replay) s.copy(courtVisible = visible) else s }
+        redrawOverlay()
+    }
+
+    /** The court overlay joins the trail's effect; the last overlay in the list draws on top. */
+    private fun attachCourtOverlay() {
+        if (!playerHasOverlays) return
+        controller.player.setVideoEffects(
+            listOf(OverlayEffect(listOf<TextureOverlay>(courtOverlay, controller.overlay))),
+        )
+    }
+
+    /**
+     * Re-render the held frame while paused so overlay changes are visible without playback — the
+     * same seek mechanism the trail toggle uses inside the controller.
+     */
+    private fun redrawOverlay() {
+        val s = _screen.value as? Screen.Replay ?: return
+        controller.setOverlayVisible(s.overlayVisible)
+    }
 
     /** Draws the recorded engine candidates instead of the hand labels, or back. One trail at a time. */
     fun showEngine(show: Boolean) {

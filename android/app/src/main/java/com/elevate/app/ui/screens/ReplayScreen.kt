@@ -67,13 +67,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.ContentFrame
 import com.elevate.app.domain.model.AnnotationState
 import com.elevate.app.playback.PlaybackUiState
 import com.elevate.app.playback.PlayerController
+import com.elevate.app.ui.ReplayViewModel
 import com.elevate.app.ui.Screen
 import com.elevate.app.ui.components.ElevateIcons
+import com.elevate.app.ui.components.MiniCourt
 import com.elevate.app.ui.theme.Elevate
 import kotlinx.coroutines.delay
 
@@ -241,6 +244,7 @@ private fun ControlsSheet(
         Spacer(Modifier.height(16.dp))
         AnnotationRow(screen, onOverlayVisible)
         EngineRow(screen.engine, onShowEngine)
+        CourtSection(screen)
         Spacer(Modifier.height(8.dp))
         PreflightRow(screen.preflight)
         SetupRow(screen, onSetUp)
@@ -405,6 +409,48 @@ private fun EngineRow(offer: Screen.EngineOffer?, onShowEngine: (Boolean) -> Uni
             colors = SwitchDefaults.colors(checkedTrackColor = c.lavenderInk, checkedThumbColor = Color.White, uncheckedBorderColor = c.line),
         )
     }
+}
+
+/**
+ * "See the whole court": a Court toggle for the lines drawn on the footage, then the top-down
+ * card. Both exist only when setup's four corner taps produced a homography ([screen].court);
+ * on HDR the effect pipeline draws nothing, so the card stays but the toggle is not offered
+ * rather than switching something that cannot draw.
+ *
+ * The toggle reaches the same activity-scoped [ReplayViewModel] the screen runs on — the call
+ * site's parameters are fixed, and this matches how SetupFlowScreen gets its own ViewModel.
+ */
+@UnstableApi
+@Composable
+private fun CourtSection(screen: Screen.Replay) {
+    val cal = screen.court ?: return
+    val c = Elevate.colors
+    if (!screen.info.isHdr) {
+        val vm: ReplayViewModel = viewModel()
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(c.cream)
+                .toggleable(value = screen.courtVisible, role = Role.Switch, onValueChange = vm::setCourtVisible)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .semantics(mergeDescendants = true) {},
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Court lines", style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
+                Text("Every court line, from your corner taps", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+            }
+            Switch(
+                checked = screen.courtVisible,
+                onCheckedChange = null,
+                colors = SwitchDefaults.colors(checkedTrackColor = c.orange, checkedThumbColor = Color.White, uncheckedBorderColor = c.line),
+            )
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    MiniCourt(cal)
 }
 
 /** What the replay screen needs to drive upload → analysis (state lives in the ViewModel). */
