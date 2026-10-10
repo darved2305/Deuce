@@ -686,3 +686,60 @@ Template (copy to the end of the file):
   inventing a window 3.
 - **Blast radius:** Person 2 and Person 3 load window fixtures by pattern; contracts unchanged.
 - **PRs:** this PR.
+
+## D-261011-HW12 · Person 3's Phase 3 contract blockers (contracts 1.7.0)
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** Accept all four proposals in @nikhilpravinpise's #20 follow-up so finalize, confirm
+  and compare can proceed.
+- **Decision:**
+  1. `reviewSchema`: `confirmed_point_winner`, `confirmed_by`, `confirmed_at` nullable, all null or all
+     set; engine estimates send null.
+  2. Wire `confirmed_by` / `confirmed.point.v1.by` stays a player ID (the account mapped via
+     `who_is_me`); the database stores the auth user as the audit actor.
+  3. Metric `player_id` nullable; storage uses `unique nulls not distinct (match_id, key,
+     definition_version, player_id)`.
+  4. Comparisons rank the top 5 and return `min(limit, 5)` (default 3), filter on `ruleset_id`;
+     `scope=shared` uses existing grants only in Phase 3.
+  Also: `r2_usage_monthly` is as implemented in Person 3's migration `20261010190309_r2_budget.sql`;
+  player history is keyed per account ("me") in Phase 3, not cross-match player IDs.
+- **Blast radius:** Person 3 (finalize, confirm, compare, metrics PK); Person 1 (reviews in
+  `vision_result.v1` send null confirmations); Person 2 (readers accept nulls). Contracts 1.7.0.
+- **PRs:** this PR.
+
+## D-261011-HW9 · Additional four-lane plan (proposed, reference; post-demo queue)
+- **Status:** proposed
+- **Date:** pending team-lead ratification · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of the Phase 2–3 queue, facing camera-motion and evidence gaps,
+  propose a tiered set of small additions led by Person 1's always-on camera path and primitive
+  outputs, accepting separate contract work and real-footage proof before any capability is
+  called verified.
+- **Context:** `docs/plan/13-additional-plan.md` inserts the additions into each current queue;
+  `docs/lanes/person-1-spec.md` defines the engine stages; `docs/plan/14-inference-catalog.md`
+  defines the app-facing data catalog. The supplied reports show a real TrackNet baseline and
+  static back-wall false positives, while the integrated camera path, events, segments, and
+  insights remain incomplete.
+- **Decision:** Keep the camera path always on, with the identity path for a fixed camera. Person 1
+  emits measured timing, geometry, and confidence primitives; Person 3 persists them and derives
+  aggregates, patterns, and simulations; Person 2 selects presentation from data actually present.
+  Treat all additions as proposed tiers until the team lead ratifies queue order and the separate
+  contract amendments are reviewed.
+- **Alternatives:** (a) keep camera handling as an optional motion-gated branch, rejected because
+  downstream geometry needs one consistent coordinate path; (b) compute movement and match
+  aggregates in Android, rejected because Person 3 owns insights and Person 2 should present the
+  shared record.
+- **Blast radius:**
+  - Contracts: proposed additive `camera_path.v1`, `timeline.v1`, #20 and segment amendments, plus
+    optional metric/player/review/simulation fields; no schema is changed by this proposal.
+  - People and folders: Person 1 `engine/`; Person 2 `android/`; Person 3 `supabase/`; Person 4
+    `docs/`, `packages/`, `fixtures/`, and `scripts/`.
+  - Data/infra: real Modal runs remain under D-261010-VV1; R2 writes remain under
+    D-261011-HW2. No new services or credentials.
+  - Containment: proposed only; additive schemas require their own PR, generated artifacts, and
+    all affected lane sign-offs before implementation.
+- **Exit:** The team lead may accept, reorder, or supersede this proposal before implementation.
+  Already merged additive slices can be hidden or removed through their own reviewed PRs.
+- **Proof / evidence:** `research/out/plan-context/pr22-person1.md`, `pr24-person1.md`,
+  `issue20-contract-gaps.md`, `issue26-person3-status.md`, `inference-table.md`,
+  `research/out/engine-roadmap/roadmap.md`, and `research/out/S1-stabilisation-findings.md`.
+  Evidence and acceptance bars are recorded in `docs/plan/13-additional-plan.md`.
+- **PRs:** pending.

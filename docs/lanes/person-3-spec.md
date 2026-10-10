@@ -455,9 +455,9 @@ const base = `https://${Deno.env.get("R2_ACCOUNT_ID")}.r2.cloudflarestorage.com/
 ### 6.2 Endpoints
 | Route | Request | Response | Behaviour |
 |---|---|---|---|
-| `POST /v1/sessions` | body = contracts §2 session JSON (validated by zod) | 201 `{session_id, match_id, upload:{upload_id, r2_key, part_size, max_concurrency:2}}` | Inserts match + session (user client), creates the R2 multipart upload, inserts `uploads(status='initiated')` (admin). `r2_key = orig/{session_id}/source.mp4`. |
+| `POST /v1/sessions` | body = contracts §2 session JSON (validated by zod) | 201 `{session_id, match_id, upload:{upload_id, r2_key, part_size, max_concurrency:2}}` | `upload_mode='multipart'` inserts match + session (user client), creates the R2 multipart upload, and inserts `uploads(status='initiated')` (admin). `upload_mode='segments'` returns 422 `validation_failed` with details `segments upload not available yet`. `r2_key = orig/{session_id}/source.mp4`. |
 | `POST /v1/sessions/{id}/upload/parts` | `{part_numbers:[1..]}` (≤ 50 per call) | 200 `{parts:[{n, url, expires_at}]}` | Session must belong to caller and upload `initiated`. URLs expire in 900 s; re-requesting the same part is allowed. |
-| `POST /v1/sessions/{id}/upload/complete` | `{parts:[{n, etag}]}` | 200 `{status:'completed', bytes}` | Idempotent: if already `completed`, return the same response. Calls R2 Complete; on success `uploads.status='completed'`, `parts` stored. |
+| `POST /v1/sessions/{id}/upload/complete` | `{parts:[{n, etag}]}` | 200 `{status:'completed', bytes}` | Idempotent: if already `completed`, return the same response. Calls R2 Complete; requires the resulting HEAD size to equal declared `source.bytes` exactly. On success `uploads.status='completed'`, `parts` stored. |
 | `POST /v1/sessions/{id}/upload/abort` | - | 200 `{status:'aborted'}` | Calls R2 Abort; status `aborted`. |
 
 ### 6.3 Validation and edge cases (expected behaviour)
@@ -468,6 +468,7 @@ const base = `https://${Deno.env.get("R2_ACCOUNT_ID")}.r2.cloudflarestorage.com/
   with a different body → 409 `idempotency_conflict`. Missing `Idempotency-Key` → 422
   `validation_failed`.
 - Complete with a missing or wrong ETag → R2 returns `InvalidPart`/`InvalidPartOrder` → 409 `upload_parts_invalid` with the R2 message; status stays `initiated` (the app re-uploads those parts).
+- Complete with an object size different from declared `source.bytes` → delete the R2 object, mark the upload `aborted`, and return 409 `upload_parts_invalid` with expected and actual byte counts.
 - Complete called twice concurrently → the second sees `completed` (use `update … where status='initiated' returning`) and returns the same body.
 - Expired part URL → the app re-requests that part number; never extend expiry beyond 900 s.
 - Session not owned by caller → 404 `not_found` (never 403, to avoid leaking existence).
@@ -481,28 +482,36 @@ bodies stay within Edge limits (I/O does not count against CPU).
 
 ## 7. Analyses (dispatch, state, events)
 
-### 7.1 `POST /v1/analyses` `{session_id}` + required `Idempotency-Key` (D-261010-NP1)
+### 7.1 `POST /v1/analyses` `{session_id}` + required `Idempotency-Key` (D-261010-NP1, D-261010-NP2)
 1. Session owned by caller (else 404); upload `completed` → else 409 `upload_not_complete`;
-   `Idempotency-Key` present → else 422 `validation_failed`.
-2. `rpc create_analysis_run(p_session_id, p_idempotency_key)`: `insert … on conflict
-   (session_id, idempotency_key) do nothing returning *`; on a partial-unique-index conflict (a
-   live run exists under a different key) it loads and returns that run instead. Existing or live
-   run → 200 `{analysis_id, state}` without dispatching again.
-3. New row → append `analysis.queued` **before** any dispatch attempt (the durable record that a
-   GPU job is owed even if the claim/call fails).
-4. `rpc claim_dispatch(p_analysis_id)`: atomic
-   `update … set dispatching=true, dispatch_attempts=dispatch_attempts+1, dispatch_claimed_at=now()
-   where id=$1 and modal_call_id is null and (dispatching=false or dispatch_claimed_at < now() - interval '60 seconds')
-   returning *`. No row → another dispatcher is in flight: return current state (still 202; the
-   queued event is durable).
+   `Idempotency-Key` present → else 422 `validation_failed`. A stored response under the same
+   key replays verbatim; the same key with a different body → 409 `idempotency_conflict`.
+   Every 200/202 response below is stored for idempotency.
+2. `rpc create_analysis_run(p_session_id, p_idempotency_key)`: the `insert … on conflict
+   (session_id, idempotency_key) do nothing returning *` sits inside a
+   `begin … exception when unique_violation` handler, because the partial unique index on live
+   runs raises there rather than matching the named conflict target. On any conflict it returns
+   the same-key row, else the live run under a different key. A terminal run → 200
+   `{analysis_id, state}` without dispatching again.
+3. Any non-terminal run → append `analysis.queued` (the durable record that a GPU job is owed;
+   the `(type, window_seq)` dedupe returns the existing row on replays), then
+   `rpc claim_dispatch(p_analysis_id)`.
+4. `rpc claim_dispatch(p_analysis_id)` locks the run row. A non-queued run, an existing
+   `modal_call_id`, or a live 60-second dispatch lease returns no row. Otherwise it claims the run
+   and increments `dispatch_attempts`; if the fifth claim's lease has expired, it appends
+   `analysis.failed` `reason='dispatch_failed'`, clears `dispatching`, and returns the failed run
+   as 200 `{analysis_id, state:'failed'}`. On no row, re-read the run: still `queued` → 202
+   `{analysis_id, state:'queued'}` (another dispatcher is in flight; the queued event is durable);
+   any other state → 200 with the current state.
 5. Call `POST MODAL_SUBMIT_URL` with `Authorization: Bearer MODAL_SUBMIT_TOKEN`, body
    `{analysis_id, r2_key, session_spec}` where `session_spec` is the contracts §2 body assembled by
-   the `session_spec(p_session_id)` SQL function from the stored session row, timeout 10 s. Retry
-   on network error/5xx only: 0.5 s, 1 s, 2 s. Never retry 4xx.
+   the `session_spec(p_session_id)` SQL function from the stored session row, timeout 30 s per
+   attempt. Retry on network error/5xx only: 0.5 s, 1 s, 2 s. Never retry 4xx.
 6. Success → store `modal_call_id`, `dispatching=false`, return 202 `{analysis_id, state:'queued'}`.
-7. All retries fail → `state='failed'`, `failure_reason='dispatch_failed'`, append `analysis.failed`,
-   return 502 `engine_unavailable`. A fresh `Idempotency-Key` then creates a new run (the partial
-   index no longer blocks it).
+7. Definite Modal 4xx → append `analysis.failed` with `reason='dispatch_failed'`, clear
+   `dispatching`, return 503 `engine_unavailable` with the Modal error code in details. Network
+   errors, timeouts, 5xx, and malformed 2xx responses after retries leave the run `queued`, clear
+   `dispatching`, and return/store 202 `{analysis_id, state:'queued'}` so a later request can retry.
 
 ```sql
 create or replace function public.create_analysis_run(p_session_id text, p_idempotency_key text)
@@ -511,10 +520,13 @@ declare v_run public.analysis_runs; v_session public.sessions;
 begin
   select * into v_session from public.sessions where id = p_session_id;
   if not found then raise exception 'session_not_found' using errcode = 'P0002'; end if;
-  insert into public.analysis_runs (session_id, match_id, owner_id, idempotency_key)
-    values (p_session_id, v_session.match_id, v_session.owner_id, p_idempotency_key)
-    on conflict (session_id, idempotency_key) do nothing returning * into v_run;
-  if found then return v_run; end if;
+  begin
+    insert into public.analysis_runs (session_id, match_id, owner_id, idempotency_key)
+      values (p_session_id, v_session.match_id, v_session.owner_id, p_idempotency_key)
+      on conflict (session_id, idempotency_key) do nothing returning * into v_run;
+  exception when unique_violation then v_run := null;
+  end;
+  if v_run.id is not null then return v_run; end if;
   select * into v_run from public.analysis_runs
     where session_id = p_session_id and idempotency_key = p_idempotency_key;
   if found then return v_run; end if;
@@ -525,11 +537,12 @@ begin
 end $$;
 
 create or replace function public.claim_dispatch(p_analysis_id text)
-returns public.analysis_runs language plpgsql set search_path = '' security definer as $$
+returns public.analysis_runs language sql set search_path = '' security definer as $$
   update public.analysis_runs
      set dispatching = true, dispatch_attempts = dispatch_attempts + 1,
          dispatch_claimed_at = now(), updated_at = now()
-   where id = p_analysis_id and modal_call_id is null
+   where id = p_analysis_id and state = 'queued' and modal_call_id is null
+     and dispatch_attempts < 5
      and (dispatching = false or dispatch_claimed_at < now() - interval '60 seconds')
    returning * $$;
 
@@ -631,7 +644,7 @@ Your tests run Person 4's golden vectors against the vendored copies.
 `calibration_template_mismatch`(422), `invalid_part_number`(400), `upload_too_large`(413),
 `upload_not_complete`(409), `upload_parts_invalid`(409), `invalid_transition`(409),
 `already_finalized`(409), `idempotency_conflict`(409, same key different body), `storage_busy`(503),
-`engine_unavailable`(502), `quota_exhausted`(429 with `retry_after_s`). Use one Hono `defaultHook`
+`engine_unavailable`(503), `analysis_limit_reached`(429), `quota_exhausted`(429 with `retry_after_s`). Use one Hono `defaultHook`
 for zod errors; every handler passes an explicit status code (`c.json(body, 200)`).
 
 ## 10. Insights: deterministic SQL inside `ingest_vision_result` (D-261010-NP1)

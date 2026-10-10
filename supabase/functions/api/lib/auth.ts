@@ -1,10 +1,9 @@
 import { createMiddleware } from "hono/factory";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { userClient } from "./db.ts";
+import type { Deps } from "./deps.ts";
 import { fail } from "./errors.ts";
 
 export type AppEnv = {
-  Variables: { userId: string; isAnonymous: boolean };
+  Variables: { userId: string; isAnonymous: boolean; deps: Deps };
 };
 
 export function timingSafeEqual(a: string, b: string): boolean {
@@ -19,21 +18,6 @@ export function timingSafeEqual(a: string, b: string): boolean {
 
 // Paths include the function name: the root app mounts the API at /api (lib/app.ts).
 const PUBLIC_PATHS = new Set(["/api/v1/health", "/api/v1/openapi.json"]);
-
-// A missing or malformed JWKS falls back to getClaims fetching the project's keys.
-type Jwks = NonNullable<
-  NonNullable<Parameters<SupabaseClient["auth"]["getClaims"]>[1]>["jwks"]
->;
-
-function parseJwks(raw: string | undefined): Jwks | undefined {
-  if (!raw) return undefined;
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed?.keys) ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 export const internalAuth = createMiddleware<AppEnv>(async (c, next) => {
   const token = c.req.header("X-Internal-Token");
@@ -50,19 +34,9 @@ export const userAuth = createMiddleware<AppEnv>(async (c, next) => {
   if (!header.startsWith("Bearer ")) {
     return fail(c, 401, "unauthorized", "missing bearer token");
   }
-  const jwt = header.slice("Bearer ".length);
-  const jwks = parseJwks(Deno.env.get("SUPABASE_JWKS"));
-  const { data, error } = await userClient(jwt).auth.getClaims(
-    jwt,
-    jwks ? { jwks } : undefined,
-  );
-  const claims = data?.claims as
-    | { sub?: unknown; is_anonymous?: unknown }
-    | undefined;
-  if (error || typeof claims?.sub !== "string") {
-    return fail(c, 401, "unauthorized", "invalid token");
-  }
+  const claims = await c.var.deps.verifyJwt(header.slice("Bearer ".length));
+  if (!claims) return fail(c, 401, "unauthorized", "invalid token");
   c.set("userId", claims.sub);
-  c.set("isAnonymous", claims.is_anonymous === true);
+  c.set("isAnonymous", claims.isAnonymous);
   return await next();
 });

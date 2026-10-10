@@ -24,6 +24,13 @@ Deno.test("GET /v1/openapi.json -> 3.0.4 doc with /v1 paths only", async () => {
   const doc = await res.json();
   assert.equal(doc.openapi, "3.0.4");
   assert.ok(doc.paths["/v1/health"], "doc has /v1/health");
+  assert.ok(doc.paths["/v1/analyses"].post.responses["503"]);
+  assert.ok(doc.paths["/v1/analyses"].post.responses["429"]);
+  assert.ok(doc.paths["/v1/artifacts/{id}"].get.responses["200"]);
+  assert.match(
+    doc.paths["/v1/artifacts/{id}"].get.responses["200"].description,
+    /pending Person 4/,
+  );
   assert.ok(
     Object.keys(doc.paths).every((p: string) => p.startsWith("/v1/")),
     "no /api/ prefix in emitted paths",
