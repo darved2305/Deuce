@@ -29,7 +29,7 @@ def windows(model, median: np.ndarray, frames: Sequence[np.ndarray], seq_len: in
             yield from model(torch.from_numpy(x).float().cuda()).cpu().numpy()
 
 
-def sample_background(path, start_ms: int, end_ms: int, samples: int = 300) -> np.ndarray:
+def sample_background(path, start_ms: int, end_ms: int, samples: int = 60) -> np.ndarray:
     """Median of `samples` frames spread evenly over [start_ms, end_ms) of a video, as float32
     (3, 288, 512): one background for a whole analysis, like the official predict.py."""
     from elevate_engine.video import frames_in_range
