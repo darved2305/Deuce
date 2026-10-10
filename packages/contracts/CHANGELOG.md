@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.0
+
+Person 3's Phase 3 blockers (#20 follow-up, D-261011-HW12): review `confirmed_point_winner`, `confirmed_by`,
+`confirmed_at` are nullable together (an engine estimate is unconfirmed); metric `player_id` is nullable
+(match-level metrics).
+
 ## 1.6.0
 
 - `rules.state.v1` optionally records `doubles_right_player`, the player occupying each side's
