@@ -371,50 +371,6 @@ Template (copy to the end of the file):
 - **Proof / evidence:** the PR's Proof section.
 - **PRs:** this PR.
 
-## D-261010-NP2 · Dispatch RPC spec corrections
-- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @nikhilpravinpise (Person 3) · **Supersedes:** none
-- **In one line:** In the context of the analyses-dispatch slice, facing four defects in the
-  `person-3-spec.md` section 7.1 SQL and flow, we decided to ship the migration with the corrected
-  SQL and rejected implementing the spec text as written, to avoid a function that does not
-  compile, a 23505 on a legitimate retry and an undispatched run, accepting that the spec text and
-  the migration differ until Person 4 syncs the spec.
-- **Context:** Building `create_analysis_run`, `claim_dispatch` and `session_spec` against a real
-  local Postgres showed that the section 7.1 SQL cannot be applied as written.
-- **Decision:** the migration `*_dispatch_rpcs.sql` supersedes the spec text on these points:
-  1. `claim_dispatch` is `language sql` (a bare `update ... returning *` body is invalid plpgsql).
-     PostgREST may return null or an all-null object when no row is claimed, so the route checks
-     `!data?.id`.
-  2. `create_analysis_run` inserts inside a block that catches `unique_violation`.
-     `ON CONFLICT (session_id, idempotency_key)` does not cover the partial unique index
-     `analysis_runs_one_live_per_session`, so a live run under a different key raised 23505 instead
-     of reaching the "existing live run" branch.
-  3. No new-vs-existing flag. The dispatch route always calls `append_event('analysis.queued')`
-     (deduped, a no-op on retry) and then `claim_dispatch`: no row means return 200 with the current
-     state; a winning claim means dispatch and return 202. This resolves the conflict between spec
-     section 7.1 step 2 ("existing run, no dispatch") and section 13 (a dead dispatcher's lease is
-     reclaimed by the next request).
-  4. `claim_dispatch` only claims runs with `state = 'queued'`. Without the predicate, a same-key
-     replay against a run that failed at dispatch (`modal_call_id` still null) would win the claim
-     and fire a Modal submit for a dead run, burning GPU spend and returning 202 `queued` while the
-     stored state is `failed`. The route appends `analysis.queued` before claiming, so every
-     legitimate claim sees `queued`.
-- **Alternatives:** (a) add an `is_new` column or return flag, rejected because it adds schema for
-  what the claim lease already expresses; (b) keep plpgsql with `return query`, rejected as more
-  code for the same behaviour.
-- **Blast radius:**
-  - Contracts: none; version bump none
-  - People and folders: Person 3 `supabase/` only. Person 1 is unaffected because `/internal` submit
-    is idempotent on `analysis_id`. Person 4 (@HetanshWaghela): `docs/lanes/person-3-spec.md`
-    (Person 4's `docs/` lane) is not edited here, but its section 7.1 text is superseded by the
-    migration for these four points, so Person 4 must sync the spec text.
-  - Data/infra: one new migration, additive (new functions only), no env or secrets
-  - Containment: additive-only code change in Person 3's `supabase/` only; Person 4's approval is
-    required before merge because this supersedes text in Person 4's lane
-- **Exit:** a follow-up migration with `create or replace function`; no data is changed by this one.
-- **Proof / evidence:** local `supabase db reset`, `supabase db lint` and `supabase test db`
-  (`supabase/tests/dispatch_test.sql`) in the PR; live proof comes with the dispatch routes slice.
-- **PRs:** #8
-
 ## D-261011-HW1 · Cloudflare stays at $0: free tier only, enforced in code, config and a card limit
 - **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
 - **In one line:** In the context of R2 storing every upload and Workers AI being available, facing
@@ -461,4 +417,149 @@ Template (copy to the end of the file):
   - Contracts: none.
 - **Exit:** a new entry; never above 50% of any free limit.
 - **Proof / evidence:** same Cloudflare sources as D-261011-HW1.
+- **PRs:** this PR.
+
+## D-261010-NP2 · Dispatch RPC spec corrections
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @nikhilpravinpise (Person 3) · **Supersedes:** none
+- **In one line:** In the context of the analyses-dispatch slice, facing four defects in the
+  `person-3-spec.md` section 7.1 SQL and flow, we decided to ship the migration with the corrected
+  SQL and rejected implementing the spec text as written, to avoid a function that does not
+  compile, a 23505 on a legitimate retry and an undispatched run, accepting that the spec text and
+  the migration differ until Person 4 syncs the spec.
+- **Context:** Building `create_analysis_run`, `claim_dispatch` and `session_spec` against a real
+  local Postgres showed that the section 7.1 SQL cannot be applied as written.
+- **Decision:** the migration `*_dispatch_rpcs.sql` supersedes the spec text on these points:
+  1. `claim_dispatch` is `language sql` (a bare `update ... returning *` body is invalid plpgsql).
+     PostgREST may return null or an all-null object when no row is claimed, so the route checks
+     `!data?.id`.
+  2. `create_analysis_run` inserts inside a block that catches `unique_violation`.
+     `ON CONFLICT (session_id, idempotency_key)` does not cover the partial unique index
+     `analysis_runs_one_live_per_session`, so a live run under a different key raised 23505 instead
+     of reaching the "existing live run" branch.
+  3. No new-vs-existing flag. The dispatch route always calls `append_event('analysis.queued')`
+     (deduped, a no-op on retry) and then `claim_dispatch`: no row means return 200 with the current
+     state; a winning claim means dispatch and return 202. This resolves the conflict between spec
+     section 7.1 step 2 ("existing run, no dispatch") and section 13 (a dead dispatcher's lease is
+     reclaimed by the next request).
+  4. `claim_dispatch` only claims runs with `state = 'queued'`. Without the predicate, a same-key
+     replay against a run that failed at dispatch (`modal_call_id` still null) would win the claim
+     and fire a Modal submit for a dead run, burning GPU spend and returning 202 `queued` while the
+     stored state is `failed`. The route appends `analysis.queued` before claiming, so every
+     legitimate claim sees `queued`.
+- **Alternatives:** (a) add an `is_new` column or return flag, rejected because it adds schema for
+  what the claim lease already expresses; (b) keep plpgsql with `return query`, rejected as more
+  code for the same behaviour.
+- **Blast radius:**
+  - Contracts: none; version bump none
+  - People and folders: Person 3 `supabase/` only. Person 1 is unaffected because `/internal` submit
+    is idempotent on `analysis_id`. Person 4 (@HetanshWaghela): `docs/lanes/person-3-spec.md`
+    (Person 4's `docs/` lane) is not edited here, but its section 7.1 text is superseded by the
+    migration for these four points, so Person 4 must sync the spec text.
+  - Data/infra: one new migration, additive (new functions only), no env or secrets
+  - Containment: additive-only code change in Person 3's `supabase/` only; Person 4's approval is
+    required before merge because this supersedes text in Person 4's lane
+- **Exit:** a follow-up migration with `create or replace function`; no data is changed by this one.
+- **Proof / evidence:** local `supabase db reset`, `supabase db lint` and `supabase test db`
+  (`supabase/tests/dispatch_test.sql`) in the PR; live proof comes with the dispatch routes slice.
+- **PRs:** #8
+
+## D-261011-DV1 · Interim app-local trail labels (`elevate.trail_labels.v1`) until `fixture_trail.json` lands; compileSdk 37
+- **Status:** accepted (approved by @HetanshWaghela, Person 4, 2026-10-11; adopted in D-261011-HW4)
+- **Date:** 2026-10-11 · **Owner:** @darved2305 (Person 2) · **Supersedes:** none
+- **In one line:** In the context of the Phase 1 overlay spike, facing no `fixture_trail.json` yet
+  (contracts §11), we decided to ship Person 2's own real hand labels for `h13g_singles` 40.00–43.98 s
+  inside `android/` in an app-local format, and rejected waiting or inventing points, to prove the
+  Media3 overlay on real frames now, accepting a temporary second labeller and format.
+- **Context:** The trail spike needs real labels on the working clip (D-261010-HW1). None exist in
+  `fixtures/`. contracts §5 defines ball rows but not the fixture file. Separately, the pinned Compose
+  UI 1.12.1 and core-ktx 1.19.1 refuse to build below compileSdk 37 (android/AGENTS.md says platform 36).
+- **Decision:**
+  1. `android/app/src/main/assets/fixtures/trail_h13g_singles_40000_43980.json` holds labels clicked by
+     @darved2305 on decoded frames (`android/tools/labeller`, PTS cross-checked with ffprobe), with
+     `state: "user"`, `engine_version: "hand-labelled"`, explicit nulls for "looked, not visible",
+     unlabelled frames left absent, and `accepted_file_sha256` binding them to the exact file. They are
+     shown as "Hand-labelled by @darved2305", never as Person 4's fixture or as engine output.
+  2. Format `elevate.trail_labels.v1` (see `TrailLabelsParser.kt`) stays app-local. Person 4 may adopt it
+     (or a superset) for `fixture_trail.json`; the app then loads that instead.
+  3. Android compiles against API 37 (`platforms/android-37.0`); targetSdk stays 36.
+- **Alternatives:** (a) wait for Person 4: rejected, it blocks the Phase 1 overlay proof; (b) put the
+  file in `fixtures/`: rejected, that is Person 4's lane and would collide with their file; (c) downgrade
+  Compose/core-ktx below the pinned BOM: rejected, it changes D-001 pins.
+- **Blast radius:**
+  - Contracts: none changed; proposes a fixture shape to Person 4 (`android/PHASE1_BLOCKERS.md` #2)
+  - People and folders: Person 2 `android/` only; Person 4 reviews the proposal; CI's Android job needs
+    platform 37 available (UNVERIFIED on ubuntu-latest until the first run)
+  - Data/infra: none
+  - Containment: app-local asset; removed when Person 4's fixture lands
+- **Exit:** delete the asset when `fixtures/fixture_trail.json` exists; compileSdk stays tied to the
+  Compose BOM pin. No point of no return.
+- **Proof / evidence:** `android/PHASE1_STATUS.md` (A55 screenshots, recording, OverlayTimingTest 8/8).
+- **PRs:** this PR
+
+## D-261011-DV2 · Phase 1 Android device proof runs on the Galaxy A55 only
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @darved2305 (Person 2) · **Supersedes:** none
+- **In one line:** In the context of closing Phase 1 on Android, facing no S23 FE available to the
+  Android lane, we decided device proof on the Galaxy A55 alone and rejected blocking Phase 1 on a
+  second phone, accepting that S23 FE behaviour (Exynos 2200 decoder/GPU) is unverified.
+- **Context:** `docs/lanes/person-2.md` Phase 1 says verify on both phones; the S23 FE was never
+  connected. The A55 (Exynos 1480, Android 16) is the weaker device the plan says to test on.
+- **Decision:** Phase 1 Android proof = A55 screen recordings, screenshots and instrumented tests.
+  Any S23 FE claim stays UNVERIFIED until it is run.
+- **Alternatives:** (a) wait for the S23 FE: rejected by the owner; (b) emulator: rejected, no real
+  decoder or GPU path.
+- **Blast radius:**
+  - Contracts: none
+  - People and folders: Person 2 `android/` only; Person 4 notes it for the phase check
+  - Containment: the same tests run unchanged on any phone later
+- **Exit:** run the A55 sweep and `OverlayTimingTest` on an S23 FE when one is connected.
+- **Proof / evidence:** `android/PHASE1_STATUS.md`.
+- **PRs:** this PR
+
+## D-261011-HW3 · Chunked real-time analysis is core: analysis starts on the first segment
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** the "Phase 4, behind a flag" placement of segment upload in `03`, `10` and debate D1
+- **In one line:** In the context of the judges asking for a chunking strategy and real-time
+  analysis, facing analysis that only starts after the whole video uploads, we decided to make
+  segment upload core in Phase 3, and rejected keeping it as a later flag.
+- **Context:** Judges' feedback in the mentor round. Today results already stream per 6 s window,
+  but only after the full upload; a 5-minute 1080p video can take minutes to upload.
+- **Decision:** as `docs/plan/03-architecture-and-streaming.md` §2 now describes: the phone
+  remuxes into ~6 s keyframe-aligned segments (no re-encode) and uploads them in order; the API
+  registers each segment and starts the analysis on segment 0; the engine processes segments as
+  their manifests arrive and posts windows as today; whole-file multipart stays as the fallback.
+  Contracts 1.2.0 accept `upload_mode: "segments"`; segment routes and a `final` flag go through
+  the contracts amendment (D-012).
+- **Alternatives:** (a) keep it in Phase 4, rejected: the judges asked for it; (b) live in-app
+  recording with chunked capture (`MediaRecorder.setNextOutputFile`), deferred: new scope, can
+  build on the same segment pipeline later.
+- **Blast radius:**
+  - People and folders: Person 2 segmenter and uploader; Person 3 segment routes and engine
+    notification; Person 1 segment-by-segment processing with overlap; Person 4 contracts
+    amendment and the Cloudflare rule (`seg/` deleted after 1 day; segments count against G1/G4).
+  - Contracts: 1.2.0 (`upload_mode` enum); routes and `final` in the amendment PR.
+- **Exit:** set `upload_mode` back to `multipart` in the app; the server keeps both.
+- **Proof / evidence:** judges' feedback; latency to be measured on S23 FE, A55 and Modal at the
+  Phase 3 check.
+- **PRs:** this PR.
+
+## D-261011-HW4 · `fixture_trail.json` is Person 2's hand labels, in shape `elevate.trail_labels.v1`
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none (accepts D-261011-DV1)
+- **In one line:** In the context of `fixture_trail.json` being owed with no defined shape, facing
+  Person 2 already holding real, visually checked hand labels in an app-local format, we decided to
+  adopt that format as the contract and those labels as the fixture, and rejected relabelling.
+- **Context:** contracts §11 named `fixture_trail.json` without a shape. Person 2 clicked
+  `h13g_singles` 40.00-43.98 s on decoded frames (149 frames labelled, shuttle seen in 107, 51 not
+  labelled), bound to the video by sha256.
+- **Decision:** `packages/contracts` 1.3.0 adds `elevate.trail_labels.v1` with the same rules as
+  `TrailLabelsParser.kt`; `fixtures/fixture_trail.json` is a byte copy of Person 2's file and CI
+  validates it; a test fails if the app's bundled copy and the fixture differ. `fixtures/clips.md`
+  treats the video stream hash as the clip identity (audio bytes can vary by fetch).
+- **Alternatives:** (a) Person 4 relabels in a new format, rejected: duplicate work and a second
+  format; (b) leave it app-local, rejected: CI could not validate it.
+- **Blast radius:**
+  - People and folders: Person 2 keeps loading the same file (no app change; can later copy it from
+    `fixtures/` at build time); Person 1 can score trails against it; Person 4 owns the fixture.
+  - Contracts: 1.3.0, additive (new schema).
+- **Exit:** supersede with a new entry; the shape only grows.
+- **Proof / evidence:** `pnpm --filter @elevate/contracts run check` validates the real fixture;
+  Python `jsonschema` accepts it; 14 tests pass.
 - **PRs:** this PR.

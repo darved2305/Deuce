@@ -42,10 +42,26 @@ times are measured on the team's phones and network during Phase 2 and shown as 
 Reference uplinks for Mumbai: TRAI route averages ~26–41 Mbps on mixed 4G/5G; Opensignal user
 averages ~9–11 Mbps.
 
-**Later upgrade (Person 2, Phase 4, behind a flag):** remux the original into independent
-keyframe-aligned segments with MediaExtractor + MediaMuxer so analysis starts during upload.
-Enabled only after it passes on real S23 FE and A55 gallery files (moov placement, HEVC, rotation
-matrix, VFR, audio). The API accepts `upload_mode: "multipart" | "segments"`.
+**Chunked real-time analysis (core, Phase 3; D-261011-HW3).** Analysis starts on the first chunk,
+not after the whole upload:
+1. **Phone (Person 2):** remux the original into ~6 s keyframe-aligned segments with MediaExtractor
+   + MediaMuxer (stream copy, no re-encode). Each segment is a standalone MP4 that keeps its
+   `pts_start_us`/`pts_end_us` on the original timeline. Upload in order, one presigned PUT each,
+   2 in flight. Measure keyframe spacing on real S23 FE and A55 files; it sets the cut points.
+2. **API (Person 3):** register each segment (`SegmentManifest`, contracts §2) and hand out its
+   PUT URL (`seg/{session_id}/{seq}.mp4`); when segment 0 completes, create and dispatch the
+   analysis; the last segment carries `final: true`. Proposed routes: `POST
+   /v1/sessions/{id}/segments`, `POST /v1/sessions/{id}/segments/{seq}/complete`, and for the
+   engine `GET /internal/analyses/{id}/segments?after_seq=`. Final shapes land in the contracts
+   amendment.
+3. **Engine (Person 1):** process segment k as soon as its manifest arrives (never list R2),
+   borrow the tail of segment k-1 for window overlap and TrackNetV3's 8-frame context, keep the
+   background median rolling, and post `window.completed` exactly as today, on the original
+   timeline. Wait for the next segment with a timeout; finish on `final`.
+4. **App:** the trail appears on finished segments while later ones are still uploading.
+
+The whole-file multipart upload stays as the fallback for files the segmenter cannot cut cleanly
+(moov placement, HEVC, rotation matrix, VFR, audio).
 
 ## 3. Phone components (Person 2)
 

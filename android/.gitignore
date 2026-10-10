@@ -1,0 +1,16 @@
+# Local test footage and large proof evidence never enter git (AGENTS.md rule 9).
+/test-media/
+/proof/**/*.mp4
+/proof/**/*.webm
+/proof/**/*.png
+/proof/**/*.jpg
+/proof/**/*.txt
+!/proof/**/*.md
+# Reference UI exports (kept locally, not part of the build)
+/elevate-ui-v2/
+# Build output and local machine config
+/.gradle/
+/.kotlin/
+**/build/
+/local.properties
+*.apk

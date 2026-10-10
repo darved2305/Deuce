@@ -208,11 +208,28 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
     if (claim.error) throw claim.error;
     const claimed = claim.data as RunRow | null;
     if (!claimed?.id) {
-      const cur = await admin.from("analysis_runs").select("id,state")
+      const cur = await admin.from("analysis_runs")
+        .select("id,state,dispatch_attempts")
         .eq("id", run.id).maybeSingle();
       if (cur.error) throw cur.error;
-      const s =
-        ((cur.data as RunRow | null)?.state ?? "queued") as typeof state;
+      const curRow = cur.data as
+        | (RunRow & { dispatch_attempts: number })
+        | null;
+      const s = (curRow?.state ?? "queued") as typeof state;
+      if (s === "queued" && (curRow?.dispatch_attempts ?? 0) >= 5) {
+        await appendEvent(admin, run.id, "analysis.failed", {
+          reason: "dispatch_failed",
+        });
+        const rel = await admin.from("analysis_runs")
+          .update({ dispatching: false, updated_at: new Date().toISOString() })
+          .eq("id", run.id);
+        if (rel.error) console.error("dispatch release failed", rel.error.code);
+        throw new ApiFailure(
+          502,
+          "engine_unavailable",
+          "engine is unavailable",
+        );
+      }
       const body = { analysis_id: run.id, state: s };
       const status = s === "queued" ? 202 : 200;
       try {

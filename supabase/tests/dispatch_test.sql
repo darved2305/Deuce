@@ -1,6 +1,6 @@
 -- pgTAP for create_analysis_run, claim_dispatch, session_spec (spec §7.1). Run: supabase test db
 begin;
-select plan(38);
+select plan(40);
 
 -- fixtures (test role bypasses RLS for setup)
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
@@ -26,6 +26,9 @@ select 's_claim_failed', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"
 from public.matches limit 1;
 insert into public.sessions (id, match_id, owner_id, mode, source)
 select 's_claim_proc', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb
+from public.matches limit 1;
+insert into public.sessions (id, match_id, owner_id, mode, source)
+select 's_capped', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb
 from public.matches limit 1;
 insert into public.sessions (id, match_id, owner_id, mode, source, calibration_input, who_is_me, rally_candidates, upload_mode)
 select 's_spec', id, owner_id, 'match',
@@ -128,6 +131,15 @@ select ok((select (public.claim_dispatch('a_failed')).id) is null,
     'failed run with null modal_call_id is not claimable');
 select is((select dispatch_attempts from public.analysis_runs where id = 'a_failed'),
     0, 'failed claim leaves dispatch_attempts at 0');
+
+-- a queued run at the dispatch-attempt cap is not claimable
+insert into public.analysis_runs (id, session_id, match_id, owner_id, idempotency_key, state, dispatch_attempts)
+select 'a_capped', s.id, s.match_id, s.owner_id, 'k_capped', 'queued', 5
+from public.sessions s where s.id = 's_capped';
+select ok((select (public.claim_dispatch('a_capped')).id) is null,
+    'queued run with dispatch_attempts = 5 is not claimable');
+select is((select dispatch_attempts from public.analysis_runs where id = 'a_capped'),
+    5, 'capped claim leaves dispatch_attempts at 5');
 
 -- a processing run is not claimable
 insert into public.analysis_runs (id, session_id, match_id, owner_id, idempotency_key, state)

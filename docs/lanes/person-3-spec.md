@@ -481,28 +481,38 @@ bodies stay within Edge limits (I/O does not count against CPU).
 
 ## 7. Analyses (dispatch, state, events)
 
-### 7.1 `POST /v1/analyses` `{session_id}` + required `Idempotency-Key` (D-261010-NP1)
+### 7.1 `POST /v1/analyses` `{session_id}` + required `Idempotency-Key` (D-261010-NP1, D-261010-NP2)
 1. Session owned by caller (else 404); upload `completed` → else 409 `upload_not_complete`;
-   `Idempotency-Key` present → else 422 `validation_failed`.
-2. `rpc create_analysis_run(p_session_id, p_idempotency_key)`: `insert … on conflict
-   (session_id, idempotency_key) do nothing returning *`; on a partial-unique-index conflict (a
-   live run exists under a different key) it loads and returns that run instead. Existing or live
-   run → 200 `{analysis_id, state}` without dispatching again.
-3. New row → append `analysis.queued` **before** any dispatch attempt (the durable record that a
-   GPU job is owed even if the claim/call fails).
-4. `rpc claim_dispatch(p_analysis_id)`: atomic
+   `Idempotency-Key` present → else 422 `validation_failed`. A stored response under the same
+   key replays verbatim; the same key with a different body → 409 `idempotency_conflict`.
+   Every 200/202 response below is stored for idempotency.
+2. `rpc create_analysis_run(p_session_id, p_idempotency_key)`: the `insert … on conflict
+   (session_id, idempotency_key) do nothing returning *` sits inside a
+   `begin … exception when unique_violation` handler, because the partial unique index on live
+   runs raises there rather than matching the named conflict target. On any conflict it returns
+   the same-key row, else the live run under a different key. A terminal run → 200
+   `{analysis_id, state}` without dispatching again.
+3. Any non-terminal run → append `analysis.queued` (the durable record that a GPU job is owed;
+   the `(type, window_seq)` dedupe returns the existing row on replays), then
+   `rpc claim_dispatch(p_analysis_id)`.
+4. `rpc claim_dispatch(p_analysis_id)`: `language sql`, atomic
    `update … set dispatching=true, dispatch_attempts=dispatch_attempts+1, dispatch_claimed_at=now()
-   where id=$1 and modal_call_id is null and (dispatching=false or dispatch_claimed_at < now() - interval '60 seconds')
-   returning *`. No row → another dispatcher is in flight: return current state (still 202; the
-   queued event is durable).
+   where id=$1 and state='queued' and modal_call_id is null and dispatch_attempts < 5
+   and (dispatching=false or dispatch_claimed_at < now() - interval '60 seconds')
+   returning *`. No row → re-read the run: still `queued` → 202 `{analysis_id, state:'queued'}`
+   (another dispatcher is in flight; the queued event is durable); any other state → 200 with the
+   current state. Still `queued` with `dispatch_attempts >= 5` (the cap in D-261010-NP2) →
+   append `analysis.failed` `reason='dispatch_failed'`, clear `dispatching`, 502
+   `engine_unavailable`.
 5. Call `POST MODAL_SUBMIT_URL` with `Authorization: Bearer MODAL_SUBMIT_TOKEN`, body
    `{analysis_id, r2_key, session_spec}` where `session_spec` is the contracts §2 body assembled by
    the `session_spec(p_session_id)` SQL function from the stored session row, timeout 10 s. Retry
    on network error/5xx only: 0.5 s, 1 s, 2 s. Never retry 4xx.
 6. Success → store `modal_call_id`, `dispatching=false`, return 202 `{analysis_id, state:'queued'}`.
-7. All retries fail → `state='failed'`, `failure_reason='dispatch_failed'`, append `analysis.failed`,
-   return 502 `engine_unavailable`. A fresh `Idempotency-Key` then creates a new run (the partial
-   index no longer blocks it).
+7. All retries fail → append `analysis.failed` (sets `state='failed'` and
+   `failure_reason='dispatch_failed'` in the same statement), clear `dispatching`, return 502
+   `engine_unavailable`. A fresh `Idempotency-Key` then creates a new run (the partial index no
+   longer blocks it).
 
 ```sql
 create or replace function public.create_analysis_run(p_session_id text, p_idempotency_key text)
@@ -511,10 +521,13 @@ declare v_run public.analysis_runs; v_session public.sessions;
 begin
   select * into v_session from public.sessions where id = p_session_id;
   if not found then raise exception 'session_not_found' using errcode = 'P0002'; end if;
-  insert into public.analysis_runs (session_id, match_id, owner_id, idempotency_key)
-    values (p_session_id, v_session.match_id, v_session.owner_id, p_idempotency_key)
-    on conflict (session_id, idempotency_key) do nothing returning * into v_run;
-  if found then return v_run; end if;
+  begin
+    insert into public.analysis_runs (session_id, match_id, owner_id, idempotency_key)
+      values (p_session_id, v_session.match_id, v_session.owner_id, p_idempotency_key)
+      on conflict (session_id, idempotency_key) do nothing returning * into v_run;
+  exception when unique_violation then v_run := null;
+  end;
+  if v_run.id is not null then return v_run; end if;
   select * into v_run from public.analysis_runs
     where session_id = p_session_id and idempotency_key = p_idempotency_key;
   if found then return v_run; end if;
@@ -525,11 +538,12 @@ begin
 end $$;
 
 create or replace function public.claim_dispatch(p_analysis_id text)
-returns public.analysis_runs language plpgsql set search_path = '' security definer as $$
+returns public.analysis_runs language sql set search_path = '' security definer as $$
   update public.analysis_runs
      set dispatching = true, dispatch_attempts = dispatch_attempts + 1,
          dispatch_claimed_at = now(), updated_at = now()
-   where id = p_analysis_id and modal_call_id is null
+   where id = p_analysis_id and state = 'queued' and modal_call_id is null
+     and dispatch_attempts < 5
      and (dispatching = false or dispatch_claimed_at < now() - interval '60 seconds')
    returning * $$;
 
