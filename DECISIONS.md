@@ -619,3 +619,27 @@ Template (copy to the end of the file):
 - **Proof / evidence:** `pnpm --filter @elevate/contracts run test` (17 pass, including three #20
   tests); `sync-contracts.ts --check` up to date.
 - **PRs:** this PR.
+
+## D-261011-HW8 · Segment-upload contract for chunked real-time analysis (contracts 1.5.0)
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of D-261011-HW3 (analysis starts on the first segment), facing
+  Person 3's Phase 3 segment routes and Person 1's chunked engine waiting on shapes, we decided the
+  routes below, and rejected engine-side R2 listing and a separate analysis-creation path.
+- **Context:** issue #26 ask "segment upload contract: route shapes, `final` flag, manifest shape".
+- **Decision:** `contracts.md` §2: register (`seq` with no gaps, idempotent, `final`), complete
+  (idempotent, returns the stored manifest), the app calls `POST /v1/analyses` after segment 0, the
+  engine receives segment 0's key and polls `GET /internal/analyses/{id}/segments?after_seq=` for the
+  contiguous completed prefix; keys `seg/{session_id}/{seq}.mp4`; error `segment_gap` (409).
+- **Alternatives:** (a) the engine lists `seg/` in R2, rejected: Class A ops and the Cloudflare rule
+  G7; (b) the API creates the analysis on segment 0 itself, rejected: a second creation path beside
+  `POST /v1/analyses`.
+- **Blast radius:**
+  - Person 3: the three routes, the internal segments route, `create_analysis_run` accepting
+    "segment 0 complete" as upload complete in segments mode, budget guards G1/G4 counting segments.
+  - Person 1: accept `seg/` keys in `submit` (`engine/elevate_engine/submit.py` R2_KEY), poll the
+    internal route, carry state across segments.
+  - Person 2: segmenter and uploader (2 in flight, at most 3 retries per segment, G11).
+  - Contracts: 1.5.0, additive except `final` and the typed key on the manifest (no consumers yet).
+- **Exit:** supersede with a new entry; multipart stays the fallback.
+- **Proof / evidence:** contracts tests (18 pass); vendor `--check` up to date.
+- **PRs:** this PR.
