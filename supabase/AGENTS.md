@@ -18,7 +18,7 @@ write a decision). Never invent tables, routes, fields or states.
 ## Rules (verified in Supabase docs)
 - RLS on every table in the same migration that creates it; one policy per operation `to authenticated`; use `(select auth.uid())`; index policy columns; `with check` on insert/update.
 - The app gets only the publishable key. Secret keys stay in the Edge Function / insights job. Custom function secrets cannot start with `SUPABASE_`.
-- Hono `basePath('/api')` (the function name). `verify_jwt = false` for `api` in config.toml; auth happens in our middleware.
+- Mount the API with `new Hono().route('/api', api)` (D-261010-NP1: `basePath` emits `/api/...` in the OpenAPI spec and breaks SDK generation). `verify_jwt = false` for `api` in config.toml; auth happens in our middleware.
 - Realtime private channels: policies on `realtime.messages` using `realtime.topic()`; never `ALTER TABLE realtime.messages`; never create objects in the `realtime` schema.
 - Edge limits: 2 s CPU per request, 150 s wall clock, 256 MB: no video bytes, no heavy compute.
 - R2: Create/Complete multipart are signed server-side requests; only per-part PUTs are presigned (smoke-test first; fallback in the spec).
