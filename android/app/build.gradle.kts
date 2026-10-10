@@ -5,6 +5,8 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 // Machine-local values (never in git, AGENTS.md rule 8): android/local.properties
 //   elevate.apiBaseUrl=https://<project-ref>.supabase.co/functions/v1/api
+//   elevate.supabaseUrl=https://<project-ref>.supabase.co
+//   elevate.supabasePublishableKey=<publishable key>
 val localProps = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
@@ -29,6 +31,12 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         val apiBaseUrl = localProps.getProperty("elevate.apiBaseUrl", "")
         buildConfigField("String", "API_BASE_URL", "\"" + apiBaseUrl.replace("\"", "") + "\"")
+        // Anonymous sign-in (GoTrue) for the upload client: the project URL and the publishable key
+        // only (contracts §1). Never a service-role or secret key (AGENTS.md rule 8).
+        val supabaseUrl = localProps.getProperty("elevate.supabaseUrl", "")
+        buildConfigField("String", "SUPABASE_URL", "\"" + supabaseUrl.replace("\"", "") + "\"")
+        val supabasePublishableKey = localProps.getProperty("elevate.supabasePublishableKey", "")
+        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"" + supabasePublishableKey.replace("\"", "") + "\"")
     }
 
     buildTypes {
@@ -68,6 +76,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
+    // Upload fallback below API 34 (long-running worker, dataSync foreground); API 34+ uses a
+    // user-initiated data transfer job (android/UPLOAD_CLIENT.md).
+    implementation(libs.androidx.work.runtime)
 
     // All Media3 modules on one version (android/AGENTS.md). effect = OverlayEffect pipeline.
     implementation(libs.media3.exoplayer)
