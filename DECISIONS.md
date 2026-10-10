@@ -464,7 +464,7 @@ Template (copy to the end of the file):
 - **PRs:** #8
 
 ## D-261011-DV1 · Interim app-local trail labels (`elevate.trail_labels.v1`) until `fixture_trail.json` lands; compileSdk 37
-- **Status:** proposed (needs @HetanshWaghela as contracts/fixtures owner)
+- **Status:** accepted (approved by @HetanshWaghela, Person 4, 2026-10-11; adopted in D-261011-HW4)
 - **Date:** 2026-10-11 · **Owner:** @darved2305 (Person 2) · **Supersedes:** none
 - **In one line:** In the context of the Phase 1 overlay spike, facing no `fixture_trail.json` yet
   (contracts §11), we decided to ship Person 2's own real hand labels for `h13g_singles` 40.00–43.98 s
@@ -514,3 +514,52 @@ Template (copy to the end of the file):
 - **Exit:** run the A55 sweep and `OverlayTimingTest` on an S23 FE when one is connected.
 - **Proof / evidence:** `android/PHASE1_STATUS.md`.
 - **PRs:** this PR
+
+## D-261011-HW3 · Chunked real-time analysis is core: analysis starts on the first segment
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** the "Phase 4, behind a flag" placement of segment upload in `03`, `10` and debate D1
+- **In one line:** In the context of the judges asking for a chunking strategy and real-time
+  analysis, facing analysis that only starts after the whole video uploads, we decided to make
+  segment upload core in Phase 3, and rejected keeping it as a later flag.
+- **Context:** Judges' feedback in the mentor round. Today results already stream per 6 s window,
+  but only after the full upload; a 5-minute 1080p video can take minutes to upload.
+- **Decision:** as `docs/plan/03-architecture-and-streaming.md` §2 now describes: the phone
+  remuxes into ~6 s keyframe-aligned segments (no re-encode) and uploads them in order; the API
+  registers each segment and starts the analysis on segment 0; the engine processes segments as
+  their manifests arrive and posts windows as today; whole-file multipart stays as the fallback.
+  Contracts 1.2.0 accept `upload_mode: "segments"`; segment routes and a `final` flag go through
+  the contracts amendment (D-012).
+- **Alternatives:** (a) keep it in Phase 4, rejected: the judges asked for it; (b) live in-app
+  recording with chunked capture (`MediaRecorder.setNextOutputFile`), deferred: new scope, can
+  build on the same segment pipeline later.
+- **Blast radius:**
+  - People and folders: Person 2 segmenter and uploader; Person 3 segment routes and engine
+    notification; Person 1 segment-by-segment processing with overlap; Person 4 contracts
+    amendment and the Cloudflare rule (`seg/` deleted after 1 day; segments count against G1/G4).
+  - Contracts: 1.2.0 (`upload_mode` enum); routes and `final` in the amendment PR.
+- **Exit:** set `upload_mode` back to `multipart` in the app; the server keeps both.
+- **Proof / evidence:** judges' feedback; latency to be measured on S23 FE, A55 and Modal at the
+  Phase 3 check.
+- **PRs:** this PR.
+
+## D-261011-HW4 · `fixture_trail.json` is Person 2's hand labels, in shape `elevate.trail_labels.v1`
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none (accepts D-261011-DV1)
+- **In one line:** In the context of `fixture_trail.json` being owed with no defined shape, facing
+  Person 2 already holding real, visually checked hand labels in an app-local format, we decided to
+  adopt that format as the contract and those labels as the fixture, and rejected relabelling.
+- **Context:** contracts §11 named `fixture_trail.json` without a shape. Person 2 clicked
+  `h13g_singles` 40.00-43.98 s on decoded frames (149 frames labelled, shuttle seen in 107, 51 not
+  labelled), bound to the video by sha256.
+- **Decision:** `packages/contracts` 1.3.0 adds `elevate.trail_labels.v1` with the same rules as
+  `TrailLabelsParser.kt`; `fixtures/fixture_trail.json` is a byte copy of Person 2's file and CI
+  validates it; a test fails if the app's bundled copy and the fixture differ. `fixtures/clips.md`
+  treats the video stream hash as the clip identity (audio bytes can vary by fetch).
+- **Alternatives:** (a) Person 4 relabels in a new format, rejected: duplicate work and a second
+  format; (b) leave it app-local, rejected: CI could not validate it.
+- **Blast radius:**
+  - People and folders: Person 2 keeps loading the same file (no app change; can later copy it from
+    `fixtures/` at build time); Person 1 can score trails against it; Person 4 owns the fixture.
+  - Contracts: 1.3.0, additive (new schema).
+- **Exit:** supersede with a new entry; the shape only grows.
+- **Proof / evidence:** `pnpm --filter @elevate/contracts run check` validates the real fixture;
+  Python `jsonschema` accepts it; 14 tests pass.
+- **PRs:** this PR.

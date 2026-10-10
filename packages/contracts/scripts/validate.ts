@@ -76,6 +76,7 @@ function fixtureSchemaName(file: string, value: unknown): string | undefined {
   if (name === "fixture_match.json") return "match.v1";
   if (name === "fixture_events.jsonl") return "analysis.event.v1";
   if (/^fixture_window_.*\.json$/.test(name)) return "window_result.v1";
+  if (name === "fixture_trail.json") return "elevate.trail_labels.v1";
   return undefined;
 }
 
@@ -83,21 +84,20 @@ const fixtureFiles = (await listFiles(fixtureRoot)).filter((file) =>
   /\.jsonl?$/.test(file),
 );
 
-if (fixtureFiles.length === 0) {
-  console.log(
-    "OWED by Person 4 (contracts.md §11): fixture_match.json, fixture_events.jsonl, fixture_window_0003.json, fixture_trail.json. None exist yet, so no fixture was validated.",
-  );
+const expectedFixtures = [
+  "fixture_trail.json",
+  "fixture_match.json",
+  "fixture_events.jsonl",
+  "fixture_window_0003.json",
+];
+for (const name of expectedFixtures) {
+  if (!fixtureFiles.some((file) => file.endsWith(`/${name}`) || file.endsWith(`\\${name}`))) {
+    console.log(`OWED by Person 4 (contracts.md §11): fixtures/${name} does not exist yet.`);
+  }
 }
 
 for (const file of fixtureFiles) {
   const shortPath = relative(repoRoot, file);
-  if (shortPath === "fixtures/fixture_trail.json") {
-    console.log(
-      `${shortPath}: not schema-validated; contracts.md §11 defines no shape for this file.`,
-    );
-    continue;
-  }
-
   const text = await readFile(file, "utf8");
   if (file.endsWith(".jsonl")) {
     for (const [index, line] of text.split(/\r?\n/).entries()) {
@@ -123,12 +123,6 @@ for (const file of fixtureFiles) {
   } catch (error) {
     failures.push(`${shortPath}: invalid JSON (${String(error)})`);
   }
-}
-
-if (!fixtureFiles.some((file) => relative(repoRoot, file) === "fixtures/fixture_trail.json")) {
-  console.log(
-    "fixtures/fixture_trail.json: no such data file is present; contracts.md §11 defines no schema shape for it.",
-  );
 }
 
 try {

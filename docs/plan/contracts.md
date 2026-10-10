@@ -265,7 +265,8 @@ They are replaced by real engine output (`engine_version` = the engine's version
 exists. No invented values, ever.
 
 Start of Phase 1 (small, enough for everyone to start): `fixture_trail.json` (hand-labelled shuttle
-points with frame timestamps for one rally of the real clip), `fixture_match.json` (`match.v1` for
+points with frame timestamps for one rally of the real clip; shape `elevate.trail_labels.v1` in
+`packages/contracts`, D-261011-HW4), `fixture_match.json` (`match.v1` for
 that clip: rallies, landings, winners as labelled), `fixture_events.jsonl` (the event sequence a
 real analysis of that clip emits, with `seq` order), `fixture_window_0003.json` (one window of the
 labelled clip in `window_result.v1` shape).

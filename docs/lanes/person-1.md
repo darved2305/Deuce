@@ -86,7 +86,7 @@ In slices, straight to `main`, through the pipeline in `docs/plan/10-build-plan.
 |---|---|
 | 1 · Foundations | Image deployed with manifest; `submit` answers with bearer auth; CLI produces TrackNetV3 candidates and D-FINE boxes on the selected clip |
 | 2 · First real result | Thin path first (one window posted via `/internal`), then the full window pipeline; the app shows the real trail |
-| 3 · Full loop | Finalize with rallies, landings, review estimates and real clips; free-play TAPIR trail on a corridor clip |
+| 3 · Full loop | Chunked analysis: start on segment 0, process each segment as its manifest arrives, overlap from the previous segment's tail (D-261011-HW3); finalize with rallies, landings, review estimates and real clips; free-play TAPIR trail on a corridor clip |
 | 4 · Depth and extras | Throughput, quality gates, capability numbers with Person 4; WASB challenger if cleared |
 | 5 · Demo-ready | Every fallback clip genuinely analysed and labelled |
 
