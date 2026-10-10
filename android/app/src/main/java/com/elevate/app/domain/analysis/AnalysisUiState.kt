@@ -54,6 +54,8 @@ data class AnalysisUiState(
     /** Source duration in µs, null when the clip length is unknown (then no denominator is invented). */
     val totalUs: Long? = null,
     val windowsDone: Int = 0,
+    /** Total windows the engine said it will emit (`windows_expected` on `analysis.started`), null until said. */
+    val windowsExpected: Int? = null,
     val windowFailures: List<WindowFailure> = emptyList(),
     val windowsDownloaded: Int = 0,
     val artifactProblems: List<ArtifactProblem> = emptyList(),
@@ -120,6 +122,7 @@ data class AnalysisUiState(
                 stages = stages,
                 failureReason = failed?.let { it.reason ?: run?.failureReason ?: "no reason given" }
                     ?: run?.failureReason?.takeIf { state == AnalysisState.FAILED },
+                windowsExpected = applied.lastOrNull { it.windowsExpected != null }?.windowsExpected,
                 engineVersion = engine,
                 requestedAt = run?.createdAt ?: base.requestedAt,
             )

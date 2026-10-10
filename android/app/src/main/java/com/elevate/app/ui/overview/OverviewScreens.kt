@@ -188,6 +188,7 @@ fun MatchOverviewScreen(
                     }
                     Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         OverviewRallies(state, onOpenRally)
+                        OverviewHits(state, onOpenRally)
                     }
                 }
             } else {
@@ -198,6 +199,7 @@ fun MatchOverviewScreen(
                     OverviewHero(state)
                     OverviewRallies(state, onOpenRally)
                     OverviewCourt(state)
+                    OverviewHits(state, onOpenRally)
                 }
             }
         }
@@ -256,6 +258,13 @@ private fun ColumnScope.OverviewRallies(s: MatchOverviewState, onOpenRally: (Str
             Modifier.fillMaxWidth().heightIn(min = 56.dp),
         ) { Text("Play the hand-labelled rally", color = c.orange) }
     }
+}
+
+/** Track T: engine hit candidates and the rally candidates grouped from them (candidates only). */
+@Composable
+private fun ColumnScope.OverviewHits(s: MatchOverviewState, onOpenRally: (String, Long, Long) -> Unit) {
+    Text("Hit candidates", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+    HitTimeline(s.hitTimeline, onOpenRally)
 }
 
 @Composable
