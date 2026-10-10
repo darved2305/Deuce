@@ -744,6 +744,13 @@ Template (copy to the end of the file):
   Evidence and acceptance bars are recorded in `docs/plan/13-additional-plan.md`.
 - **PRs:** pending.
 
+## D-261011-HW13 · Error codes from the deployed API (contracts 1.7.1)
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **Decision:** `knownErrorCodes` adds `upload_parts_invalid`, `upload_not_complete`, `invalid_transition`
+  (409), `analysis_limit_reached` (429, the 3-analyses-per-session cap), `storage_busy` (503, the
+  fail-closed budget counter), as emitted by Person 3's #28/#29.
+- **Blast radius:** Person 2 maps them to messages; contracts 1.7.1, additive.
+
 ## D-261011-HW14 · Contracts 1.8.0: calibration, hits, foot metres, segments session, window count
 - **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
 - **In one line:** Answer #65 (Person 3), #66 and #63 (Person 1) so finalize, Track S and Track T proceed.

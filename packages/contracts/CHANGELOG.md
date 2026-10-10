@@ -8,6 +8,11 @@ window player rows' `foot_x_m`/`foot_y_m` nullable (withheld); match events: `ra
 `player_id`/`track_id` (hit candidates are events with `type: "hit"`); optional `windows_expected` on
 events.
 
+## 1.7.1
+
+`knownErrorCodes` adds the codes the API emits (Person 3, #29 and #28): `upload_parts_invalid`,
+`upload_not_complete`, `invalid_transition` (409), `analysis_limit_reached` (429), `storage_busy` (503).
+
 ## 1.7.0
 
 Person 3's Phase 3 blockers (#20 follow-up, D-261011-HW12): review `confirmed_point_winner`, `confirmed_by`,
