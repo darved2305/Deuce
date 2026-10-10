@@ -1,0 +1,50 @@
+{
+  "source_of_truth": "fixtures/clips.md (D-261010-HW1)",
+  "volume": "elevate-clips",
+  "clips": [
+    {
+      "id": "h13g_singles",
+      "segment_s": [31, 91],
+      "role": "working",
+      "tune": true,
+      "source_url": "https://www.youtube.com/watch?v=h13gAmp9zJY",
+      "file": "h13g_singles.mp4",
+      "streams": {
+        "video_f299": {"bytes": 55643466, "sha256": "bfb5ebda742213e225d35135b2d38a28c325f21e4c7510df7b8b201d6c6891ba"},
+        "audio_f140": {"bytes": 7837995, "sha256": "52582f23252205d4bc86133d7391cc996290a1e65a863355f2f921263257f7b7"}
+      }
+    },
+    {
+      "id": "h13g_singles",
+      "segment_s": [300, 360],
+      "role": "held_out",
+      "tune": false,
+      "source_url": "https://www.youtube.com/watch?v=h13gAmp9zJY",
+      "file": "h13g_singles.mp4",
+      "streams": {
+        "video_f299": {"bytes": 55643466, "sha256": "bfb5ebda742213e225d35135b2d38a28c325f21e4c7510df7b8b201d6c6891ba"},
+        "audio_f140": {"bytes": 7837995, "sha256": "52582f23252205d4bc86133d7391cc996290a1e65a863355f2f921263257f7b7"}
+      }
+    },
+    {
+      "id": "stdata_test",
+      "role": "method_check",
+      "tune": false,
+      "source_url": "https://hackmd.io/Nf8Rh1NrSrqNUzmO0sQKZw",
+      "volume": "elevate-eval",
+      "file": "TrackNetV2.zip",
+      "bytes": 1731293072,
+      "sha256": "d4e69cc350b64256b269317da1f7cd0ce6058babb5bde72a4160d7e339b6f0b1",
+      "published": {"accuracy": 0.9751, "precision": 0.9779, "recall": 0.9933, "f1": 0.9856}
+    },
+    {
+      "id": "eurogames_bern_2023",
+      "role": "low_resolution",
+      "tune": true,
+      "source_url": "https://commons.wikimedia.org/wiki/File:Badmington_competition_EuroGames_Bern_2023.webm",
+      "file": "eurogames_bern_2023.webm",
+      "bytes": 7717311,
+      "sha256": "3669343e1837befefe9f77ae3b6a740767e4b6e59054d54b9cbbac1042d786ed"
+    }
+  ]
+}
