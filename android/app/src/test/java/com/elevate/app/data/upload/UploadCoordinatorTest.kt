@@ -86,7 +86,7 @@ class UploadCoordinatorTest {
         // ETags exactly as R2 returned them (quoted MD5, not a sha256), in part order.
         val sent = completeBody()
         assertThat(sent.keys.toList()).containsExactly(1, 2, 3).inOrder()
-        assertThat(sent).isEqualTo(fake.uploads.getValue(s.sessionId!!).etags.toMap())
+        assertThat(sent).isEqualTo(fake.uploads.getValue(s.sessionId).etags.toMap())
         assertThat(sent.values.all { it.matches(Regex("^\"[0-9a-f]{32}\"$")) }).isTrue()
         // No auth headers on presigned R2 PUTs.
         assertThat(fake.puts().all { "Authorization" !in it.headers && "apikey" !in it.headers }).isTrue()
@@ -138,8 +138,8 @@ class UploadCoordinatorTest {
         val s = c.resume()!!
         assertThat(s.phase).isEqualTo(UploadPhase.Failed)
         assertThat(s.failure!!.code).isEqualTo("part_failed")
-        assertThat(s.failure!!.part).isEqualTo(2)
-        assertThat(s.failure!!.retryable).isTrue()
+        assertThat(s.failure.part).isEqualTo(2)
+        assertThat(s.failure.retryable).isTrue()
         assertThat(putsFor(2)).isEqualTo(4)
         assertThat(sleeps).containsExactly(500L, 1000L, 2000L).inOrder()
         assertThat(fake.calls("/upload/complete")).isEqualTo(0)
@@ -198,14 +198,17 @@ class UploadCoordinatorTest {
     }
 
     @Test fun `resume after process death - a new instance reads the saved state and sends only missing parts`() = runBlocking<Unit> {
-        repeat(4) { fake.fault(2, Fault.Status(500)) }
+        // The LAST part (4 of 4) runs out of attempts. With 2 workers it is only taken after two other
+        // parts were confirmed, so the saved state always holds >= 2 ETags. (Failing part 2 raced with
+        // part 1: when the run stops, part 1 may or may not have been confirmed; CI run 38091378043.)
+        repeat(4) { fake.fault(4, Fault.Status(500)) }
         val f = file(3500)
         val first = coordinator(f)
         prepare(first, f)
         val failed = first.resume()!!
-        // Part 2 ran out of attempts; the other worker stops too (no more R2 ops on a failed run).
-        assertThat(failed.etags.keys).doesNotContain(2)
-        assertThat(failed.etags.keys).contains(1)
+        assertThat(failed.phase).isEqualTo(UploadPhase.Failed)
+        assertThat(failed.etags.keys).doesNotContain(4)
+        assertThat(failed.etags.size).isAtLeast(2)
         val missing = 4 - failed.etags.size
         val putsBefore = fake.puts().size
         // "Process death": nothing survives but the files in stateDir.
@@ -275,7 +278,7 @@ class UploadCoordinatorTest {
         prepare(c, f)
         val s = c.resume()!!
         assertThat(s.failure!!.code).isEqualTo("too_many_part_requests")
-        assertThat(s.failure!!.retryable).isFalse()
+        assertThat(s.failure.retryable).isFalse()
         assertThat(fake.puts()).isEmpty()
     }
 
@@ -309,7 +312,7 @@ class UploadCoordinatorTest {
         assertThat(staged.exists()).isFalse()
         assertThat(c.progress.value).isEqualTo(UploadProgress.Cancelled)
         // Aborting twice is fine (the route is idempotent).
-        assertThat(api.abort(s.sessionId!!).status).isEqualTo("aborted")
+        assertThat(api.abort(s.sessionId).status).isEqualTo("aborted")
     }
 
     @Test fun `cancel while parts are in flight stops the run before aborting`() = runBlocking<Unit> {
