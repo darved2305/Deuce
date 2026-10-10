@@ -13,10 +13,16 @@ export type ModalSubmitBody = {
 
 export class ModalUnavailable extends Error {}
 
+export class ModalRejected extends ModalUnavailable {
+  constructor(readonly modalErrorCode: string) {
+    super("Modal rejected the analysis");
+  }
+}
+
 const ANALYSIS_ID = /^a_[A-Za-z0-9_-]{1,64}$/;
 const R2_KEY = /^orig\/s_[A-Za-z0-9_-]{1,64}\/source\.mp4$/;
 const BACKOFF_MS = [500, 1000, 2000];
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 30_000;
 
 export async function submitToModal(
   body: ModalSubmitBody,
@@ -32,7 +38,6 @@ export async function submitToModal(
   const sleep = deps.sleep ??
     ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   for (let attempt = 0; attempt <= BACKOFF_MS.length; attempt++) {
-    let retryable = true;
     try {
       const res = await doFetch(deps.url, {
         method: "POST",
@@ -51,17 +56,21 @@ export async function submitToModal(
           return { modal_call_id: parsed.modal_call_id };
         }
         console.error("modal submit: 2xx without modal_call_id");
-        retryable = false;
       } else {
         console.error(
           `modal submit: status ${res.status} code ${parsed?.error?.code}`,
         );
-        retryable = res.status >= 500;
+        if (res.status >= 400 && res.status < 500) {
+          const code = typeof parsed?.error?.code === "string"
+            ? parsed.error.code
+            : `HTTP_${res.status}`;
+          throw new ModalRejected(code);
+        }
       }
     } catch (err) {
+      if (err instanceof ModalRejected) throw err;
       console.error(`modal submit: ${(err as Error).name}`);
     }
-    if (!retryable) break;
     if (attempt < BACKOFF_MS.length) await sleep(BACKOFF_MS[attempt]);
   }
   throw new ModalUnavailable("modal submit failed");

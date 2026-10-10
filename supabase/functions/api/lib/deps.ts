@@ -12,6 +12,27 @@ export type Deps = {
   verifyJwt: (jwt: string) => Promise<Claims | null>;
 };
 
+export function trustedClaims(
+  raw: unknown,
+  supabaseUrl: string,
+): Claims | null {
+  if (raw === null || typeof raw !== "object") return null;
+  const claims = raw as {
+    sub?: unknown;
+    is_anonymous?: unknown;
+    iss?: unknown;
+    aud?: unknown;
+  };
+  const audience = claims.aud;
+  const validAudience = audience === "authenticated" ||
+    (Array.isArray(audience) && audience.includes("authenticated"));
+  if (
+    typeof claims.sub !== "string" ||
+    claims.iss !== `${supabaseUrl}/auth/v1` || !validAudience
+  ) return null;
+  return { sub: claims.sub, isAnonymous: claims.is_anonymous === true };
+}
+
 // A missing or malformed JWKS falls back to getClaims fetching the project's keys.
 type Jwks = NonNullable<
   NonNullable<Parameters<SupabaseClient["auth"]["getClaims"]>[1]>["jwks"]
@@ -33,11 +54,8 @@ async function verifyJwt(jwt: string): Promise<Claims | null> {
     jwt,
     jwks ? { jwks } : undefined,
   );
-  const claims = data?.claims as
-    | { sub?: unknown; is_anonymous?: unknown }
-    | undefined;
-  if (error || typeof claims?.sub !== "string") return null;
-  return { sub: claims.sub, isAnonymous: claims.is_anonymous === true };
+  if (error) return null;
+  return trustedClaims(data?.claims, env("SUPABASE_URL"));
 }
 
 export function defaultDeps(): Deps {
