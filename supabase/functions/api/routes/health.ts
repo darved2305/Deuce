@@ -1,5 +1,6 @@
-import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
+import { createRoute, type OpenAPIHono } from "@hono/zod-openapi";
 import type { AppEnv } from "../lib/auth.ts";
+import { healthResponseSchema } from "../lib/contracts_vendor/index.ts";
 
 const healthRoute = createRoute({
   method: "get",
@@ -9,7 +10,7 @@ const healthRoute = createRoute({
       description: "liveness",
       content: {
         "application/json": {
-          schema: z.object({ status: z.literal("ok") }),
+          schema: healthResponseSchema,
         },
       },
     },
