@@ -1,6 +1,6 @@
 -- pgTAP for append_event + Phase 1 RLS (spec §5.3). Run: supabase test db
 begin;
-select plan(52);
+select plan(59);
 
 -- fixtures (test role bypasses RLS for setup)
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
@@ -107,6 +107,11 @@ select is((select seq from public.append_event(
 -- run B: uploaded -> failed via analysis.failed, failure_reason stored
 insert into public.analysis_runs (session_id, match_id, owner_id, idempotency_key)
 select s.id, s.match_id, s.owner_id, 'k2' from public.sessions s limit 1;
+-- one_live_per_session: a second non-terminal run on the same session is rejected
+select throws_ok(
+    $$insert into public.analysis_runs (session_id, match_id, owner_id, idempotency_key)
+      select s.id, s.match_id, s.owner_id, 'k2_dup' from public.sessions s limit 1$$,
+    '23505', NULL, 'second live run on the same session violates one_live_per_session');
 select is((select seq from public.append_event(
     (select id from public.analysis_runs where idempotency_key = 'k2'), 'analysis.failed',
     '{"reason":"dispatch_failed"}'::jsonb)),
@@ -115,6 +120,11 @@ select is((select state from public.analysis_runs where idempotency_key = 'k2'),
     'uploaded -> failed');
 select is((select failure_reason from public.analysis_runs where idempotency_key = 'k2'),
     'dispatch_failed', 'failure_reason recorded');
+-- one_live_per_session: a new run is allowed once the session's previous run is terminal
+select lives_ok(
+    $$insert into public.analysis_runs (session_id, match_id, owner_id, idempotency_key)
+      select s.id, s.match_id, s.owner_id, 'k2_retry' from public.sessions s limit 1$$,
+    'new run allowed on the session after k2 reached a terminal state');
 
 -- missing analysis
 select throws_ok(
@@ -122,7 +132,7 @@ select throws_ok(
     'P0002', 'analysis_not_found', 'unknown analysis id rejected');
 
 -- runs k3..k10 each get their own session: the one_live_per_session index forbids a
--- second non-terminal run on the same session (verified above by the failing batch insert)
+-- second non-terminal run on the same session (verified above by the 23505 assertion)
 do $$
 begin
   for i in 3..10 loop
@@ -263,10 +273,10 @@ select lives_ok(
       select id, '22222222-2222-2222-2222-222222222222', 'match', '{}'::jsonb
       from public.matches where owner_id = '22222222-2222-2222-2222-222222222222' limit 1$$,
     'RLS: session insert into own match allowed');
-select throws_matching(
+select throws_ok(
     $$insert into public.analysis_events(analysis_id,match_id,owner_id,seq,type)
       values ('a_none','m_none','22222222-2222-2222-2222-222222222222',99,'analysis.started')$$,
-    'row-level security policy', 'RLS: direct analysis_events insert denied (admin-only writes)');
+    '42501', NULL, 'RLS: direct analysis_events insert denied (admin-only writes)');
 reset role;
 
 -- grants: service_role can execute, authenticated/anon/public cannot
@@ -298,6 +308,13 @@ select ok((select relrowsecurity from pg_class
     where relname = 'artifacts' and relnamespace = 'public'::regnamespace), 'artifacts RLS enabled');
 select ok((select relrowsecurity from pg_class
     where relname = 'idempotency' and relnamespace = 'public'::regnamespace), 'idempotency RLS enabled');
+
+-- owner_id policy columns indexed (rls_owner_indexes migration)
+select has_index('matches', 'matches_owner_id_idx', 'matches.owner_id indexed');
+select has_index('uploads', 'uploads_owner_id_idx', 'uploads.owner_id indexed');
+select has_index('analysis_events', 'analysis_events_owner_id_idx', 'analysis_events.owner_id indexed');
+select has_index('artifacts', 'artifacts_owner_id_idx', 'artifacts.owner_id indexed');
+select has_index('idempotency', 'idempotency_owner_id_idx', 'idempotency.owner_id indexed');
 
 select * from finish();
 rollback;
