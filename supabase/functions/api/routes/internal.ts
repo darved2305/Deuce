@@ -1,28 +1,18 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { AppEnv } from "../lib/auth.ts";
 import {
+  analysisEventSchema,
   internalArtifactRequestSchema,
   internalArtifactResponseSchema,
   internalEventRequestSchema,
 } from "../lib/contracts_vendor/index.ts";
 import { ApiFailure, defaultHook } from "../lib/errors.ts";
-import { appendEvent, fieldsToRpc, rowToWire } from "../lib/events.ts";
-import { EventWireSchema } from "./analyses.ts";
-
-// Contract shape plus the review rule: window events must carry a window_seq,
-// otherwise append_event would dedupe every windowless event together.
-const EventBody = internalEventRequestSchema.superRefine((b, ctx) => {
-  if (
-    (b.type === "window.completed" || b.type === "window.failed") &&
-    b.window_seq === undefined
-  ) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["window_seq"],
-      message: "window_seq is required for window events",
-    });
-  }
-});
+import {
+  appendEvent,
+  fieldsToRpc,
+  type InternalEventBody,
+  rowToWire,
+} from "../lib/events.ts";
 
 // artifacts.kind is a DB check constraint; the contract types it as a plain string.
 const ARTIFACT_KINDS = new Set([
@@ -41,12 +31,14 @@ const postEvent = createRoute({
   path: "/internal/analyses/{id}/events",
   request: {
     params: Params,
-    body: { content: { "application/json": { schema: EventBody } } },
+    body: {
+      content: { "application/json": { schema: internalEventRequestSchema } },
+    },
   },
   responses: {
     200: {
       description: "appended (or deduplicated) event",
-      content: { "application/json": { schema: EventWireSchema } },
+      content: { "application/json": { schema: analysisEventSchema } },
     },
   },
 });
@@ -81,14 +73,14 @@ export function registerInternal(api: OpenAPIHono<AppEnv>): void {
 
   internal.openapi(postEvent, async (c) => {
     const { id } = c.req.valid("param");
-    const body = c.req.valid("json");
+    const body = c.req.valid("json") as InternalEventBody;
     const row = await appendEvent(
       c.var.deps.admin(),
       id,
       body.type,
       fieldsToRpc(body),
     );
-    return c.json(EventWireSchema.parse(rowToWire(row)), 200);
+    return c.json(analysisEventSchema.parse(rowToWire(row)), 200);
   });
 
   internal.openapi(postArtifact, async (c) => {

@@ -4,7 +4,8 @@ import type { AppEnv } from "../lib/auth.ts";
 import {
   analysisCreateRequestSchema,
   analysisCreateResponseSchema,
-  analysisStateSchema,
+  analysisEventsPageSchema,
+  analysisGetResponseSchema,
 } from "../lib/contracts_vendor/index.ts";
 import { ApiFailure } from "../lib/errors.ts";
 import { appendEvent, listEvents } from "../lib/events.ts";
@@ -13,49 +14,11 @@ import { ModalUnavailable, submitToModal } from "../lib/modal.ts";
 import { isTerminal } from "../lib/state.ts";
 
 const ENDPOINT = "POST /v1/analyses";
-const Range = z.tuple([z.number(), z.number()]);
 const CreateBody = analysisCreateRequestSchema;
 const CreateResponse = analysisCreateResponseSchema;
 const AnalysisId = z.string().regex(/^a_[A-Za-z0-9_-]+$/);
-
-// Response shape proposed, pending Person 4 (not in contracts yet).
-const GetResponse = z.object({
-  analysis_id: AnalysisId,
-  session_id: z.string(),
-  match_id: z.string(),
-  state: analysisStateSchema,
-  engine_version: z.string().nullable(),
-  last_seq: z.number().int(),
-  failure_reason: z.string().nullable(),
-  created_at: z.string(),
-  updated_at: z.string(),
-  finalized_at: z.string().nullable(),
-});
-
-// analysis.event.v1 omits absent optionals. It currently lists only the four engine event
-// types and requires engine_version, but this cursor also serves analysis.queued and later
-// events, so the wire schema is the contract shape loosened on type and engine_version.
-export const EventWireSchema = z.object({
-  event_id: z.string(),
-  analysis_id: z.string(),
-  match_id: z.string(),
-  seq: z.number().int(),
-  schema_version: z.literal(1),
-  type: z.string(),
-  window_seq: z.number().int().optional(),
-  decode_window_us: Range.optional(),
-  emit_range_us: Range.optional(),
-  artifact_id: z.string().optional(),
-  reason: z.string().optional(),
-  engine_version: z.string().optional(),
-  created_at: z.string(),
-});
-const EventsResponse = z.object({
-  events: z.array(EventWireSchema),
-  next_after_seq: z.number().int().min(0),
-  has_more: z.boolean(),
-  state: analysisStateSchema,
-});
+const GetResponse = analysisGetResponseSchema;
+const EventsResponse = analysisEventsPageSchema;
 
 const createRun = createRoute({
   method: "post",
@@ -66,11 +29,11 @@ const createRun = createRoute({
   },
   responses: {
     200: {
-      description: "existing or terminal analysis, nothing dispatched",
+      description: "existing run past queued or terminal; nothing dispatched",
       content: { "application/json": { schema: CreateResponse } },
     },
     202: {
-      description: "analysis dispatched to the engine",
+      description: "new dispatch or an existing run still queued",
       content: { "application/json": { schema: CreateResponse } },
     },
   },
@@ -79,12 +42,11 @@ const createRun = createRoute({
 const getRun = createRoute({
   method: "get",
   path: "/v1/analyses/{id}",
-  description: "Response shape is proposed, pending Person 4 (contracts).",
   request: { params: z.object({ id: AnalysisId }) },
   responses: {
     200: {
       description: "analysis",
-      content: { "application/json": { schema: GetResponse } },
+      content: { "application/json": { schema: analysisGetResponseSchema } },
     },
   },
 });
@@ -102,7 +64,7 @@ const getEvents = createRoute({
   responses: {
     200: {
       description: "events after the cursor",
-      content: { "application/json": { schema: EventsResponse } },
+      content: { "application/json": { schema: analysisEventsPageSchema } },
     },
   },
 });
@@ -155,7 +117,7 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
     if (!up || up.status !== "completed") {
       throw new ApiFailure(
         409,
-        "upload_not_complete",
+        "conflict",
         "upload is not complete",
       );
     }
@@ -185,7 +147,7 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
       if (created.error.code === "P0001") {
         throw new ApiFailure(
           409,
-          "idempotency_conflict",
+          "analysis_run_conflict",
           "a conflicting analysis run exists",
         );
       }
@@ -225,7 +187,7 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
           .eq("id", run.id);
         if (rel.error) console.error("dispatch release failed", rel.error.code);
         throw new ApiFailure(
-          502,
+          503,
           "engine_unavailable",
           "engine is unavailable",
         );
@@ -255,7 +217,7 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
         .update({ dispatching: false, updated_at: new Date().toISOString() })
         .eq("id", run.id);
       if (rel.error) console.error("dispatch release failed", rel.error.code);
-      throw new ApiFailure(502, "engine_unavailable", "engine is unavailable");
+      throw new ApiFailure(503, "engine_unavailable", "engine is unavailable");
     }
     const upd = await admin.from("analysis_runs").update({
       modal_call_id: callId,

@@ -126,10 +126,10 @@ Deno.test("dispatch happy path -> 202, ordered steps, modal_call_id stored", asy
   assert.equal(t.modalCalls(), 1);
 });
 
-Deno.test("modal 4xx -> 502, one call, analysis.failed dispatch_failed, no idem row", async () => {
+Deno.test("modal 4xx -> 503, one call, analysis.failed dispatch_failed, no idem row", async () => {
   const t = build({ modal: [() => jsonRes(422, { error: { code: "x" } })] });
   const res = await post(t.app);
-  assert.equal(res.status, 502);
+  assert.equal(res.status, 503);
   assert.equal((await res.json()).error.code, "engine_unavailable");
   assert.equal(t.modalCalls(), 1);
   const failed = t.log.find((c) =>
@@ -151,11 +151,11 @@ Deno.test("modal 5xx x3 then 200 -> 202 with 4 calls and backoff", async () => {
   assert.deepEqual(t.sleeps, [500, 1000, 2000]);
 });
 
-Deno.test("modal 5xx x4 -> 502 and analysis.failed", async () => {
+Deno.test("modal 5xx x4 -> 503 and analysis.failed", async () => {
   const f = () => jsonRes(500, {});
   const t = build({ modal: [f, f, f, f] });
   const res = await post(t.app);
-  assert.equal(res.status, 502);
+  assert.equal(res.status, 503);
   assert.equal(t.modalCalls(), 4);
   assert.ok(t.log.some((c) =>
     c.kind === "rpc" && c.name === "append_event" &&
@@ -247,10 +247,10 @@ Deno.test("claim miss, run already processing -> 200 and idem row stored", async
   });
 });
 
-Deno.test("claim miss at the attempt cap -> 502, analysis.failed, no modal", async () => {
+Deno.test("claim miss at the attempt cap -> 503, analysis.failed, no modal", async () => {
   const t = build({ claim: null, curState: "queued", attempts: 5 });
   const res = await post(t.app);
-  assert.equal(res.status, 502);
+  assert.equal(res.status, 503);
   assert.equal((await res.json()).error.code, "engine_unavailable");
   assert.equal(t.modalCalls(), 0);
   const failed = t.log.find((c) =>
@@ -300,10 +300,10 @@ Deno.test("replay of a stored 200 returns the stored body, no rpc, no modal", as
   assert.equal(t.modalCalls(), 0);
 });
 
-Deno.test("session_spec null -> 502, analysis.failed, no modal call", async () => {
+Deno.test("session_spec null -> 503, analysis.failed, no modal call", async () => {
   const t = build({ spec: null });
   const res = await post(t.app);
-  assert.equal(res.status, 502);
+  assert.equal(res.status, 503);
   assert.equal((await res.json()).error.code, "engine_unavailable");
   assert.ok(t.log.some((c) =>
     c.kind === "rpc" && c.name === "append_event" &&
@@ -326,14 +326,16 @@ Deno.test("analysis_run_conflict -> 409", async () => {
       error: { code: "P0001", message: "analysis_run_conflict" },
     },
   });
-  assert.equal((await post(t.app)).status, 409);
+  const res = await post(t.app);
+  assert.equal(res.status, 409);
+  assert.equal((await res.json()).error.code, "analysis_run_conflict");
 });
 
 Deno.test("upload not complete -> 409; no upload row -> 409", async () => {
   for (const upload of [{ r2_key: "k", status: "initiated" }, null]) {
     const res = await post(build({ upload }).app);
     assert.equal(res.status, 409);
-    assert.equal((await res.json()).error.code, "upload_not_complete");
+    assert.equal((await res.json()).error.code, "conflict");
   }
 });
 
