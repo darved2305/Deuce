@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -12,9 +13,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,20 +30,15 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,7 +50,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -61,18 +59,33 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.elevate.app.domain.calibration.Corner
+import com.elevate.app.domain.calibration.CourtCheck
 import com.elevate.app.domain.calibration.FitTransform
 import com.elevate.app.domain.calibration.ImagePoint
 import com.elevate.app.domain.media.SourceFacts
-import com.elevate.app.ui.components.ElevateIcons
+import com.elevate.app.ui.components.ElevateCard
+import com.elevate.app.ui.components.ElevateHeader
+import com.elevate.app.ui.components.PeachPage
+import com.elevate.app.ui.components.PillChip
+import com.elevate.app.ui.components.PrimaryButton
+import com.elevate.app.ui.components.ScreenGutter
+import com.elevate.app.ui.components.SecondaryButton
+import com.elevate.app.ui.components.SectionTitle
+import com.elevate.app.ui.components.StepCount
+import com.elevate.app.ui.components.VideoCard
+import com.elevate.app.ui.components.VideoChip
 import com.elevate.app.ui.theme.Elevate
 import java.util.Locale
 import kotlin.math.hypot
@@ -80,18 +93,11 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** Handle colours: distinct hues, each ≥ 3:1 against white rings and the cream panel. */
-private val CornerColors = mapOf(
-    Corner.NearLeft to Color(0xFFC8481A),
-    Corner.NearRight to Color(0xFF6656D2),
-    Corner.FarRight to Color(0xFF2F7D3A),
-    Corner.FarLeft to Color(0xFF0E6E8C),
-)
-
 /**
- * "Set up analysis": sport → court corners (or the ball, in free play) → who is you → review.
- * Everything is tapped on a real still frame of [uri] at [frameUs]; [onDone] receives exactly the
- * session fields this flow owns (contracts §2), in upright source pixels.
+ * "Set up analysis" in two screens, tapped on a real still frame of [uri] at [frameUs]:
+ * 1/2 the court (corners, sport, format; free play: the ball), 2/2 who are you.
+ * "Analyse match" on the second screen calls [onDone] with exactly the session fields this flow
+ * owns (contracts §2), in upright source pixels. Back on the first screen calls [onCancel].
  */
 @Composable
 fun SetupFlowScreen(
@@ -105,14 +111,13 @@ fun SetupFlowScreen(
     LaunchedEffect(uri, frameUs) { vm.load(uri, facts, frameUs) }
     val frame by vm.frame.collectAsStateWithLifecycle()
     val state by vm.state.collectAsStateWithLifecycle()
-    val c = Elevate.colors
 
     val s = state
     BackHandler {
         if (s != null && s.steps.indexOf(s.step) > 0) vm.dispatch(SetupAction.Back) else onCancel()
     }
 
-    Box(Modifier.fillMaxSize().background(c.cream)) {
+    PeachPage {
         when (val f = frame) {
             SetupFrame.Loading -> Message("Reading a frame of your video…", busy = true, onCancel = onCancel)
             is SetupFrame.Failed -> Message(
@@ -137,68 +142,103 @@ private fun Flow(
     onCancel: () -> Unit,
     onDone: (SetupResult) -> Unit,
 ) {
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val landscape = maxWidth > maxHeight
-        val picture: @Composable (Modifier) -> Unit = { m -> Picture(f, s, dispatch, m) }
-        val panel: @Composable (Modifier) -> Unit = { m -> Panel(s, dispatch, onDone, m) }
-        if (landscape) {
-            Row(Modifier.fillMaxSize().safeDrawingPadding()) {
+    // Which corner is under the finger: drives the loupe and the highlighted corner chip.
+    val dragging = remember { mutableStateOf<Corner?>(null) }
+    val i = s.steps.indexOf(s.step)
+    val header: @Composable () -> Unit = {
+        ElevateHeader(
+            title = s.title(),
+            onBack = { if (i > 0) dispatch(SetupAction.Back) else onCancel() },
+            trailing = { StepCount(i + 1, s.steps.size) },
+        )
+    }
+    val ratio = (f.srcW.toFloat() / f.srcH.toFloat()).takeIf { it.isFinite() && it > 0f } ?: (16f / 9f)
+
+    BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
+        if (maxWidth > maxHeight) {
+            Row(Modifier.fillMaxSize()) {
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    TopBar(s, onCancel, dispatch)
-                    picture(Modifier.weight(1f).fillMaxWidth())
+                    header()
+                    Box(
+                        Modifier.weight(1f).fillMaxWidth().padding(start = ScreenGutter, end = 8.dp, bottom = 16.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Hero(f, s, dispatch, dragging, Modifier.aspectRatio(ratio)) }
                 }
-                panel(Modifier.width(360.dp).fillMaxHeight().verticalScroll(rememberScrollState()))
+                Column(Modifier.width(360.dp).fillMaxHeight().padding(end = ScreenGutter, top = 8.dp, bottom = 16.dp)) {
+                    Column(
+                        Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) { Controls(s, dispatch, dragging.value) }
+                    Bottom(s, dispatch, onDone, Modifier.padding(start = 12.dp, top = 12.dp))
+                }
             }
         } else {
-            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-                TopBar(s, onCancel, dispatch)
-                picture(Modifier.weight(1f).fillMaxWidth())
-                panel(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState()))
+            val heroMax = maxHeight * 0.46f
+            Column(Modifier.fillMaxSize()) {
+                header()
+                // The frame stays pinned: taps and drags land on it while only the controls scroll
+                // (a scrolling frame slid under the header mid-tap on the A55).
+                Box(Modifier.fillMaxWidth().padding(horizontal = ScreenGutter, vertical = 4.dp), contentAlignment = Alignment.TopCenter) {
+                    Hero(f, s, dispatch, dragging, Modifier.heightIn(max = heroMax).aspectRatio(ratio))
+                }
+                Column(
+                    Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = ScreenGutter).padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Controls(s, dispatch, dragging.value)
+                }
+                Bottom(s, dispatch, onDone, Modifier.padding(horizontal = ScreenGutter, vertical = 12.dp))
             }
         }
     }
 }
 
+private fun SetupState.title() = when (step) {
+    Step.Court -> "Set up the court"
+    Step.Ball -> "Mark the ball"
+    Step.WhoIsMe -> "Who are you?"
+}
+
+/** The real frame as a rounded hero card, with the tapped points and a plain-language chip. */
 @Composable
-private fun TopBar(s: SetupState, onCancel: () -> Unit, dispatch: (SetupAction) -> Unit) {
-    val c = Elevate.colors
-    val i = s.steps.indexOf(s.step)
-    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(c.peach)
-                .clickable(
-                    onClickLabel = if (i > 0) "Previous step" else "Cancel setup",
-                    role = Role.Button,
-                    onClick = { if (i > 0) dispatch(SetupAction.Back) else onCancel() },
-                ),
-            contentAlignment = Alignment.Center,
-        ) { Icon(ElevateIcons.Back, contentDescription = if (i > 0) "Back" else "Cancel", tint = c.ink) }
-        Spacer(Modifier.size(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text("Set up analysis", style = MaterialTheme.typography.titleMedium)
-            Text("Step ${i + 1} of ${s.steps.size}", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
-        }
+private fun Hero(
+    f: SetupFrame.Ready,
+    s: SetupState,
+    dispatch: (SetupAction) -> Unit,
+    dragging: MutableState<Corner?>,
+    modifier: Modifier,
+) {
+    VideoCard(modifier) {
+        Picture(f, s, dispatch, dragging, Modifier.fillMaxSize())
+        VideoChip(
+            s.instruction(),
+            modifier = Modifier
+                .align(if (s.step == Step.Court) Alignment.BottomStart else Alignment.TopStart)
+                .padding(12.dp)
+                .semantics { liveRegion = LiveRegionMode.Polite },
+        )
     }
 }
 
 /** The real frame with fit scaling, the tapped points, and a loupe while a corner is dragged. */
 @Composable
-private fun Picture(f: SetupFrame.Ready, s: SetupState, dispatch: (SetupAction) -> Unit, modifier: Modifier) {
+private fun Picture(
+    f: SetupFrame.Ready,
+    s: SetupState,
+    dispatch: (SetupAction) -> Unit,
+    dragging: MutableState<Corner?>,
+    modifier: Modifier,
+) {
     val c = Elevate.colors
     val density = LocalDensity.current
-    BoxWithConstraints(modifier.background(c.court)) {
+    BoxWithConstraints(modifier) {
         val viewW = constraints.maxWidth.toDouble()
         val viewH = constraints.maxHeight.toDouble()
         val t = remember(viewW, viewH, f.srcW, f.srcH) { FitTransform(viewW, viewH, f.srcW.toDouble(), f.srcH.toDouble()) }
-        var dragging by remember { mutableStateOf<Corner?>(null) }
         val current by rememberUpdatedState(s)
         val hitPx = with(density) { 32.dp.toPx() }
 
-        val interactive = s.step == Step.Court || s.step == Step.Ball || s.step == Step.WhoIsMe
-        val gestures = if (!interactive) Modifier else Modifier.pointerInput(t) {
+        val gestures = Modifier.pointerInput(t) {
             awaitEachGesture {
                 val down = awaitFirstDown()
                 val st = current
@@ -214,7 +254,7 @@ private fun Picture(f: SetupFrame.Ready, s: SetupState, dispatch: (SetupAction) 
                     val dx = hx - down.position.x
                     val dy = hy - down.position.y
                     dispatch(SetupAction.DragStart(hit))
-                    dragging = hit
+                    dragging.value = hit
                     try {
                         while (true) {
                             val ev = awaitPointerEvent()
@@ -224,7 +264,7 @@ private fun Picture(f: SetupFrame.Ready, s: SetupState, dispatch: (SetupAction) 
                             ch.consume()
                         }
                     } finally {
-                        dragging = null
+                        dragging.value = null
                     }
                 } else {
                     val up = waitForUpOrCancellation()
@@ -237,11 +277,12 @@ private fun Picture(f: SetupFrame.Ready, s: SetupState, dispatch: (SetupAction) 
             }
         }
 
+        val drag = dragging.value
         Canvas(
             Modifier
                 .fillMaxSize()
                 .then(gestures)
-                .semantics { contentDescription = "Frame at ${seconds(f.frameMs)} of your video. ${s.instruction()}" },
+                .semantics { contentDescription = "Frame at ${clock(f.frameMs)} of your video. ${s.instruction()}" },
         ) {
             drawImage(
                 f.image,
@@ -250,17 +291,17 @@ private fun Picture(f: SetupFrame.Ready, s: SetupState, dispatch: (SetupAction) 
                 dstOffset = IntOffset(t.offsetX.roundToInt(), t.offsetY.roundToInt()),
                 dstSize = IntSize((f.srcW * t.scale).roundToInt(), (f.srcH * t.scale).roundToInt()),
             )
-            if (s.sport != Sport.FreePlay) drawCourt(s, t)
+            if (s.sport != Sport.FreePlay) drawCourt(s, t, c.orange, active = s.step == Step.Court)
             s.ball?.let { if (s.sport == Sport.FreePlay) drawMarker(t.toView(it), Color(0xFFE0A100)) }
             s.me?.let { drawMarker(t.toView(it), c.orange) }
-            dragging?.let { k -> s.corners[k]?.let { drawLoupe(f, t, it, CornerColors.getValue(k)) } }
+            drag?.let { k -> s.corners[k]?.let { drawLoupe(f, t, it, c.orange) } }
         }
 
-        // Labels as text, next to each point, so each handle is named on screen and to TalkBack.
-        if (s.sport != Sport.FreePlay) {
+        // Each handle is named on screen (and to TalkBack) while the corners are being set.
+        if (s.sport != Sport.FreePlay && s.step == Step.Court) {
             for ((k, p) in s.corners) {
                 val (x, y) = t.toView(p)
-                PointLabel(k.label, CornerColors.getValue(k), x, y, "${k.label} corner")
+                PointLabel(k.label, Color(0xCC1C1F45), x, y, "${k.label} corner")
             }
         }
         s.ball?.takeIf { s.sport == Sport.FreePlay }?.let { val (x, y) = t.toView(it); PointLabel("Ball", Color(0xFF8A5A00), x, y, "Ball") }
@@ -271,57 +312,61 @@ private fun Picture(f: SetupFrame.Ready, s: SetupState, dispatch: (SetupAction) 
 @Composable
 private fun PointLabel(text: String, color: Color, x: Double, y: Double, description: String) {
     val d = LocalDensity.current
-    val dx = with(d) { 16.dp.toPx() }
-    val dy = with(d) { 36.dp.toPx() }
+    val dx = with(d) { 14.dp.toPx() }
+    val dy = with(d) { 38.dp.toPx() }
     Text(
         text,
         style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
         color = Color.White,
         modifier = Modifier
             .offset { IntOffset((x + dx).roundToInt(), (y - dy).roundToInt()) }
-            .clip(RoundedCornerShape(8.dp))
+            .clip(CircleShape)
             .background(color)
-            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .padding(horizontal = 10.dp, vertical = 3.dp)
             .semantics { contentDescription = description },
     )
 }
 
-private fun DrawScope.drawCourt(s: SetupState, t: FitTransform) {
-    val pts = Corner.entries.mapNotNull { k -> s.corners[k]?.let { k to t.toView(it) } }
-    val line = 2.dp.toPx()
-    for (i in 0 until pts.size - 1) segment(pts[i].second, pts[i + 1].second, line)
-    if (pts.size == 4) segment(pts[3].second, pts[0].second, line)
-    for ((k, p) in pts) {
+/** Orange quad joining the placed corners, with orange-ringed white handles. */
+private fun DrawScope.drawCourt(s: SetupState, t: FitTransform, orange: Color, active: Boolean) {
+    val pts = Corner.entries.mapNotNull { k -> s.corners[k]?.let { t.toView(it) } }
+    val line = 2.5.dp.toPx()
+    for (i in 0 until pts.size - 1) segment(pts[i], pts[i + 1], line, orange)
+    if (pts.size == 4) segment(pts[3], pts[0], line, orange)
+    if (!active) return
+    for (p in pts) {
         val o = Offset(p.first.toFloat(), p.second.toFloat())
-        drawCircle(Color.White, radius = 11.dp.toPx(), center = o)
-        drawCircle(CornerColors.getValue(k), radius = 8.dp.toPx(), center = o)
-        drawCircle(Color.White, radius = 2.dp.toPx(), center = o)
+        drawCircle(Color.Black.copy(alpha = 0.25f), radius = 13.dp.toPx(), center = o)
+        drawCircle(orange, radius = 11.dp.toPx(), center = o)
+        drawCircle(Color.White, radius = 7.dp.toPx(), center = o)
+        drawCircle(orange, radius = 3.dp.toPx(), center = o)
     }
 }
 
-private fun DrawScope.segment(a: Pair<Double, Double>, b: Pair<Double, Double>, width: Float) {
+private fun DrawScope.segment(a: Pair<Double, Double>, b: Pair<Double, Double>, width: Float, color: Color) {
     val oa = Offset(a.first.toFloat(), a.second.toFloat())
     val ob = Offset(b.first.toFloat(), b.second.toFloat())
-    drawLine(Color.Black.copy(alpha = 0.5f), oa, ob, strokeWidth = width * 2)
-    drawLine(Color.White, oa, ob, strokeWidth = width)
+    drawLine(Color.Black.copy(alpha = 0.3f), oa, ob, strokeWidth = width * 2)
+    drawLine(color, oa, ob, strokeWidth = width)
 }
 
 private fun DrawScope.drawMarker(p: Pair<Double, Double>, color: Color) {
     val o = Offset(p.first.toFloat(), p.second.toFloat())
-    drawCircle(Color.White, radius = 14.dp.toPx(), center = o, style = Stroke(width = 5.dp.toPx()))
-    drawCircle(color, radius = 14.dp.toPx(), center = o, style = Stroke(width = 3.dp.toPx()))
+    drawCircle(Color.White, radius = 18.dp.toPx(), center = o, style = Stroke(width = 6.dp.toPx()))
+    drawCircle(color, radius = 18.dp.toPx(), center = o, style = Stroke(width = 3.5.dp.toPx()))
     drawCircle(color, radius = 3.dp.toPx(), center = o)
 }
 
 /**
- * A 3× loupe of the real frame around source point [p], in a circle above the finger (below it
- * near the top edge), with a crosshair on the exact point. Drawn from the frame bitmap itself.
+ * A 3× loupe of the real frame around source point [p], in a white ring above the finger (below
+ * it near the top edge), with a crosshair on the exact point. Drawn from the frame bitmap itself.
  */
 private fun DrawScope.drawLoupe(f: SetupFrame.Ready, t: FitTransform, p: ImagePoint, color: Color) {
     val zoom = 3.0
-    val r = 56.dp.toPx()
+    val r = 52.dp.toPx()
     val (vx, vy) = t.toView(p)
-    val gap = 96.dp.toPx()
+    val gap = 92.dp.toPx()
     val cy = if (vy - gap - r >= 0) vy - gap else vy + gap
     val cx = vx.coerceIn(r.toDouble(), size.width - r.toDouble())
     val center = Offset(cx.toFloat(), cy.toFloat())
@@ -336,6 +381,7 @@ private fun DrawScope.drawLoupe(f: SetupFrame.Ready, t: FitTransform, p: ImagePo
     val sy0 = max(0.0, by - half); val sy1 = min(bh, by + half)
     val dstPerBmp = r / half // view px per bitmap px inside the loupe
     val circle = Path().apply { addOval(Rect(center, r)) }
+    drawCircle(Color.Black.copy(alpha = 0.3f), radius = r + 4.dp.toPx(), center = center)
     drawCircle(Color.Black, radius = r, center = center)
     if (sx1 > sx0 && sy1 > sy0) {
         clipPath(circle) {
@@ -348,200 +394,255 @@ private fun DrawScope.drawLoupe(f: SetupFrame.Ready, t: FitTransform, p: ImagePo
             )
         }
     }
-    val arm = 14.dp.toPx()
+    val arm = 16.dp.toPx()
+    val gapIn = 5.dp.toPx()
     val w = 1.5.dp.toPx()
-    drawLine(color, center - Offset(arm, 0f), center + Offset(arm, 0f), strokeWidth = w)
-    drawLine(color, center - Offset(0f, arm), center + Offset(0f, arm), strokeWidth = w)
-    drawCircle(Color.White, radius = r, center = center, style = Stroke(width = 3.dp.toPx()))
-    drawCircle(color, radius = r + 2.dp.toPx(), center = center, style = Stroke(width = 2.dp.toPx()))
+    drawLine(Color.White, center - Offset(arm, 0f), center - Offset(gapIn, 0f), strokeWidth = w)
+    drawLine(Color.White, center + Offset(gapIn, 0f), center + Offset(arm, 0f), strokeWidth = w)
+    drawLine(Color.White, center - Offset(0f, arm), center - Offset(0f, gapIn), strokeWidth = w)
+    drawLine(Color.White, center + Offset(0f, gapIn), center + Offset(0f, arm), strokeWidth = w)
+    drawCircle(color, radius = 3.dp.toPx(), center = center)
+    drawCircle(Color.White, radius = r, center = center, style = Stroke(width = 4.dp.toPx()))
+}
+
+/** Everything under the frame, per step. */
+@Composable
+private fun ColumnScope.Controls(s: SetupState, dispatch: (SetupAction) -> Unit, dragging: Corner?) {
+    when (s.step) {
+        Step.Court -> {
+            (s.courtCheck as? CourtCheck.Problem)?.takeIf { it.code != "incomplete" }?.let { Warning(it.text) }
+            CornersSection(s, dispatch, dragging)
+            SportSection(s, dispatch)
+        }
+        Step.Ball -> {
+            SportSection(s, dispatch)
+            MarkCard("Ball", s.ball != null, s.frameMs, onClear = { dispatch(SetupAction.Reset) })
+        }
+        Step.WhoIsMe -> MarkCard("You", s.me != null, s.frameMs, onClear = { dispatch(SetupAction.Reset) })
+    }
+}
+
+/** Soft-peach card for a court problem, in the check's own words. */
+@Composable
+private fun Warning(text: String) {
+    val c = Elevate.colors
+    ElevateCard(tint = c.peach) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
+            Box(Modifier.size(28.dp).clip(CircleShape).background(c.orange), contentAlignment = Alignment.Center) {
+                Text("!", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(text, style = MaterialTheme.typography.bodyMedium, color = c.orangeText)
+        }
+    }
 }
 
 @Composable
-private fun Panel(s: SetupState, dispatch: (SetupAction) -> Unit, onDone: (SetupResult) -> Unit, modifier: Modifier) {
+private fun CornersSection(s: SetupState, dispatch: (SetupAction) -> Unit, dragging: Corner?) {
     val c = Elevate.colors
-    Column(
-        modifier
-            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-            .background(c.cream)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(s.instruction(), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-        when (s.step) {
-            Step.Sport -> SportStep(s, dispatch)
-            Step.Court -> CourtStep(s, dispatch)
-            Step.Ball, Step.WhoIsMe -> TapStep(s, dispatch)
-            Step.Review -> ReviewStep(s)
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("Corners", style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.weight(1f).semantics { heading() })
+        SmallPill("Undo", enabled = s.canUndo) { dispatch(SetupAction.Undo) }
+        Spacer(Modifier.width(8.dp))
+        SmallPill("Reset", enabled = s.corners.isNotEmpty()) { dispatch(SetupAction.Reset) }
+    }
+    val active = dragging ?: s.nextCorner
+    // Laid out as seen from behind the near baseline: far corners on top.
+    for (row in listOf(listOf(Corner.FarLeft, Corner.FarRight), listOf(Corner.NearLeft, Corner.NearRight))) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            for (k in row) CornerChip(k, placed = k in s.corners, active = k == active)
         }
-        s.blocker?.takeIf { s.step != Step.Sport || !s.isEnabled(s.sport) }?.let {
-            Text(
-                it,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (s.step == Step.Court && s.nextCorner == null) c.error else c.inkMuted,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+    }
+    s.courtHint()?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = c.inkMuted) }
+}
+
+@Composable
+private fun RowScope.CornerChip(k: Corner, placed: Boolean, active: Boolean) {
+    val c = Elevate.colors
+    val shape = RoundedCornerShape(18.dp)
+    Row(
+        Modifier
+            .weight(1f)
+            .heightIn(min = 52.dp)
+            .clip(shape)
+            .background(if (active) c.peach else Color.White)
+            .border(if (active) 1.5.dp else 1.dp, if (active) c.orange else c.line, shape)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${k.label} corner: ${if (placed) "placed" else if (active) "tap it next" else "not placed"}"
+            },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (placed) {
+            Box(Modifier.size(16.dp).clip(CircleShape).background(c.orange), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(6.dp).clip(CircleShape).background(Color.White))
+            }
+        } else {
+            Box(Modifier.size(16.dp).border(2.dp, if (active) c.orange else c.inkMuted.copy(alpha = 0.5f), CircleShape))
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(k.label, style = MaterialTheme.typography.bodyLarge, color = c.ink)
+    }
+}
+
+@Composable
+private fun SportSection(s: SetupState, dispatch: (SetupAction) -> Unit) {
+    val c = Elevate.colors
+    SectionTitle("Sport")
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Free play stays hidden until its ruleset version is pinned; the others show as "soon".
+        for (sport in Sport.entries.filter { it != Sport.FreePlay || s.isEnabled(it) }) {
+            val ok = s.isEnabled(sport)
+            PillChip(
+                text = if (ok) sport.label else "${sport.label} · soon",
+                selected = sport == s.sport,
+                enabled = ok,
+                onClick = { dispatch(SetupAction.SelectSport(sport)) },
             )
         }
-        val result = if (s.step == Step.Review) s.result() else null
-        Button(
-            onClick = { if (result != null) onDone(result) else dispatch(SetupAction.Next) },
-            enabled = s.canNext,
-            shape = CircleShape,
-            colors = ButtonDefaults.buttonColors(containerColor = c.orange, contentColor = Color.White),
-            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-        ) { Text(if (s.step == Step.Review) "Use this setup" else "Next", style = MaterialTheme.typography.labelLarge) }
-    }
-}
-
-@Composable
-private fun SportStep(s: SetupState, dispatch: (SetupAction) -> Unit) {
-    val c = Elevate.colors
-    Pills(Sport.entries, s.sport, { it.label }, { s.isEnabled(it) }, { dispatch(SetupAction.SelectSport(it)) })
-    val off = Sport.entries.filterNot { s.isEnabled(it) }
-    if (off.isNotEmpty()) {
-        Text("${off.joinToString { it.label }}: not in this build", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
     }
     val formats = SetupCatalog.formats(s.sport)
-    if (formats.size > 1) Pills(formats, s.format, { it.label }, { true }, { dispatch(SetupAction.SelectFormat(it)) })
-    val modes = SetupCatalog.modes(s.sport)
-    if (modes.size > 1) Pills(modes, s.mode, { it.label }, { true }, { dispatch(SetupAction.SelectMode(it)) })
+    if (formats.size > 1) {
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Format", style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (fmt in formats) PillChip(fmt.label, selected = fmt == s.format, onClick = { dispatch(SetupAction.SelectFormat(fmt)) })
+            }
+        }
+    }
 }
 
+/** One tapped point ("You", "Ball"): marked or not, on which frame, and a way to clear it. */
 @Composable
-private fun <T> Pills(items: List<T>, selected: T, label: (T) -> String, enabled: (T) -> Boolean, onSelect: (T) -> Unit) {
+private fun MarkCard(name: String, marked: Boolean, frameMs: Long, onClear: () -> Unit) {
     val c = Elevate.colors
-    FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (item in items) {
-            val on = item == selected
-            val ok = enabled(item)
+    ElevateCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier
-                    .heightIn(min = 48.dp)
-                    .clip(CircleShape)
-                    .background(if (on) c.orange else if (ok) c.peach else c.line)
-                    .selectable(selected = on, enabled = ok, role = Role.RadioButton, onClick = { onSelect(item) })
-                    .padding(horizontal = 18.dp),
+                Modifier.size(44.dp).clip(CircleShape).background(if (marked) c.orange else c.line),
                 contentAlignment = Alignment.Center,
-            ) {
+            ) { Text(name.take(1), color = if (marked) Color.White else c.inkMuted, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
+                Text(name, style = MaterialTheme.typography.titleMedium, color = c.ink)
                 Text(
-                    label(item),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (on) Color.White else if (ok) c.ink else c.inkMuted,
+                    if (marked) "Marked at ${clock(frameMs)}" else "Not marked yet",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (marked) c.orangeText else c.inkMuted,
                 )
             }
+            SmallPill("Clear", enabled = marked, onClick = onClear)
         }
     }
 }
 
+/** A compact white pill with a 48 dp touch target. */
 @Composable
-private fun CourtStep(s: SetupState, dispatch: (SetupAction) -> Unit) {
+private fun SmallPill(text: String, enabled: Boolean, onClick: () -> Unit) {
     val c = Elevate.colors
-    s.courtHint()?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (k in Corner.entries) {
-            val placed = k in s.corners
-            Row(
-                Modifier
-                    .clip(CircleShape)
-                    .background(if (placed) c.surface else c.line)
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                    .semantics(mergeDescendants = true) { contentDescription = "${k.label}: ${if (placed) "placed" else "not placed"}" },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(if (placed) CornerColors.getValue(k) else c.inkMuted))
-                Spacer(Modifier.size(6.dp))
-                Text(k.label, style = MaterialTheme.typography.labelMedium, color = c.ink)
-            }
-        }
-    }
-    Text("${s.corners.size} of 4 corners placed", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
-    UndoReset(s, dispatch, resetLabel = "Reset")
-}
-
-@Composable
-private fun TapStep(s: SetupState, dispatch: (SetupAction) -> Unit) {
-    val c = Elevate.colors
-    val marked = if (s.step == Step.Ball) s.ball else s.me
-    Text(
-        if (marked == null) "On this frame, at ${seconds(s.frameMs)}" else "Marked at ${seconds(s.frameMs)}. Tap again to move it.",
-        style = MaterialTheme.typography.bodyMedium,
-        color = c.inkMuted,
-    )
-    UndoReset(s, dispatch, resetLabel = "Clear")
-}
-
-@Composable
-private fun UndoReset(s: SetupState, dispatch: (SetupAction) -> Unit, resetLabel: String) {
-    val c = Elevate.colors
-    val hasAny = when (s.step) {
-        Step.Court -> s.corners.isNotEmpty()
-        Step.Ball -> s.ball != null
-        Step.WhoIsMe -> s.me != null
-        else -> false
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedButton(
-            onClick = { dispatch(SetupAction.Undo) },
-            enabled = s.canUndo,
-            shape = CircleShape,
-            modifier = Modifier.heightIn(min = 48.dp),
-        ) { Text("Undo", color = if (s.canUndo) c.ink else c.inkMuted) }
-        OutlinedButton(
-            onClick = { dispatch(SetupAction.Reset) },
-            enabled = hasAny,
-            shape = CircleShape,
-            modifier = Modifier.heightIn(min = 48.dp),
-        ) { Text(resetLabel, color = if (hasAny) c.ink else c.inkMuted) }
-    }
-}
-
-@Composable
-private fun ReviewStep(s: SetupState) {
-    val c = Elevate.colors
-    val r = s.result()
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surface).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+    Box(
+        Modifier
+            .heightIn(min = 48.dp)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
-        Row2("Sport", listOf(s.sport.label, s.format.label.takeIf { s.format != Format.None }, s.mode.label).filterNotNull().joinToString(" · "))
-        r?.ruleset?.let { Row2("Rules", "${it.id} (${it.version})") }
-        if (s.sport == Sport.FreePlay) {
-            Row2("Court", "None (free play)")
-            Row2("Ball", if (s.ball != null) "marked at ${seconds(s.frameMs)}" else "not marked")
-        } else {
-            Row2("Court corners", "${s.corners.size} of 4 placed${s.template?.let { " · $it" } ?: ""}")
-        }
-        Row2("You", if (s.me != null) "marked at ${seconds(s.frameMs)}" else "not marked")
-        Row2("Frame", seconds(s.frameMs))
+        Text(
+            text,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (enabled) c.ink else c.inkMuted.copy(alpha = 0.6f),
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(Color.White)
+                .border(1.dp, c.line, CircleShape)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        )
     }
-    Text("Nothing is uploaded yet.", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
 }
 
+/** Summary (last step) and the one main action. A blocked action reads what is missing. */
 @Composable
-private fun Row2(k: String, v: String) {
-    Row(Modifier.fillMaxWidth()) {
-        Text(k, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(120.dp))
-        Text(v, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+private fun Bottom(s: SetupState, dispatch: (SetupAction) -> Unit, onDone: (SetupResult) -> Unit, modifier: Modifier) {
+    val c = Elevate.colors
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (s.step == Step.WhoIsMe) {
+            Text(
+                s.summary(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = c.inkMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            val result = s.result()
+            PrimaryButton(
+                text = if (result != null) "Analyse match" else s.blocker ?: "Tap yourself",
+                onClick = { result?.let(onDone) },
+                enabled = result != null,
+            )
+        } else {
+            PrimaryButton(
+                text = if (s.canNext) (if (s.step == Step.Court) "Looks right" else "Next") else s.shortBlocker(),
+                onClick = { dispatch(SetupAction.Next) },
+                enabled = s.canNext,
+            )
+        }
+    }
+}
+
+/** "Badminton singles · 4 corners · you at 0:41.26": only what was actually chosen and tapped. */
+private fun SetupState.summary(): String = buildList {
+    add(if (format == Format.None) sport.label else "${sport.label} ${format.label.lowercase()}")
+    if (sport == Sport.FreePlay) {
+        ball?.let { add("ball at ${clock(frameMs)}") }
+    } else {
+        add("${corners.size} corner${if (corners.size == 1) "" else "s"}")
+    }
+    me?.let { add("you at ${clock(frameMs)}") }
+}.joinToString(" · ")
+
+/** The court check's problem, short enough for the button. */
+private fun SetupState.shortBlocker(): String {
+    val p = courtCheck as? CourtCheck.Problem
+    if (step != Step.Court || p == null) return blocker ?: "Next"
+    return when (p.code) {
+        "incomplete" -> (4 - corners.size).let { n -> if (n == 4) "Tap the 4 corners" else "Tap $n more corner${if (n == 1) "" else "s"}" }
+        "too_close" -> "Two corners overlap"
+        "crossed" -> "Corners cross over"
+        "too_small" -> "Court too small"
+        "left_right" -> "Left and right swapped"
+        "near_far" -> "Near and far swapped"
+        else -> p.text
     }
 }
 
 @Composable
 private fun Message(text: String, busy: Boolean, onCancel: () -> Unit) {
     val c = Elevate.colors
-    Column(
-        Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        if (busy) {
-            CircularProgressIndicator(Modifier.size(24.dp), color = c.orange, strokeWidth = 2.dp)
-            Spacer(Modifier.height(16.dp))
-        }
-        Text(text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-        Spacer(Modifier.height(24.dp))
-        OutlinedButton(onClick = onCancel, shape = CircleShape, modifier = Modifier.heightIn(min = 48.dp)) {
-            Text("Cancel", color = c.ink)
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        ElevateHeader(title = "Set up the court", onBack = onCancel)
+        Column(
+            Modifier.weight(1f).fillMaxWidth().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            if (busy) {
+                CircularProgressIndicator(Modifier.size(28.dp), color = c.orange, strokeWidth = 2.5.dp)
+                Spacer(Modifier.height(20.dp))
+            }
+            Text(
+                text,
+                style = MaterialTheme.typography.titleMedium,
+                color = c.ink,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+            if (!busy) {
+                Spacer(Modifier.height(24.dp))
+                SecondaryButton("Back", onClick = onCancel)
+            }
         }
     }
 }
 
-private fun seconds(ms: Long) = String.format(Locale.ROOT, "%.2f s", ms / 1000.0)
+/** 41260 ms → "0:41.26". */
+private fun clock(ms: Long) = String.format(Locale.ROOT, "%d:%05.2f", ms / 60_000, (ms % 60_000) / 1000.0)
