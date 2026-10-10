@@ -10,6 +10,7 @@ import android.content.pm.ApplicationInfo
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -83,6 +84,7 @@ fun ReplayScreen(
     onBack: () -> Unit,
     onChooseAnother: () -> Unit,
     onOverlayVisible: (Boolean) -> Unit,
+    onSetUp: () -> Unit = {},
 ) {
     val c = Elevate.colors
     BackHandler(onBack = onBack)
@@ -107,7 +109,7 @@ fun ReplayScreen(
             VideoArea(screen, state, controller, onChooseAnother, m)
         }
         val controls: @Composable (Modifier) -> Unit = { m ->
-            ControlsSheet(screen, state, controller, positionMs, onOverlayVisible, m)
+            ControlsSheet(screen, state, controller, positionMs, onOverlayVisible, onSetUp, m)
         }
         if (landscape) {
             Row(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -192,6 +194,7 @@ private fun ControlsSheet(
     controller: PlayerController,
     positionMs: Long,
     onOverlayVisible: (Boolean) -> Unit,
+    onSetUp: () -> Unit,
     modifier: Modifier,
 ) {
     val c = Elevate.colors
@@ -231,6 +234,7 @@ private fun ControlsSheet(
         AnnotationRow(screen, onOverlayVisible)
         Spacer(Modifier.height(8.dp))
         PreflightRow(screen.preflight)
+        SetupRow(screen, onSetUp)
     }
 }
 
@@ -353,6 +357,39 @@ private fun PreflightRow(p: PreflightState) {
             }
         }
     }
+}
+
+/** Entry to the setup flow once the clip can be analysed, then a factual summary of what was chosen. */
+@Composable
+private fun SetupRow(screen: Screen.Replay, onSetUp: () -> Unit) {
+    val c = Elevate.colors
+    val p = screen.preflight as? PreflightState.Done ?: return
+    if (p.blocked) return
+    Spacer(Modifier.height(8.dp))
+    val r = screen.setup
+    if (r == null) {
+        Button(
+            onClick = onSetUp,
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(containerColor = c.orange, contentColor = Color.White),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+        ) { Text("Set up analysis", style = MaterialTheme.typography.labelLarge) }
+    } else {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.mint)
+                .clickable(onClickLabel = "Change setup", role = Role.Button, onClick = onSetUp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Text("Set up · ${r.summary()}", style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
+            Text("Tap to change", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+        }
+    }
+}
+
+/** e.g. "Badminton singles · 4 court corners · you at 0:41.20". Only what the user chose. */
+private fun com.elevate.app.ui.setup.SetupResult.summary(): String {
+    val corners = if (calibrationInput != null) "4 court corners" else "no court"
+    return "${sport.label} ${format.label.lowercase()} · $corners · you at ${formatTime(whoIsMe.tMs)}"
 }
 
 /** Display size, codec, measured frame spacing, audio: e.g. "1920×1080 · H.264 · 20.0 ms frames (50 fps) · audio 44.1 kHz". */
