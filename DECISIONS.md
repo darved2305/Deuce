@@ -563,3 +563,59 @@ Template (copy to the end of the file):
 - **Proof / evidence:** `pnpm --filter @elevate/contracts run check` validates the real fixture;
   Python `jsonschema` accepts it; 14 tests pass.
 - **PRs:** this PR.
+
+## D-261011-HW5 · CI fails when the API's vendored contracts are stale; contract PRs regenerate them
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of `packages/contracts` being vendored into the Edge Function
+  (D-261010-NP1 item 11, PR #13), facing a vendor copy that went stale after contracts 1.2.0/1.3.0
+  (it rejected `upload_mode: "segments"`), we decided CI runs `sync-contracts.ts --check` and the
+  vendor folder is shared generated output, and rejected relying on people remembering to resync.
+- **Context:** A read-only review found the vendor stale and no CI step running the script's
+  existing `--check` mode.
+- **Decision:** the `supabase` CI job runs `deno run --allow-read supabase/scripts/sync-contracts.ts
+  --check`; `supabase/functions/api/lib/contracts_vendor/` is in `shared` in `.claude/lanes.json`,
+  so the author of a contracts PR regenerates it in the same PR (generated files only; never edited
+  by hand). Vendor resynced to contracts 1.3.0 in this PR.
+- **Alternatives:** (a) Person 3 resyncs after each contracts PR, rejected: it leaves the API stale
+  in between; (b) import the package directly from Deno, rejected by D-261010-NP1 (unbundled vendor).
+- **Blast radius:**
+  - People and folders: Person 3 (`supabase/` generated vendor files; the script stays theirs);
+    Person 4 regenerates on contract changes.
+  - Contracts: none.
+- **Exit:** remove the CI step and the shared entry.
+- **Proof / evidence:** `--check` before: "contracts_vendor is stale: api.ts, fixtures.ts, index.ts,
+  registry.ts"; after sync: "contracts_vendor is up to date".
+- **PRs:** this PR.
+
+## D-261011-HW6 · Contracts amendment for issue #20 (contracts 1.4.0)
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of Person 3 building the API against contracts 1.1.0, facing gaps
+  that block the events cursor and Modal reporting (issue #20), we decided the fixes below as `.v1`
+  corrections, and rejected `.v2` names because no deployed reader consumes these shapes yet.
+- **Context:** issue #20 by @nikhilpravinpise. Item 2 was a Person 4 bug: contracts 1.0.0-1.3.0
+  reused the engine's four-type list for read events.
+- **Decision:**
+  1. `internal.event.request.v1` gains optional `engine_version`; `analysis.event.v1` makes it
+     optional and nullable (API-emitted events have none).
+  2. Read events and the cursor page allow every §3 type; `/internal` keeps the engine's four.
+  3. `window_seq` is required on `window.completed` and `window.failed` (both shapes).
+  4. New `analysis.get.response.v1` (never exposes the Modal call ID or dispatch columns).
+  5. New `session.get.response.v1`, `upload.complete.response.v1`, `upload.abort.response.v1`.
+  6. `upload.parts.response.v1` is `{parts: [{n, url, expires_at}]}` so the app can map URLs to parts
+     and re-request before expiry (part URLs live 10 minutes, D-261011-HW2).
+  7. `knownErrorCodes` lists the codes the API and engine emit, with HTTP status; 429s carry top-level
+     `retry_after_s`; `health.response.v1` is `{"status": "ok"}`.
+  8. CI runs `sync-contracts.ts --check` (done in D-261011-HW5); `check-lane.sh` and both hooks strip
+     CR from `jq` output (Windows CRLF).
+- **Alternatives:** (a) keep a bare URL list for part URLs, rejected: the app cannot see expiry or the
+  part mapping; (b) `.v2` schemas, rejected: nothing deployed reads the old shapes.
+- **Blast radius:**
+  - Person 3: adopt the part URL object shape and the new response schemas on `p3/sessions-upload` and
+    `p3/analyses-dispatch` (vendor resynced in this PR).
+  - Person 1: send `engine_version` on `analysis.started`; always send `window_seq` on window events.
+  - Person 2: Kotlin readers treat `engine_version` as optional; upload parts are objects.
+  - Contracts: 1.4.0.
+- **Exit:** supersede with a new entry.
+- **Proof / evidence:** `pnpm --filter @elevate/contracts run test` (17 pass, including three #20
+  tests); `sync-contracts.ts --check` up to date.
+- **PRs:** this PR.

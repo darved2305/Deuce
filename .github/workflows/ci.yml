@@ -67,6 +67,7 @@ jobs:
             engine:
               - *shared
               - 'engine/**'
+              - 'fixtures/**'
               - 'services/insights/**'
             ts:
               - *shared
@@ -124,6 +125,9 @@ jobs:
         uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: v2.9.7
+      - if: steps.has.outputs.ok == 'true'
+        name: Vendored contracts match packages/contracts
+        run: deno run --allow-read supabase/scripts/sync-contracts.ts --check
       - if: steps.has.outputs.ok == 'true'
         working-directory: supabase/functions
         run: |
