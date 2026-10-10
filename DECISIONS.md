@@ -750,4 +750,26 @@ Template (copy to the end of the file):
   (409), `analysis_limit_reached` (429, the 3-analyses-per-session cap), `storage_busy` (503, the
   fail-closed budget counter), as emitted by Person 3's #28/#29.
 - **Blast radius:** Person 2 maps them to messages; contracts 1.7.1, additive.
+
+## D-261011-HW14 · Contracts 1.8.0: calibration, hits, foot metres, segments session, window count
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** Answer #65 (Person 3), #66 and #63 (Person 1) so finalize, Track S and Track T proceed.
+- **Decision:**
+  1. `match.v1.calibration` nullable (uncalibrated matches are `null`, never invented).
+  2. `H` maps image px to court m, row-major, h33 = 1; `H_cov` 81 numbers or null; `tier` A|B|C with
+     Person 1's thresholds (A ≤ 1 px, ≤ 0.15 m, ≥ 90 %; B ≤ 3 px, ≤ 0.40 m, ≥ 50 %), marked for review
+     on real taps.
+  3. `POST /v1/sessions` response: multipart (unchanged) or `{upload_mode: "segments", segments:
+     {max_segment_bytes, max_concurrency, url_ttl_s}}`.
+  4. Foot metres live in `window_result.v1` player rows (nullable = withheld); `match.v1` players stay
+     identity records.
+  5. Hits are `match.v1.events` with `type: "hit"`; `rally_id` optional, `player_id` / `track_id`
+     optional.
+  6. Optional `windows_expected` on events (sent on `analysis.started`).
+  7. A match-scope share grant exposes the full `match.v1`, read-only.
+  8. Minimal finalize body: `vision_result` with every array allowed empty, `calibration: null`,
+     `score: {timeline: [], games: []}`, `clip_artifact_ids: []`.
+- **Blast radius:** Person 1 (finalize call, H direction, foot rows, hits as events, windows_expected);
+  Person 3 (match route, segments response, share policies, finalize ingest); Person 2 (readers:
+  nullable calibration and foot, invert H for drawing). Contracts 1.8.0.
 - **PRs:** this PR.

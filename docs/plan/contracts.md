@@ -245,6 +245,13 @@ moments and comparisons and serves the whole record.
 }
 ```
 
+`calibration` is `null` when the match is not calibrated. When present, `H` maps image pixels to court
+metres (row-major 3×3, bottom-right 1); `H_cov` is the 81-number covariance of flattened `H` or `null`;
+`tier` is `A` (residual ≤ 1 px, worst metre std ≤ 0.15 m, ≥ 90 % of court in frame), `B` (≤ 3 px,
+≤ 0.40 m, ≥ 50 %) or `C`. Hit candidates are `events` with `type: "hit"`, `image_xy`, optional
+`player_id` / `track_id`, and no `rally_id` until rallies are segmented. Window player rows carry
+`foot_x_m` / `foot_y_m` as `null` when withheld (D-261011-HW14).
+
 Review estimate enum `IN | OUT | TOO_CLOSE | UNOBSERVED`; `TOO_CLOSE` renders as
 "TOO CLOSE TO CALL". Score changes only from `confirmed_points`. An engine estimate carries
 `confirmed_point_winner`, `confirmed_by`, `confirmed_at` as `null`; a confirmation sets all three, and
