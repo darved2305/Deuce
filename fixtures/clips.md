@@ -55,7 +55,8 @@ the one below, stop and say so in your PR: never swap a clip silently.
   curl -sL -c ck -b ck -o /dev/null "$U"
   curl -L -c ck -b ck -o TrackNetV2.zip "$U&download=1"
   ```
-  Person 1 records the zip's sha256 here on first download.
+  sha256 `d4e69cc350b64256b269317da1f7cd0ce6058babb5bde72a4160d7e339b6f0b1` (recorded by Person 1,
+  PR #9). Person 1 reproduced the published numbers on a T4: accuracy 97.518%, F1 98.561%.
 - Use: (1) run the official `test.py` from the TrackNetV3 repo to reproduce the README numbers
   (proves weights and data are right); (2) run our engine's TrackNetV3 module on the same split and
   match the official run. TrackNetV3 was trained on this dataset's train split, so this checks our

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0
+
+- Match the database (Person 3's `supabase/migrations` checks) exactly, and test it: sessions,
+  matches and rules use the 4 built sports; format adds `none` (free play only, and free play is
+  always `none`); `mode` is `match | practice | free_play`; artifact `kind` is
+  `window_result | ball_track | player_tracks | match_vision | clip | poster`. Sport packs keep
+  all 7 sports.
+
 ## 1.0.0
 
 - Initial package version for contracts v1, as recorded by D-012.
