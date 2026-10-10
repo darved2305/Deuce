@@ -247,6 +247,18 @@ Deno.test("POST /v1/sessions creates match, session, R2 upload and uploads row",
   );
 });
 
+Deno.test("segments upload mode returns 422 before creating rows or R2 uploads", async () => {
+  const { app, adminLog, userLog, r2Seen } = build();
+  const res = await create(app, { ...BODY, upload_mode: "segments" });
+  assert.equal(res.status, 422);
+  const body = await res.json();
+  assert.equal(body.error.code, "validation_failed");
+  assert.equal(body.error.details, "segments upload not available yet");
+  assert.equal(adminLog.length, 0);
+  assert.equal(userLog.length, 0);
+  assert.equal(r2Seen.length, 0);
+});
+
 Deno.test("POST /v1/sessions without Idempotency-Key is 422 validation_failed", async () => {
   const { app } = build();
   const res = await create(app, BODY, {});
@@ -763,7 +775,10 @@ Deno.test("G4: part URL allowance is 3 x part count, refusal is 429 too_many_par
     part_numbers: [1, 2],
   });
   assert.equal(res.status, 429);
-  assert.equal(await errCode(res), "too_many_part_requests");
+  const body = await res.json();
+  assert.equal(body.error.code, "too_many_part_requests");
+  assert.equal(body.retry_after_s, 600);
+  assert.equal(res.headers.get("retry-after"), "600");
   assert.deepEqual(rpcs(adminLog, "r2_take_part_urls")[0].args, {
     p_session: "s_1",
     p_owner: "u1",
@@ -859,12 +874,11 @@ Deno.test("complete recovers when R2 already completed but the row is still init
   assert.deepEqual(await res.json(), { status: "completed", bytes: 20 * MIB });
 });
 
-Deno.test("complete rejects an object larger than the declared parts can hold, deletes it and closes the upload", async () => {
+async function rejectsSizeMismatch(actualBytes: number) {
   const { app, r2Seen, adminLog } = build({
-    // 20 MiB declared = 3 parts = 24 MiB at most
     r2: (req) =>
       req.method === "HEAD"
-        ? xml(200, "", { "content-length": String(200 * MIB) })
+        ? xml(200, "", { "content-length": String(actualBytes) })
         : req.method === "DELETE"
         ? new Response(null, { status: 204 })
         : xml(200, "<Ok/>"),
@@ -872,20 +886,37 @@ Deno.test("complete rejects an object larger than the declared parts can hold, d
   const res = await call(app, "POST", "/v1/sessions/s_1/upload/complete", {
     parts: PARTS,
   });
-  assert.equal(res.status, 413);
-  assert.equal(await errCode(res), "upload_too_large");
+  assert.equal(res.status, 409);
+  const body = await res.json();
+  assert.equal(body.error.code, "upload_parts_invalid");
+  assert.deepEqual(body.error.details, {
+    expected_bytes: 20 * MIB,
+    actual_bytes: actualBytes,
+  });
   assert.deepEqual(r2Seen.map((r) => r.method), ["POST", "HEAD", "DELETE"]);
   const closed = adminLog.find((c) =>
     c.kind === "from" && c.table === "uploads" && c.op === "update"
   ) as { payload: unknown };
   assert.deepEqual(closed.payload, { status: "aborted" });
+}
+
+Deno.test("complete rejects an object larger than source.bytes, deletes it and aborts", async () => {
+  await rejectsSizeMismatch(200 * MIB);
 });
 
-Deno.test("an object within the declared parts is accepted", async () => {
+Deno.test("complete rejects an object that fits the last part but exceeds source.bytes", async () => {
+  await rejectsSizeMismatch(24 * MIB);
+});
+
+Deno.test("complete rejects an object smaller than source.bytes", async () => {
+  await rejectsSizeMismatch(19 * MIB);
+});
+
+Deno.test("complete accepts an object exactly source.bytes", async () => {
   const { app } = build({
     r2: (req) =>
       req.method === "HEAD"
-        ? xml(200, "", { "content-length": String(24 * MIB) })
+        ? xml(200, "", { "content-length": String(20 * MIB) })
         : xml(200, "<Ok/>"),
   });
   const res = await call(app, "POST", "/v1/sessions/s_1/upload/complete", {

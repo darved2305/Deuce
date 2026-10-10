@@ -3,6 +3,7 @@ import type { Context } from "hono";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppEnv } from "../lib/auth.ts";
 import {
+  errorEnvelopeSchema,
   sessionCreateRequestSchema,
   sessionCreateResponseSchema,
   sessionGetResponseSchema,
@@ -75,6 +76,10 @@ const createSession = createRoute({
         "application/json": { schema: sessionCreateResponseSchema },
       },
     },
+    422: {
+      description: "invalid request or segments upload is not available",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
   },
 });
 
@@ -108,6 +113,11 @@ const uploadParts = createRoute({
         "application/json": { schema: uploadPartsResponseSchema },
       },
     },
+    429: {
+      description:
+        "part URL allowance exceeded; retry after issued URLs expire",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
   },
 });
 
@@ -126,6 +136,14 @@ const uploadComplete = createRoute({
       content: {
         "application/json": { schema: uploadCompleteResponseSchema },
       },
+    },
+    409: {
+      description: "uploaded object size does not match source.bytes",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
+    503: {
+      description: "R2 usage could not be recorded",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
     },
   },
 });
@@ -282,6 +300,15 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     const body = c.req.valid("json");
     const key = c.req.valid("header")["idempotency-key"];
     const ownerId = c.var.userId;
+
+    if (body.upload_mode === "segments") {
+      throw new ApiFailure(
+        422,
+        "validation_failed",
+        "segments upload not available yet",
+        "segments upload not available yet",
+      );
+    }
 
     if (body.source.bytes > BUDGET.maxVideoBytes) {
       throw new ApiFailure(
@@ -454,21 +481,22 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
           "the uploaded object is missing",
         );
       }
-      // G1/G2 bind the declared size, so the stored object must not exceed what the declared
-      // parts could hold (and never the 300 MiB cap). Otherwise a client could declare a small
-      // file and upload far more; the object is deleted and the upload closed.
-      const cap = Math.min(count * PART_SIZE, BUDGET.maxVideoBytes);
-      if (head.bytes > cap) {
+      // The stored object must exactly match source.bytes, not only fit in the last part.
+      if (head.bytes !== Number(up.bytes)) {
         await r2.deleteObject(up.r2_key).catch((e) =>
-          console.error("r2 delete oversize failed", (e as Error).message)
+          console.error("r2 delete size mismatch failed", (e as Error).message)
         );
-        await admin.from("uploads").update({ status: "aborted" })
+        const aborted = await admin.from("uploads").update({
+          status: "aborted",
+        })
           .eq("session_id", id).eq("owner_id", c.var.userId)
-          .eq("status", "initiated");
+          .eq("status", "initiated").select("session_id").maybeSingle();
+        if (aborted.error) throw aborted.error;
         throw new ApiFailure(
-          413,
-          "upload_too_large",
-          "uploaded object exceeds the declared size",
+          409,
+          "upload_parts_invalid",
+          "uploaded object size does not match source.bytes",
+          { expected_bytes: Number(up.bytes), actual_bytes: head.bytes },
         );
       }
       const upd = await admin.from("uploads").update({

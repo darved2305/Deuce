@@ -3,6 +3,7 @@
 // service-role RPCs, so the numbers survive cold starts and concurrent requests.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiFailure } from "./errors.ts";
+import { PART_URL_TTL_S } from "./r2.ts";
 
 const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
@@ -146,16 +147,18 @@ export async function takePartUrls(
   });
   if (res.error) throw res.error;
   if (res.data === null || res.data === undefined) {
+    // Existing part URLs remain valid for their full 600-second lifetime.
     throw new ApiFailure(
       429,
       "too_many_part_requests",
       "too many part URL requests for this upload",
+      undefined,
+      PART_URL_TTL_S,
     );
   }
 }
 
-// Best-effort Class A / Class B counting for operations the API itself performs. A failed
-// counter write never fails the request; it is logged.
+// Fail closed so unaccounted R2 operations cannot continue after a counter failure.
 export async function addUsage(
   admin: SupabaseClient,
   classA: number,
@@ -166,9 +169,9 @@ export async function addUsage(
       p_class_a: classA,
       p_class_b: classB,
     });
-    if (res.error) console.error("r2 usage count failed", res.error.code);
-  } catch (err) {
-    console.error("r2 usage count failed", (err as Error).message);
+    if (res.error) throw res.error;
+  } catch {
+    throw new ApiFailure(503, "storage_busy", "R2 usage could not be recorded");
   }
 }
 
