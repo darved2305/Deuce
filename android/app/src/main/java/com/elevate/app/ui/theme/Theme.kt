@@ -21,10 +21,14 @@ data class ElevateColors(
     val cream: Color = Color(0xFFFFF8F2),
     val peach: Color = Color(0xFFFDE4D3),
     val peachDeep: Color = Color(0xFFFAD3BC),
-    val orange: Color = Color(0xFFE8622A),
+    // Contrast ≥ 4.5:1 (docs/plan/05 §9): white on orange 4.78, orange text on cream 4.54.
+    val orange: Color = Color(0xFFC8481A),
+    /** Orange for text on peach surfaces (4.83 on peach). */
+    val orangeText: Color = Color(0xFFB03F12),
     val orangeDeep: Color = Color(0xFFD4501C),
     val ink: Color = Color(0xFF1C1F45),
-    val inkMuted: Color = Color(0xFF6E7090),
+    // ≥ 4.64:1 on every light surface used (cream, white, mint, error, peach).
+    val inkMuted: Color = Color(0xFF62648A),
     val line: Color = Color(0xFFEDE6E0),
     val surface: Color = Color(0xFFFFFFFF),
     val mint: Color = Color(0xFFE4F2DE),

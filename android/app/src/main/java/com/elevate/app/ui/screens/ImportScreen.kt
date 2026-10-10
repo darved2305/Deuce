@@ -52,7 +52,7 @@ fun ImportScreen(opening: Boolean, error: String?, onChoose: () -> Unit, backend
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 16.dp),
         ) {
-            Text("Elevate", style = MaterialTheme.typography.titleMedium, color = c.orange)
+            Text("Elevate", style = MaterialTheme.typography.titleMedium, color = c.orangeText)
             Spacer(Modifier.height(28.dp))
             Text("Add your\nfirst match", style = MaterialTheme.typography.displaySmall)
             Spacer(Modifier.height(24.dp))
