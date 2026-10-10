@@ -19,12 +19,18 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** Poll timing. Polling runs only while the analysis screen is visible (contracts §3). */
+/**
+ * Poll timing. Polling runs only while the analysis is on screen (contracts §3). While observed the
+ * cursor is read every [activeMs], so a new stage shows within about that long; only after
+ * [idleGraceMs] without any new event does the delay back off (doubling up to [idleMaxMs]).
+ */
 data class PollPolicy(
-    /** Delay after a pass that brought new events. */
-    val activeMs: Long = 2_000,
-    /** Idle delay doubles from [activeMs] up to this. */
-    val idleMaxMs: Long = 15_000,
+    /** Delay after a pass that brought new events, and while idle for less than [idleGraceMs]. */
+    val activeMs: Long = 1_500,
+    /** Time without new events before the idle delay starts to grow. */
+    val idleGraceMs: Long = 60_000,
+    /** Idle delay doubles from [activeMs] up to this, once [idleGraceMs] has passed. */
+    val idleMaxMs: Long = 10_000,
     /** Delay after a failed request doubles from this up to [errorMaxMs]. */
     val errorBaseMs: Long = 2_000,
     val errorMaxMs: Long = 30_000,
@@ -32,7 +38,23 @@ data class PollPolicy(
     val gapRetriesBeforeReport: Int = 2,
     /** Download attempts per window artifact before it is reported as unavailable. */
     val artifactAttempts: Int = 3,
+    /** After `GET /v1/artifacts/{id}` answered 404, wait this long before asking again (no request loop). */
+    val artifactRecheckMs: Long = 60_000,
 )
+
+/**
+ * Whether the server hands out window results (`GET /v1/artifacts/{id}`, contracts §4). The route is
+ * not deployed yet (404): then the detections exist on the server but cannot be drawn here, and the
+ * screen says exactly that instead of retrying every window.
+ */
+sealed interface ArtifactAccess {
+    /** Not asked yet (no window completed with an artifact). */
+    data object Unknown : ArtifactAccess
+    /** At least one signed URL was issued. */
+    data object Serving : ArtifactAccess
+    /** The artifact route answered 404 at [checkedAtMs]; asked again after [PollPolicy.artifactRecheckMs]. */
+    data class NotServed(val reason: String, val checkedAtMs: Long) : ArtifactAccess
+}
 
 /**
  * Drives [EventLog] from the events cursor of one analysis (contracts §3) and downloads each
@@ -86,6 +108,10 @@ class AnalysisSync(
     /** Merged ball rows of every downloaded window (engine output; never hand labels). */
     val ballTrack: StateFlow<BallTrack> = _ballTrack.asStateFlow()
 
+    private val _artifactAccess = MutableStateFlow<ArtifactAccess>(ArtifactAccess.Unknown)
+    /** Whether window results can be fetched from the server at all (see [ArtifactAccess]). */
+    val artifactAccess: StateFlow<ArtifactAccess> = _artifactAccess.asStateFlow()
+
     /** Coverage of the downloaded windows (may lag [AnalysisUiState.coverageUs] while downloads run). */
     val downloadedCoverageUs: List<LongRange> get() = store.coverageUs
 
@@ -113,15 +139,21 @@ class AnalysisSync(
     suspend fun run() {
         restoreOnce()
         var idleDelay = policy.activeMs
+        var idleForMs = 0L
         var errorDelay = policy.errorBaseMs
         while (true) {
             val outcome = syncOnce()
             val delayMs = when (outcome) {
-                Outcome.NEW_EVENTS -> { idleDelay = policy.activeMs; errorDelay = policy.errorBaseMs; policy.activeMs }
-                Outcome.NO_CHANGE -> { errorDelay = policy.errorBaseMs; idleDelay.also { idleDelay = minOf(idleDelay * 2, policy.idleMaxMs) } }
+                Outcome.NEW_EVENTS -> { idleDelay = policy.activeMs; idleForMs = 0; errorDelay = policy.errorBaseMs; policy.activeMs }
+                Outcome.NO_CHANGE -> {
+                    errorDelay = policy.errorBaseMs
+                    if (idleForMs < policy.idleGraceMs) policy.activeMs
+                    else idleDelay.also { idleDelay = minOf(idleDelay * 2, policy.idleMaxMs) }
+                }
                 Outcome.GAP, Outcome.ERROR -> errorDelay.also { errorDelay = minOf(errorDelay * 2, policy.errorMaxMs) }
                 Outcome.DONE -> return
             }
+            if (outcome == Outcome.NO_CHANGE) idleForMs += delayMs
             withTimeoutOrNull(delayMs) { wake.receive() }
         }
     }
@@ -162,7 +194,7 @@ class AnalysisSync(
         val terminal = AnalysisState.fromWire(log.state.takeIf { log.applied.isNotEmpty() } ?: serverState)?.isTerminal == true
         when {
             gap != null -> Outcome.GAP
-            terminal && pendingArtifacts().isEmpty() -> Outcome.DONE
+            terminal && (pendingArtifacts().isEmpty() || _artifactAccess.value is ArtifactAccess.NotServed) -> Outcome.DONE
             log.afterSeq > before -> Outcome.NEW_EVENTS
             else -> Outcome.NO_CHANGE
         }
@@ -236,11 +268,23 @@ class AnalysisSync(
 
     private suspend fun downloadArtifacts() {
         for (e in log.applied) if (e.type == "window.failed" && e.windowSeq != null) store.markFailed(e.windowSeq, e.reason ?: "no reason given")
+        val access = _artifactAccess.value
+        // The route answered 404: ask again only after a pause, never once per window per poll.
+        if (access is ArtifactAccess.NotServed && clock() - access.checkedAtMs < policy.artifactRecheckMs) return
         var changed = false
         for (e in pendingArtifacts()) {
             val id = e.artifactId!!
             try {
-                val url = client.artifactUrl(id)
+                val url = try {
+                    client.artifactUrl(id)
+                } catch (x: AnalysisApiException) {
+                    if (x.httpStatus == 404) {
+                        _artifactAccess.value = ArtifactAccess.NotServed(x.message ?: "HTTP 404", clock())
+                        break
+                    }
+                    throw x
+                }
+                _artifactAccess.value = ArtifactAccess.Serving
                 val w = client.downloadWindowResult(url)
                 if (e.windowSeq != null && w.windowSeq != e.windowSeq) {
                     fail(id, "window_seq ${w.windowSeq} in the file, ${e.windowSeq} in the event")

@@ -66,7 +66,10 @@ class AnalysisSyncTest {
             return AnalysisEventsPage(out, page.lastOrNull()?.seq ?: afterSeq, after.size > limit, state)
         }
 
+        var artifactCalls = 0
+
         override suspend fun artifactUrl(artifactId: String): SignedUrl {
+            artifactCalls++
             artifactError?.let { throw it }
             return SignedUrl("https://r2.example.invalid/$artifactId")
         }
@@ -226,11 +229,51 @@ class AnalysisSyncTest {
         assertThat(sync.windowStore().failedWindows).containsExactly(1, "decode_error")
     }
 
-    @Test fun `missing artifact route is reported per window and given up after the policy`() = runTest {
+    @Test fun `artifact route 404 is one not-served state, asked once, and ends a finished analysis`() = runTest {
+        val s = FakeServer().apply {
+            add(
+                ev(1, "window.completed", 0, listOf(0, 6_000_000), artifact = "art_0"),
+                ev(2, "window.completed", 1, listOf(6_000_000, 12_000_000), artifact = "art_1"),
+                ev(3, "analysis.completed", engine = null),
+            )
+            state = "completed"
+            artifactError = AnalysisApiException(AnalysisApiException.Kind.HTTP, "not_found: route not found", 404, "not_found")
+        }
+        val sync = sync(s)
+        assertThat(sync.syncOnce()).isEqualTo(AnalysisSync.Outcome.DONE)
+        assertThat(s.artifactCalls).isEqualTo(1) // not once per window
+        val access = sync.artifactAccess.value
+        assertThat(access).isInstanceOf(ArtifactAccess.NotServed::class.java)
+        assertThat((access as ArtifactAccess.NotServed).reason).contains("route not found")
+        assertThat(sync.state.value.artifactProblems).isEmpty()
+        assertThat(sync.state.value.windowsDone).isEqualTo(2)
+        assertThat(sync.state.value.windowsDownloaded).isEqualTo(0)
+        assertThat(sync.state.value.state).isEqualTo(AnalysisState.COMPLETED)
+        // Within the recheck pause nothing is asked again (the test clock stands still).
+        sync.syncOnce()
+        assertThat(s.artifactCalls).isEqualTo(1)
+    }
+
+    @Test fun `artifact route 404 while running keeps polling events but does not loop on artifacts`() = runTest {
+        val s = FakeServer().apply {
+            add(ev(1, "analysis.started"), ev(2, "window.completed", 0, listOf(0, 6_000_000), artifact = "art_0"))
+            state = "processing"
+            artifactError = AnalysisApiException(AnalysisApiException.Kind.HTTP, "not_found: route not found", 404, "not_found")
+        }
+        val sync = sync(s)
+        assertThat(sync.syncOnce()).isEqualTo(AnalysisSync.Outcome.NEW_EVENTS)
+        s.add(ev(3, "window.completed", 1, listOf(6_000_000, 12_000_000), artifact = "art_1"))
+        assertThat(sync.syncOnce()).isEqualTo(AnalysisSync.Outcome.NEW_EVENTS)
+        assertThat(sync.state.value.windowsDone).isEqualTo(2)
+        assertThat(sync.state.value.coveredUs).isEqualTo(12_000_000)
+        assertThat(s.artifactCalls).isEqualTo(1)
+    }
+
+    @Test fun `other artifact errors are still counted per window and given up after the policy`() = runTest {
         val s = FakeServer().apply {
             add(ev(1, "window.completed", 0, listOf(0, 6_000_000), artifact = "art_0"), ev(2, "analysis.completed", engine = null))
             state = "completed"
-            artifactError = AnalysisApiException(AnalysisApiException.Kind.HTTP, "not_found: route not found", 404, "not_found")
+            artifactError = AnalysisApiException(AnalysisApiException.Kind.HTTP, "internal: boom", 500, "internal")
         }
         val sync = sync(s)
         assertThat(sync.syncOnce()).isNotEqualTo(AnalysisSync.Outcome.DONE)
@@ -239,9 +282,34 @@ class AnalysisSyncTest {
         assertThat(sync.syncOnce()).isEqualTo(AnalysisSync.Outcome.DONE)
         val p = sync.state.value.artifactProblems.single()
         assertThat(p.gaveUp).isTrue()
-        assertThat(p.reason).contains("route not found")
-        assertThat(sync.state.value.windowsDownloaded).isEqualTo(0)
-        assertThat(sync.state.value.state).isEqualTo(AnalysisState.COMPLETED)
+        assertThat(p.reason).contains("boom")
+    }
+
+    @Test fun `while observed the cursor is read every 1_5 s, backing off only after a long idle`() = runTest {
+        val s = FakeServer().apply { add(ev(1, "analysis.queued")); state = "queued" }
+        val sync = AnalysisSync(id, s, null, 48_500_000, 1920, 1080, PollPolicy(activeMs = 1_500, idleGraceMs = 6_000, idleMaxMs = 12_000), 100) { 1_000L }
+        val job = launch { sync.run() }
+        runCurrent()
+        assertThat(s.requests).hasSize(1)
+        advanceTimeBy(6_100)
+        runCurrent()
+        // t = 0, 1.5, 3, 4.5, 6 s: every 1.5 s while nothing changes inside the grace.
+        assertThat(s.requests).hasSize(5)
+        // Then 1.5, 3, 6, 12 s apart: t = 7.5, 9, 12, 18, 30 s.
+        advanceTimeBy(24_000)
+        runCurrent()
+        assertThat(s.requests).hasSize(10)
+        // A new stage is picked up at the next read and the cadence is fast again.
+        s.add(ev(2, "analysis.started"))
+        s.state = "processing"
+        advanceTimeBy(12_100)
+        runCurrent()
+        assertThat(sync.state.value.state).isEqualTo(AnalysisState.PROCESSING)
+        val n = s.requests.size
+        advanceTimeBy(1_600)
+        runCurrent()
+        assertThat(s.requests.size).isEqualTo(n + 1)
+        job.cancel()
     }
 
     @Test fun `same seq with different content is a protocol error, never merged`() = runTest {
