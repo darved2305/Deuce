@@ -17,6 +17,7 @@ type Opts = {
   run?: Res;
   claim?: unknown;
   curState?: string;
+  attempts?: number;
   spec?: unknown;
   modal?: Array<() => Response>;
   events?: unknown[];
@@ -65,7 +66,11 @@ function build(o: Opts = {}) {
       }
     }
     if (c.kind === "from" && c.table === "analysis_runs") {
-      return ok({ id: "a_1", state: o.curState ?? "queued" });
+      return ok({
+        id: "a_1",
+        state: o.curState ?? "queued",
+        dispatch_attempts: o.attempts ?? 0,
+      });
     }
     return ok(null);
   };
@@ -240,6 +245,37 @@ Deno.test("claim miss, run already processing -> 200 and idem row stored", async
     analysis_id: "a_1",
     state: "processing",
   });
+});
+
+Deno.test("claim miss at the attempt cap -> 502, analysis.failed, no modal", async () => {
+  const t = build({ claim: null, curState: "queued", attempts: 5 });
+  const res = await post(t.app);
+  assert.equal(res.status, 502);
+  assert.equal((await res.json()).error.code, "engine_unavailable");
+  assert.equal(t.modalCalls(), 0);
+  const failed = t.log.find((c) =>
+    c.kind === "rpc" && c.name === "append_event" &&
+    c.args.p_type === "analysis.failed"
+  ) as Call & { args: { p_fields: { reason: string } } };
+  assert.equal(failed.args.p_fields.reason, "dispatch_failed");
+  const rel = t.log.find((c) => c.kind === "from" && c.op === "update") as
+    & Call
+    & { payload: Record<string, unknown> };
+  assert.equal(rel.payload.dispatching, false);
+  assert.ok(!t.log.some((c) => c.kind === "from" && c.op === "upsert"));
+});
+
+Deno.test("claim miss below the cap -> still 202", async () => {
+  const t = build({ claim: null, curState: "queued", attempts: 4 });
+  const res = await post(t.app);
+  assert.equal(res.status, 202);
+  assert.deepEqual(await res.json(), { analysis_id: "a_1", state: "queued" });
+  assert.ok(
+    !t.log.some((c) =>
+      c.kind === "rpc" && (c as { name: string }).name === "session_spec"
+    ),
+  );
+  assert.equal(t.modalCalls(), 0);
 });
 
 Deno.test("replay of a stored 200 returns the stored body, no rpc, no modal", async () => {
