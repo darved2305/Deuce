@@ -1,0 +1,5 @@
+# Keep shell scripts LF on every OS (Windows clones use autocrlf); keep the .bat CRLF.
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+*.jar binary

@@ -6,17 +6,20 @@ requires-python = "==3.12.*"
 dependencies = [
     "av==19.0.1",
     "fastapi[standard]==0.143.0",
+    "numpy==2.5.3",
+    "pillow==12.3.0",
+    "scipy==1.18.1",
     "modal==1.6.1",
 ]
 
 [dependency-groups]
 dev = [
+    "jsonschema==4.26.0",
     "pytest==9.1.1",
     "ruff==0.17.0",
 ]
 # Installed only in the Modal GPU image (uv_sync groups=["gpu"]), not in CI or locally.
 gpu = [
-    "numpy==2.5.3",
     "torch==2.14.1",
 ]
 

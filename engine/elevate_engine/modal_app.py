@@ -162,7 +162,14 @@ def fetch_weights(force: bool = False) -> list[dict]:
     return results
 
 
-@app.cls(gpu="T4", region="ap", image=gpu_image, volumes={MODELS_PATH: models}, timeout=600)
+@app.cls(
+    gpu="T4",
+    region="ap",
+    image=gpu_image,
+    volumes={MODELS_PATH: models, CLIPS_PATH: clips},
+    timeout=1800,
+    cpu=4,
+)
 class Models:
     @modal.enter()
     def load(self) -> None:
@@ -220,6 +227,42 @@ class Models:
             "models": descriptors(self.manifest),
         }
 
+    @modal.method()
+    def track(self, clip: str, start_ms: int, end_ms: int) -> dict:
+        """TrackNet port on [start_ms, end_ms) of a clip in elevate-clips: every candidate as
+        window_result.v1 ball rows at source resolution."""
+        import time
+
+        from elevate_engine.log import log
+        from elevate_engine.tracknet import infer
+        from elevate_engine.tracknet import run as tracknet_run
+        from elevate_engine.tracknet.model import from_checkpoint
+        from elevate_engine.video import frames_in_range, source_size
+
+        if not hasattr(self, "tracknet"):
+            model, self.seq_len = from_checkpoint(self.checkpoints["tracknet"])
+            self.tracknet = model.cuda()
+        path = Path(CLIPS_PATH) / clip
+        started = time.perf_counter()
+        decoded = list(frames_in_range(path, start_ms, end_ms, infer.resize_chw_uint8))
+        t_ms = [f.t_ms for f in decoded]
+        decode_s = time.perf_counter() - started
+        blobs = list(tracknet_run.track(self.tracknet, self.seq_len, [f.image for f in decoded]))
+        src_w, src_h = source_size(path)
+        rows = tracknet_run.ball_rows(t_ms, blobs, src_w, src_h)
+        result = {
+            "clip": clip,
+            "range_ms": [start_ms, end_ms],
+            "frames": len(t_ms),
+            "frames_with_candidate": sum(1 for b in blobs if b),
+            "candidates": len(rows),
+            "source_size": [src_w, src_h],
+            "decode_s": round(decode_s, 1),
+            "total_s": round(time.perf_counter() - started, 1),
+        }
+        log("track.done", **result)
+        return {**result, "t_ms": t_ms, "ball": rows}
+
 
 @app.local_entrypoint()
 def main(clip: str) -> None:
@@ -232,3 +275,12 @@ def check_models() -> None:
     first = m.describe.remote()
     second = m.describe.remote()
     print(json.dumps({"first": first, "second": second}, indent=2))
+
+
+@app.local_entrypoint()
+def track_clip(clip: str, start_s: float, end_s: float, out: str = "") -> None:
+    result = Models().track.remote(clip, int(start_s * 1000), int(end_s * 1000))
+    summary = {k: v for k, v in result.items() if k not in {"t_ms", "ball"}}
+    print(json.dumps(summary, indent=2))
+    if out:
+        Path(out).write_text(json.dumps(result))
