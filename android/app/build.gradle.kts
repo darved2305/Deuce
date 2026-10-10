@@ -1,4 +1,6 @@
 import java.util.Properties
+import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.DirectoryProperty
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 // Machine-local values (never in git, AGENTS.md rule 8): android/local.properties
@@ -91,3 +93,40 @@ dependencies {
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
 }
+
+/**
+ * Real fixtures come from Person 4's `fixtures/` (D-261011-HW4), never from a copy in `android/`:
+ * the trail labels and recorded event sequences are copied into the app's assets at build time.
+ * A missing file means no annotations, never a fallback.
+ */
+abstract class CopyRealFixtures : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract val sources: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val out = outputDir.get().asFile.resolve("fixtures")
+        out.deleteRecursively()
+        out.mkdirs()
+        sources.files.filter { it.isFile }.forEach { it.copyTo(out.resolve(it.name)) }
+    }
+}
+
+val copyRealFixtures = tasks.register<CopyRealFixtures>("copyRealFixtures") {
+    sources.from(
+        rootProject.layout.projectDirectory.dir("../fixtures").asFileTree.matching {
+            include("fixture_trail*.json", "fixture_events*.jsonl")
+        },
+    )
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(copyRealFixtures, CopyRealFixtures::outputDir)
+    }
+}
+

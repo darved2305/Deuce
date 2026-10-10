@@ -18,22 +18,16 @@
   "engine_version": "hand-labelled",
   "labelled_by": "@darved2305",
   "tool": "android/tools/labeller/labeller.html",
-  "labelled_at": "2026-10-10T17:27:38.963Z",
+  "labelled_at": "2026-10-10T19:41:43.147Z",
   "note": "Clicked by @darved2305 on decoded frames. Frames absent from `frames` are not labelled (never filled in); ball null = looked, shuttle not visible. Removed: labels off the shuttle, and 'not visible' marks on frames where the shuttle can be seen.",
-  "validated_by": "visual check of 2-4x crops against the decoded frames (Claude, 2026-10-10, run at @darved2305's request); labels unchanged, only removals",
+  "validated_by": "visual check of 2-4x crops against the decoded frames (Claude, run at @darved2305's request): first pass 2026-10-10 removed 51; re-click pass 2026-10-11 by @darved2305 added 47, removed 4 (48, 136, 137, 174). Labels unchanged except removals",
   "removed_frames_t_us": [
    40940000,
    42700000,
    42720000,
    43460000
   ],
-  "removals_approved_by": "@darved2305 (asked for the check and the fix; re-clicking the removed frames is pending)",
-  "relabelled": {
-   "labelled_by": "@darved2305",
-   "labelled_at": "2026-10-10T19:41:43.147Z",
-   "frames_added": 47,
-   "validated_by": "visual check of 2-4x crops against the decoded frames (Claude, 2026-10-11, at @darved2305's request); labels unchanged, only removals"
-  }
+  "removals_approved_by": "@darved2305 (asked for the check and the fix; re-clicking the removed frames is pending)"
  },
  "range_us": [
   40000000,

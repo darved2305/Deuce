@@ -119,7 +119,7 @@ class OverlayTimingTest {
     }
 
     @Test fun bundledLabelsResolveForTheDecodedFrames() {
-        val text = ctx.assets.open("fixtures/trail_h13g_singles_40000_43980.json").bufferedReader().use { it.readText() }
+        val text = ctx.assets.open("fixtures/fixture_trail.json").bufferedReader().use { it.readText() }
         val track = TrailLabelsParser.parse(text)
         val tol = TimeMapping.matchToleranceUs(track.tUs)
         waitFor { ready() }

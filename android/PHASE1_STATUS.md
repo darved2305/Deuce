@@ -117,8 +117,11 @@ Every point was checked visually on 2–4× crops: 107 points kept, 34 removed (
 "not visible" marks removed (shuttle visible), 42 "not visible" kept. Nothing was moved or added.
 Re-click pass (2026-10-11, @darved2305): 51 frames re-clicked, visually checked again: 47 kept, 4
 removed (48 off by about 11 px; 136 and 174 reused old coordinates on empty court; 137 marked not
-visible but the shuttle is in the server's hand). **Fixture now: 196 of 200 frames labelled, 153
-shuttle points, 43 not visible, 4 unlabelled** (frames 48, 136, 137, 174).
+visible but the shuttle is in the server's hand). 196 of 200 frames labelled (153 points, 43 not visible, 4
+unlabelled: 48, 136, 137, 174). That version waits in `android/tools/labeller/handoff/` for Person 4
+to copy into `fixtures/fixture_trail.json`. Since D-261011-HW4 the app has no copy of its own: Gradle
+`copyRealFixtures` puts `fixtures/fixture_trail*.json` and `fixture_events*.jsonl` into its assets at
+build time, so today it ships Person 4's 149-frame file ("107 of 149").
 
 ## Decisions taken in the Android lane
 - compileSdk 37: required by the pinned Compose UI 1.12.1 and core-ktx 1.19.1. targetSdk stays 36.
