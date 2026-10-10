@@ -169,29 +169,20 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
     const claim = await admin.rpc("claim_dispatch", { p_analysis_id: run.id });
     if (claim.error) throw claim.error;
     const claimed = claim.data as RunRow | null;
+    if (claimed?.state === "failed") {
+      throw new ApiFailure(
+        503,
+        "engine_unavailable",
+        "engine is unavailable",
+      );
+    }
     if (!claimed?.id) {
       const cur = await admin.from("analysis_runs")
-        .select("id,state,dispatch_attempts")
+        .select("id,state")
         .eq("id", run.id).maybeSingle();
       if (cur.error) throw cur.error;
-      const curRow = cur.data as
-        | (RunRow & { dispatch_attempts: number })
-        | null;
+      const curRow = cur.data as RunRow | null;
       const s = (curRow?.state ?? "queued") as typeof state;
-      if (s === "queued" && (curRow?.dispatch_attempts ?? 0) >= 5) {
-        await appendEvent(admin, run.id, "analysis.failed", {
-          reason: "dispatch_failed",
-        });
-        const rel = await admin.from("analysis_runs")
-          .update({ dispatching: false, updated_at: new Date().toISOString() })
-          .eq("id", run.id);
-        if (rel.error) console.error("dispatch release failed", rel.error.code);
-        throw new ApiFailure(
-          503,
-          "engine_unavailable",
-          "engine is unavailable",
-        );
-      }
       const body = { analysis_id: run.id, state: s };
       const status = s === "queued" ? 202 : 200;
       try {
@@ -223,8 +214,14 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
       modal_call_id: callId,
       dispatching: false,
       updated_at: new Date().toISOString(),
-    }).eq("id", run.id);
-    if (upd.error) console.error("modal_call_id store failed", upd.error.code);
+    }).eq("id", run.id).select("id").maybeSingle();
+    if (upd.error || !upd.data) {
+      throw new ApiFailure(
+        500,
+        "internal",
+        "could not store the dispatch result",
+      );
+    }
     const body = { analysis_id: run.id, state: "queued" as const };
     try {
       await idemStore(admin, key, ownerId, ENDPOINT, hash, 202, body);

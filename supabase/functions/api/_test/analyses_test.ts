@@ -16,6 +16,7 @@ type Opts = {
   idem?: Res;
   run?: Res;
   claim?: unknown;
+  persist?: Res;
   curState?: string;
   attempts?: number;
   spec?: unknown;
@@ -66,6 +67,7 @@ function build(o: Opts = {}) {
       }
     }
     if (c.kind === "from" && c.table === "analysis_runs") {
+      if (c.op === "update") return o.persist ?? ok({ id: "a_1" });
       return ok({
         id: "a_1",
         state: o.curState ?? "queued",
@@ -247,21 +249,48 @@ Deno.test("claim miss, run already processing -> 200 and idem row stored", async
   });
 });
 
-Deno.test("claim miss at the attempt cap -> 503, analysis.failed, no modal", async () => {
-  const t = build({ claim: null, curState: "queued", attempts: 5 });
+Deno.test("expired attempt-cap lease returned as failed -> 503, no duplicate event or modal", async () => {
+  const t = build({ claim: { id: "a_1", state: "failed" } });
   const res = await post(t.app);
   assert.equal(res.status, 503);
   assert.equal((await res.json()).error.code, "engine_unavailable");
   assert.equal(t.modalCalls(), 0);
-  const failed = t.log.find((c) =>
-    c.kind === "rpc" && c.name === "append_event" &&
-    c.args.p_type === "analysis.failed"
-  ) as Call & { args: { p_fields: { reason: string } } };
-  assert.equal(failed.args.p_fields.reason, "dispatch_failed");
-  const rel = t.log.find((c) => c.kind === "from" && c.op === "update") as
-    & Call
-    & { payload: Record<string, unknown> };
-  assert.equal(rel.payload.dispatching, false);
+  assert.ok(
+    !t.log.some((c) =>
+      c.kind === "rpc" && c.name === "append_event" &&
+      c.args.p_type === "analysis.failed"
+    ),
+  );
+  assert.ok(!t.log.some((c) => c.kind === "from" && c.op === "update"));
+  assert.ok(!t.log.some((c) => c.kind === "from" && c.op === "upsert"));
+});
+
+Deno.test("attempt-cap live lease remains queued until SQL expires it", async () => {
+  const t = build({ claim: null, curState: "queued", attempts: 5 });
+  const res = await post(t.app);
+  assert.equal(res.status, 202);
+  assert.deepEqual(await res.json(), { analysis_id: "a_1", state: "queued" });
+  assert.ok(
+    !t.log.some((c) =>
+      c.kind === "rpc" && c.name === "append_event" &&
+      c.args.p_type === "analysis.failed"
+    ),
+  );
+  assert.ok(!t.log.some((c) => c.kind === "from" && c.op === "update"));
+  assert.equal(t.modalCalls(), 0);
+});
+
+Deno.test("failed modal_call_id persistence returns an error without storing success", async () => {
+  const t = build({
+    persist: {
+      data: null,
+      error: { code: "XX000", message: "write failed" },
+    },
+  });
+  const res = await post(t.app);
+  assert.equal(res.status, 500);
+  assert.equal((await res.json()).error.code, "internal");
+  assert.equal(t.modalCalls(), 1);
   assert.ok(!t.log.some((c) => c.kind === "from" && c.op === "upsert"));
 });
 

@@ -1,6 +1,6 @@
 -- pgTAP for create_analysis_run, claim_dispatch, session_spec (spec §7.1). Run: supabase test db
 begin;
-select plan(41);
+select plan(49);
 
 -- fixtures (test role bypasses RLS for setup)
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
@@ -141,14 +141,35 @@ select ok((select (public.claim_dispatch('a_failed')).id) is null,
 select is((select dispatch_attempts from public.analysis_runs where id = 'a_failed'),
     0, 'failed claim leaves dispatch_attempts at 0');
 
--- a queued run at the dispatch-attempt cap is not claimable
-insert into public.analysis_runs (id, session_id, match_id, owner_id, idempotency_key, state, dispatch_attempts)
-select 'a_capped', s.id, s.match_id, s.owner_id, 'k_capped', 'queued', 5
+-- A capped run stays queued while the fifth claim's lease is live.
+insert into public.analysis_runs (id, session_id, match_id, owner_id, idempotency_key,
+                                  state, dispatch_attempts, dispatching, dispatch_claimed_at)
+select 'a_capped', s.id, s.match_id, s.owner_id, 'k_capped', 'queued', 5, true, now()
 from public.sessions s where s.id = 's_capped';
 select ok((select (public.claim_dispatch('a_capped')).id) is null,
-    'queued run with dispatch_attempts = 5 is not claimable');
+    'fifth claim stays active before its lease expires');
+select is((select state from public.analysis_runs where id = 'a_capped'), 'queued',
+    'live fifth-claim lease does not fail the run');
+select is((select dispatching from public.analysis_runs where id = 'a_capped'), true,
+    'live fifth-claim lease remains held');
 select is((select dispatch_attempts from public.analysis_runs where id = 'a_capped'),
-    5, 'capped claim leaves dispatch_attempts at 5');
+    5, 'live fifth-claim lease leaves dispatch_attempts at 5');
+
+update public.analysis_runs set dispatch_claimed_at = now() - interval '61 seconds'
+  where id = 'a_capped';
+select is((select (public.claim_dispatch('a_capped')).id), 'a_capped',
+    'sixth claim atomically fails the run after the lease expires');
+select is((select state from public.analysis_runs where id = 'a_capped'), 'failed',
+    'expired capped run enters failed state');
+select is((select failure_reason from public.analysis_runs where id = 'a_capped'),
+    'dispatch_failed', 'expired capped run records its failure reason');
+select is((select count(*)::int from public.analysis_events
+           where analysis_id = 'a_capped' and type = 'analysis.failed' and reason = 'dispatch_failed'),
+    1, 'expired capped run appends its failure event atomically');
+select is((select dispatching from public.analysis_runs where id = 'a_capped'), false,
+    'expired capped run releases the dispatch lease');
+select is((select dispatch_attempts from public.analysis_runs where id = 'a_capped'),
+    5, 'failure decision does not increment beyond the five dispatch attempts');
 
 -- a processing run is not claimable
 insert into public.analysis_runs (id, session_id, match_id, owner_id, idempotency_key, state)
