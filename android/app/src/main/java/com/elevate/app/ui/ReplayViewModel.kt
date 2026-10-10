@@ -12,6 +12,7 @@ import com.elevate.app.data.fixture.FixtureSource
 import com.elevate.app.data.media.MediaProbe
 import com.elevate.app.domain.media.Preflight
 import com.elevate.app.domain.media.PreflightState
+import com.elevate.app.ui.setup.SetupResult
 import com.elevate.app.domain.model.AnnotationState
 import com.elevate.app.domain.repository.BackendStatus
 import com.elevate.app.domain.repository.MatchRepository
@@ -36,6 +37,10 @@ sealed interface Screen {
         val annotations: AnnotationState = AnnotationState.Checking,
         val overlayVisible: Boolean = true,
         val preflight: PreflightState = PreflightState.Checking,
+        /** Setup flow open on the frame at this PTS (µs); null = closed. */
+        val setupAtUs: Long? = null,
+        /** What the user chose in the setup flow (contracts §2 session fields), once done. */
+        val setup: SetupResult? = null,
     ) : Screen
 }
 
@@ -121,6 +126,20 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    /** Opens the setup flow on the paused frame. Only offered when preflight is done and not blocked. */
+    fun startSetup() {
+        val s = _screen.value as? Screen.Replay ?: return
+        val p = s.preflight as? PreflightState.Done ?: return
+        if (p.blocked) return
+        controller.pause()
+        _screen.value = s.copy(setupAtUs = controller.positionMs() * 1000)
+    }
+
+    fun cancelSetup() = _screen.update { s -> if (s is Screen.Replay) s.copy(setupAtUs = null) else s }
+
+    fun finishSetup(result: SetupResult) =
+        _screen.update { s -> if (s is Screen.Replay) s.copy(setupAtUs = null, setup = result) else s }
 
     fun setOverlayVisible(visible: Boolean) {
         controller.setOverlayVisible(visible)

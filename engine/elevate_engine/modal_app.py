@@ -311,6 +311,65 @@ class Models:
         log("detect.done", **result)
         return {**result, "rows": rows}
 
+    @modal.method()
+    def window(
+        self, clip: str, analysis_id: str, window_seq: int, emit_ms: list, overlap_ms: int = 750
+    ) -> dict:
+        """One window_result.v1 for [emit_ms) of a clip: TrackNet candidates and measured
+        quality (decoded with overlap_ms of context after the emitted range), plus the raw
+        D-FINE person detections in the emitted range as a separate, non-contract output."""
+        import time
+
+        from elevate_engine import window as win
+        from elevate_engine.dfine import run as dfine
+        from elevate_engine.tracknet import infer
+        from elevate_engine.tracknet import run as tracknet_run
+        from elevate_engine.tracknet.model import from_checkpoint
+        from elevate_engine.video import frames_in_range, source_size
+
+        if not hasattr(self, "tracknet"):
+            model, self.seq_len = from_checkpoint(self.checkpoints["tracknet"])
+            self.tracknet = model.cuda()
+        if not hasattr(self, "dfine"):
+            model, post = dfine.build(self.checkpoints["dfine_s_coco"]["model"])
+            self.dfine = (model.cuda(), post.cuda())
+        started = time.perf_counter()
+        path = Path(CLIPS_PATH) / clip
+        lo, hi = int(emit_ms[0]), int(emit_ms[1])
+        decode = (lo, hi + overlap_ms)
+        decoded = list(frames_in_range(path, *decode, infer.resize_chw_uint8))
+        t_ms = [f.t_ms for f in decoded]
+        frames = [f.image for f in decoded]
+        blobs = list(tracknet_run.track(self.tracknet, self.seq_len, frames))
+        src_w, src_h = source_size(path)
+        rows = tracknet_run.ball_rows(t_ms, blobs, src_w, src_h)
+        emitted = [i for i, t in enumerate(t_ms) if lo <= t < hi]
+        quality = win.quality(
+            [frames[i] for i in emitted],
+            sum(1 for i in emitted if blobs[i]),
+            src_w / infer.WIDTH,
+        )
+        window = win.build(
+            analysis_id, window_seq, decode, (lo, hi), rows, quality, ["tracknet_v3"]
+        )
+        keep = dfine.sampler(12.0)
+        sampled = [f for f in frames_in_range(path, lo, hi) if keep(f.t_ms)]
+        boxes = dfine.detect(*self.dfine, [f.image for f in sampled])
+        persons = [[f.t_ms, *b] for f, fb in zip(sampled, boxes, strict=True) for b in fb]
+        summary = {
+            "frames_decoded": len(t_ms),
+            "frames_emitted": len(emitted),
+            "ball_rows": len(window["ball"]),
+            "persons": len(persons),
+            "quality": quality,
+            "total_s": round(time.perf_counter() - started, 1),
+        }
+        log_event = {"window_seq": window_seq, "emit_ms": [lo, hi], **summary}
+        from elevate_engine.log import log
+
+        log("window.built", **log_event)
+        return {"window": window, "persons": persons, "summary": summary}
+
 
 @app.local_entrypoint()
 def main(clip: str) -> None:
@@ -340,3 +399,57 @@ def detect_clip(clip: str, start_s: float, end_s: float, fps: float = 12.0, out:
     print(json.dumps({k: v for k, v in result.items() if k != "rows"}, indent=2))
     if out:
         Path(out).write_text(json.dumps(result))
+
+
+@app.local_entrypoint()
+def window_clip(
+    clip: str, window_seq: int, start_s: float, end_s: float, out_dir: str,
+    analysis_id: str = "a_offline", overlap_ms: int = 750,
+) -> None:  # fmt: skip
+    """Build one window on Modal, validate it against the contract locally, save it."""
+    import hashlib
+    import subprocess
+
+    from elevate_engine import window as win
+    from elevate_engine.weights import load_manifest
+
+    def git(*args: str) -> str:
+        return subprocess.run(["git", *args], capture_output=True, text=True, cwd=ENGINE_DIR).stdout
+
+    # Provenance must point at code that exists: refuse to run from uncommitted engine code.
+    dirty = [ln for ln in git("status", "--porcelain", "--", ".").splitlines()
+             if out_dir not in ln and "eval/runs/" not in ln]  # fmt: skip
+    if dirty:
+        raise SystemExit(f"commit the engine code first; uncommitted: {dirty}")
+    commit = git("rev-parse", "HEAD").strip()
+    emit = [int(start_s * 1000), int(end_s * 1000)]
+    result = Models().window.remote(clip, analysis_id, window_seq, emit, overlap_ms)
+    win.validate(result["window"])  # packages/contracts window_result.v1
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "window_result.json").write_text(json.dumps(result["window"]) + "\n")
+    (out / "persons.json").write_text(json.dumps({
+        "note": "Raw D-FINE-S person detections [t_ms, x1, y1, x2, y2, score] in source pixels, "
+                "about 12 fps. Not window_result.v1 player rows (no track id or foot metres yet).",
+        "rows": result["persons"],
+    }) + "\n")  # fmt: skip
+
+    manifest = {
+        "what": "Engine output for one real window, saved for Person 4's evaluation.",
+        "analysis_id_note": "Offline run: no API analysis behind this id.",
+        "clip": clip,
+        "window_seq": window_seq,
+        "emit_ms": emit,
+        "decode_ms": [emit[0], emit[1] + overlap_ms],
+        "engine_version": "0.1.0",
+        "engine_commit": commit,
+        "models": [m["descriptor"] for m in load_manifest().values()],
+        "summary": result["summary"],
+        "quality_definitions": win.__doc__,
+        "sha256": {
+            name: hashlib.sha256((out / name).read_bytes()).hexdigest()
+            for name in ("window_result.json", "persons.json")
+        },
+    }
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    print(json.dumps({"saved": str(out), **result["summary"]}, indent=2))

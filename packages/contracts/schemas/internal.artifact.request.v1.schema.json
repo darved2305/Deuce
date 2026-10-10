@@ -25,6 +25,10 @@
           "type": "string"
         },
         {
+          "pattern": "^seg\\/s_[A-Za-z0-9_-]+\\/[0-9]+\\.mp4$",
+          "type": "string"
+        },
+        {
           "pattern": "^analysis\\/a_[A-Za-z0-9_-]+\\/[^/]+\\/windows\\/[0-9]+\\.json$",
           "type": "string"
         },

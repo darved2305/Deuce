@@ -7,6 +7,9 @@
       "minimum": 0,
       "type": "integer"
     },
+    "final": {
+      "type": "boolean"
+    },
     "pts_end_us": {
       "maximum": 9007199254740991,
       "minimum": 0,
@@ -18,6 +21,7 @@
       "type": "integer"
     },
     "r2_key": {
+      "pattern": "^seg\\/s_[A-Za-z0-9_-]+\\/[0-9]+\\.mp4$",
       "type": "string"
     },
     "seq": {
@@ -40,6 +44,7 @@
     "starts_on_sync_sample",
     "bytes",
     "sha256",
+    "final",
     "r2_key"
   ],
   "type": "object"

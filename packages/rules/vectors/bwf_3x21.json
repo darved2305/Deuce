@@ -1,0 +1,2897 @@
+[
+  {
+    "category": "opening",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        1,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.1-7.3, 10.1.1",
+    "note": "At 0-0 the designated first server serves from the right court."
+  },
+  {
+    "category": "service",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        1,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 10.1.1-10.1.2, 10.3.1-10.3.2",
+    "note": "A singles server retains service after winning a rally."
+  },
+  {
+    "category": "service",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        2,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        3,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 10.1.1-10.1.2, 10.3.1-10.3.2",
+    "note": "An even server score uses the right court; the next odd score uses left."
+  },
+  {
+    "category": "service",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        1,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        2,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 10.1.1-10.1.2, 10.3.1-10.3.2",
+    "note": "An odd server score uses the left court; the next even score uses right."
+  },
+  {
+    "category": "service",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        0,
+        1
+      ],
+      "server": "p_b",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 10.1.1-10.1.2, 10.3.1-10.3.2",
+    "note": "A receiving player takes service after winning the rally."
+  },
+  {
+    "category": "service",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        0,
+        1
+      ],
+      "server": "p_b",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 10.1.1-10.1.2, 10.3.1-10.3.2",
+    "note": "The new singles server serves from the court matching the new odd score."
+  },
+  {
+    "category": "service",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        0,
+        1
+      ],
+      "server": "p_b",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        0,
+        2
+      ],
+      "server": "p_b",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 10.1.1-10.1.2, 10.3.1-10.3.2",
+    "note": "A singles server at an odd score keeps service and moves to right after scoring."
+  },
+  {
+    "category": "service",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        3,
+        2
+      ],
+      "server": "p_b",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        4,
+        2
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 10.1.1-10.1.2, 10.3.1-10.3.2",
+    "note": "Service passes to team 0 when team 1 loses its service rally."
+  },
+  {
+    "category": "doubles",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_b",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        1,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 11.1.1, 11.1.3-11.1.4, 11.4.1-11.4.5",
+    "note": "The opening server occupies right court and the receiver is diagonally opposite."
+  },
+  {
+    "category": "doubles",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_b",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        1,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 11.1.1-11.1.6, 11.3.1-11.3.2, 11.4.1-11.4.5",
+    "note": "The same doubles server serves again from left after a serving-side point."
+  },
+  {
+    "category": "doubles",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_b",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        1,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        2,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 11.1.1-11.1.6, 11.3.1-11.3.2, 11.4.1-11.4.5",
+    "note": "On the next serving-side point, that same server alternates back to right."
+  },
+  {
+    "category": "doubles",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        0,
+        1
+      ],
+      "server": "p_c",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 11.1.1-11.1.6, 11.3.1-11.3.2, 11.4.1-11.4.5",
+    "note": "Service passes to the receiver already standing left at an odd score."
+  },
+  {
+    "category": "doubles",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        0,
+        1
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        0,
+        2
+      ],
+      "server": "p_d",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 11.1.1-11.1.6, 11.3.1-11.3.2, 11.4.1-11.4.5",
+    "note": "When the receiving side reaches an even score, its right-court partner serves."
+  },
+  {
+    "category": "doubles",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_b",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        1,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 11.1.1-11.1.6, 11.3.1-11.3.2, 11.4.1-11.4.5",
+    "note": "The receiving pair's positions remain fixed when the server's side wins."
+  },
+  {
+    "category": "doubles",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        2,
+        3
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_b",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        3,
+        3
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 11.1.1-11.1.6, 11.3.1-11.3.2, 11.4.1-11.4.5",
+    "note": "A serving-side player moves courts while the receiving pair stays put."
+  },
+  {
+    "category": "doubles",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_d",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_c"
+      ],
+      "games": [],
+      "current": [
+        0,
+        1
+      ],
+      "server": "p_d",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 11.1.1, 11.1.3-11.1.4, 11.4.1-11.4.5",
+    "note": "A team 1 first server also starts from right court at 0-0."
+  },
+  {
+    "category": "doubles",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        2,
+        1
+      ],
+      "server": "p_c",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_c"
+      ],
+      "games": [],
+      "current": [
+        2,
+        2
+      ],
+      "server": "p_c",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 11.1.1-11.1.6, 11.3.1-11.3.2, 11.4.1-11.4.5",
+    "note": "Team 1's odd-score server is in left while the partner stays in right."
+  },
+  {
+    "category": "doubles",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        0,
+        1
+      ],
+      "server": "p_c",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 11.1.1-11.1.6, 11.3.1-11.3.2, 11.4.1-11.4.5",
+    "note": "If team 1 takes service at an odd score, the left-court player becomes server."
+  },
+  {
+    "category": "doubles",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_d",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        1,
+        0
+      ],
+      "server": "p_b",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 11.1.1-11.1.6, 11.3.1-11.3.2, 11.4.1-11.4.5",
+    "note": "If team 0 takes service at an odd score, the left-court player becomes server."
+  },
+  {
+    "category": "doubles",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        0,
+        1
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        0,
+        2
+      ],
+      "server": "p_d",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 11.1.1-11.1.6, 11.3.1-11.3.2, 11.4.1-11.4.5",
+    "note": "The new serving side's unchanged positions select the even-score right player."
+  },
+  {
+    "category": "doubles",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_a",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        4,
+        2
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "doubles",
+      "teams": [
+        [
+          "p_a",
+          "p_b"
+        ],
+        [
+          "p_c",
+          "p_d"
+        ]
+      ],
+      "doubles_right_player": [
+        "p_b",
+        "p_d"
+      ],
+      "games": [],
+      "current": [
+        5,
+        2
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3, 11.1.1-11.1.6, 11.3.1-11.3.2, 11.4.1-11.4.5",
+    "note": "The server keeps serving at an even score while its partner moves to left."
+  },
+  {
+    "category": "deuce",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        20,
+        20
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        21,
+        20
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.1-7.5",
+    "note": "At 20-all, the first point makes 21-20 and does not end the game."
+  },
+  {
+    "category": "deuce",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        20,
+        20
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        20,
+        21
+      ],
+      "server": "p_b",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.1-7.5",
+    "note": "At 20-all, team 1's first point makes 20-21 and does not end the game."
+  },
+  {
+    "category": "deuce",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        21,
+        20
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          22,
+          20
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "game_over"
+    },
+    "law": "7.1-7.5",
+    "note": "A two-point lead at 22-20 wins after 21-20."
+  },
+  {
+    "category": "deuce",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        21,
+        20
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        21,
+        21
+      ],
+      "server": "p_b",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.1-7.5",
+    "note": "The 21-20 side does not win if the opponent makes it 21-all."
+  },
+  {
+    "category": "deuce",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        21,
+        21
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        22,
+        21
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.1-7.5",
+    "note": "At 21-all, one point makes 22-21 but is not yet a win."
+  },
+  {
+    "category": "deuce",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        22,
+        21
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          23,
+          21
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "game_over"
+    },
+    "law": "7.1-7.5",
+    "note": "At 22-21, the next point creates a two-point win at 23-21."
+  },
+  {
+    "category": "deuce",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        28,
+        28
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        29,
+        28
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.1-7.5",
+    "note": "At 28-all, 29-28 is still live."
+  },
+  {
+    "category": "deuce",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        28,
+        29
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        29,
+        29
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.1-7.5",
+    "note": "At 28-29, a team 0 point creates 29-all rather than a win."
+  },
+  {
+    "category": "deuce",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        29,
+        28
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          30,
+          28
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "game_over"
+    },
+    "law": "7.1-7.5",
+    "note": "At 29-28, 30-28 is a two-point win."
+  },
+  {
+    "category": "cap",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        29,
+        29
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          30,
+          29
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "game_over"
+    },
+    "law": "7.5",
+    "note": "At 29-all, team 0's 30th point wins 30-29."
+  },
+  {
+    "category": "cap",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        29,
+        29
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          29,
+          30
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_b",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "game_over"
+    },
+    "law": "7.5",
+    "note": "At 29-all, team 1's 30th point wins 29-30."
+  },
+  {
+    "category": "game-over",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        20,
+        19
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          19
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "game_over"
+    },
+    "law": "7.2-7.4, 8.1.1",
+    "note": "A 21-19 first-game score ends the game and changes ends."
+  },
+  {
+    "category": "next-game",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          19
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "game_over"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          19
+        ]
+      ],
+      "current": [
+        1,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.6, 8.1.1, 11.6",
+    "note": "The first game's winner serves first in game two."
+  },
+  {
+    "category": "match",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          18
+        ]
+      ],
+      "current": [
+        20,
+        19
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          18
+        ],
+        [
+          21,
+          19
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "match_over"
+    },
+    "law": "7.1-7.2, 8.1.2",
+    "note": "A second game for the first game's winner completes the match at two games."
+  },
+  {
+    "category": "ends",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          17
+        ]
+      ],
+      "current": [
+        20,
+        21
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          17
+        ],
+        [
+          20,
+          22
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_b",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "game_over"
+    },
+    "law": "7.4, 8.1.2",
+    "note": "When game two ties the match, ends change before the third game."
+  },
+  {
+    "category": "next-game",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          17
+        ],
+        [
+          19,
+          21
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_b",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "game_over"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          17
+        ],
+        [
+          19,
+          21
+        ]
+      ],
+      "current": [
+        0,
+        1
+      ],
+      "server": "p_b",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.6, 8.1.2, 11.6",
+    "note": "The winner of game two serves first when the third game begins."
+  },
+  {
+    "category": "third-game-ends",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          18
+        ],
+        [
+          19,
+          21
+        ]
+      ],
+      "current": [
+        10,
+        10
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          18
+        ],
+        [
+          19,
+          21
+        ]
+      ],
+      "current": [
+        11,
+        10
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "in_progress"
+    },
+    "law": "8.1.3",
+    "note": "In the third game, the first side to reach 11 changes ends."
+  },
+  {
+    "category": "third-game-ends",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          18
+        ],
+        [
+          19,
+          21
+        ]
+      ],
+      "current": [
+        11,
+        10
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          18
+        ],
+        [
+          19,
+          21
+        ]
+      ],
+      "current": [
+        11,
+        11
+      ],
+      "server": "p_b",
+      "service_court": "left",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "in_progress"
+    },
+    "law": "8.1.3",
+    "note": "Ends stay changed on rallies after the third-game 11-point interval."
+  },
+  {
+    "category": "match",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          18,
+          21
+        ]
+      ],
+      "current": [
+        19,
+        20
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          18,
+          21
+        ],
+        [
+          19,
+          21
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_b",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "match_over"
+    },
+    "law": "7.1-7.2",
+    "note": "Team 1 can close a match by winning its second game."
+  },
+  {
+    "category": "cap",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        29,
+        29
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          30,
+          29
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "game_over"
+    },
+    "law": "7.5",
+    "note": "A 30-29 score ends the game at the cap."
+  },
+  {
+    "category": "match",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        20,
+        19
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          19
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "game_over"
+    },
+    "law": "7.1",
+    "note": "A single completed game is not enough to end a best-of-three match."
+  },
+  {
+    "category": "ends",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          18
+        ]
+      ],
+      "current": [
+        20,
+        21
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "far"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": 1,
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          18
+        ],
+        [
+          20,
+          22
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_b",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "game_over"
+    },
+    "law": "8.1.2",
+    "note": "The second game's end change happens after a 1-1 score, before game three."
+  },
+  {
+    "category": "undo",
+    "operation": "undo",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        1,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "left",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "winningTeam": null,
+    "history": [
+      {
+        "ruleset_id": "bwf_3x21",
+        "ruleset_version": "2025-04",
+        "sport": "badminton",
+        "format": "singles",
+        "teams": [
+          [
+            "p_a"
+          ],
+          [
+            "p_b"
+          ]
+        ],
+        "games": [],
+        "current": [
+          0,
+          0
+        ],
+        "server": "p_a",
+        "service_court": "right",
+        "ends": {
+          "team0": "near"
+        },
+        "status": "in_progress"
+      }
+    ],
+    "expected": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "in_progress"
+    },
+    "law": "7.3",
+    "note": "Undo restores the exact prior state after one confirmed rally point."
+  },
+  {
+    "category": "illegal-input",
+    "operation": "applyPoint",
+    "initial": {
+      "ruleset_id": "bwf_3x21",
+      "ruleset_version": "2025-04",
+      "sport": "badminton",
+      "format": "singles",
+      "teams": [
+        [
+          "p_a"
+        ],
+        [
+          "p_b"
+        ]
+      ],
+      "games": [
+        [
+          21,
+          18
+        ],
+        [
+          21,
+          19
+        ]
+      ],
+      "current": [
+        0,
+        0
+      ],
+      "server": "p_a",
+      "service_court": "right",
+      "ends": {
+        "team0": "near"
+      },
+      "status": "match_over"
+    },
+    "winningTeam": 0,
+    "expected": {
+      "throws": "MatchOverError"
+    },
+    "law": "7.1-7.2",
+    "note": "A point cannot be applied after one side has won two games."
+  }
+]

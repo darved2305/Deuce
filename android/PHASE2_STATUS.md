@@ -8,8 +8,8 @@ output was seen. Started 2026-10-11 on main `735731e`. External blockers: `PHASE
 | Gate | State | Evidence |
 |---|---|---|
 | G0 Baseline | **PASS** | main `735731e`: `assembleDebug lintDebug testDebugUnitTest` OK, 43/43 unit; A55 `am instrument` 8/8, the 5 timing tests ran on the real clip (status 0, none skipped) |
-| G1 Setup | in progress | Slice 1 (preflight) below. Sport choice, court corners and who-is-me: next slice |
-| G2 Upload | **BLOCKED** (P3) | sessions/upload routes return 404 on the deployed API |
+| G1 Setup | **PASS** (A55) | Slice 1 preflight (#31) + slice 2 setup flow below |
+| G2 Upload | in progress | sessions/analyses routes now deployed (2026-10-11: `GET /v1/sessions/s_x` → 404 "session not found"); client being built |
 | G3 Analysis | **BLOCKED** (P3, P1) | analyses/events routes 404; Modal submit not deployed |
 | G4 Result | **BLOCKED** (P1, P3) | no window posted live; no artifact download route anywhere |
 | G5 Replay (live) | **BLOCKED** (G4) | Phase 1 overlay works on real labels |
@@ -66,3 +66,25 @@ and stops when the user leaves or picks another video.
   4K HEVC rotated 90° HDR, one is Dolby Vision. HDR detection is unit-tested; on-device HDR rows
   arrive with slice 2.
 - Picker on this A55 build asks for **Done** after a tap (Google Photo Picker), noted for UI scripts.
+
+## Slice 2 · set up analysis (sport, court corners, who-is-me)
+
+"Set up analysis" (shown once the clip check is done and not blocked) pauses the player and opens
+a 4-step flow on the **paused frame**: sport (badminton only in this build; table tennis, tennis,
+free play shown as "not in this build" because contracts §10 has no ruleset version for them),
+four named corner handles with a 3× loupe while dragging, undo/reset, geometry checks before Next
+(`CourtGeometry.check`), who-is-me tap, review ("Nothing is uploaded yet"). Output = the
+contracts §2 fields `sport, format, ruleset, mode, calibration_input, who_is_me, free_play_seed`
+in **source pixels after rotation** (contracts §0), validated against
+`session.create.request.v1.schema.json` in `SetupResultJsonTest`.
+
+| Check | Result |
+|---|---|
+| Unit | 83/83 (geometry 7, reducer 10, JSON-vs-schema 4, + earlier) · lint 0 errors |
+| A55 instrumented | 11/11 status 0; `FrameGrabRotationTest`: rotated 4K HEVC HDR clips come back upright (3840×2160 rot 90 → 2160×3840); a 1.2 s Dolby Vision clip returns no frame → the flow shows "Couldn't read a still frame from this video" |
+| A55 flow on `h13g_singles` (`proof/phase2/slice2/`) | paused at PTS 41.780000 → setup says "Frame at 41.78 s"; 4 corners tapped, loupe shown mid-drag (`05_loupe_drag.png`); review "Badminton · Singles · Match · bwf_3x21 (2025-04) · 4 of 4 placed · badminton_singles · you marked at 41.78 s"; back on the player at 0:41.78 with "Set up · Badminton singles · 4 court corners · you at 0:41.78"; landscape layout (`09_court_landscape.png`); no crash |
+| Independent mapping check | the player's position in the **replay** screenshot (Media3 surface) converted to source px and back through the setup screen's `FitTransform` lands the "You" marker on the same player (`06_who_is_me.png`) |
+
+Known limits: `h13g_singles` at 41.78 s does not show the near baseline, so the corners tapped in
+the proof exercise the mapping, not a real calibration. "Tap to change" restarts the flow instead
+of reloading the previous corners. TalkBack pass not done.
