@@ -40,7 +40,7 @@ In slices, straight to `main`, through the pipeline in `docs/plan/10-build-plan.
 2. Photo Picker → ExoPlayer plays a gallery video.
 3. **Overlay spike:** a Media3 frame effect (`OverlayEffect` / `TextureOverlay`, drawing keyed to
    `presentationTimeUs`) draws `fixture_trail.json`; verify at 1×, 0.25× and while seeking on both
-   phones.
+   phones. The clip is the working segment in `fixtures/clips.md` (copy it to both phones' galleries).
 4. `MatchRepository` with `FixtureSource` (Person 4's hand-labelled **real** clip + timed replay of
    `fixture_events.jsonl`) and `ApiSource`. No invented data anywhere in the app.
 

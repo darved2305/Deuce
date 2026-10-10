@@ -27,12 +27,12 @@ In slices, straight to `main`, through the pipeline in `docs/plan/10-build-plan.
 2. `packages/contracts`: zod schemas for every shape in `contracts.md`, exported TS types,
    generated JSON Schema files (Person 1 validates in Python, Person 2 generates Kotlin models,
    Person 3 uses zod-openapi).
-3. The four start fixtures (`contracts.md` §11), built from the **real** rights-cleared clip by hand
+3. The four start fixtures (`contracts.md` §11), built from the working segment in `fixtures/clips.md` (D-261010-HW1) by hand
    labelling (shuttle points, landings, winners); nothing invented. Then `fixture_freeplay.json`
    (real corridor clip + slow-motion truth) and `fixture_comparison.json` (two real drill clips).
 4. `@elevate/rules`: `RulesState`, `bwf_3x21` with `applyPoint`, `undo`, `server`, `courtSide`,
    game/match end; golden vectors (deuce at 20-all, cap at 30, service court by score parity).
-5. Rights manifest for the selected badminton demo clip (source, licence, attribution, consent).
+5. Keep `fixtures/clips.md` current (source, stream IDs, sha256); licences are not tracked (D-261010-HW1). Label the held-out segment yourself; rally winners are burned into the video.
 6. Audit an A55 slow-motion test file (real frame rate and timestamps) to confirm it can serve as
    the ground-truth reference.
 

@@ -41,7 +41,7 @@ Template (copy to the end of the file):
 ## Open (decide, then record as entries)
 1. Product name (shortlist: CourtMemory, RallyMirror, MatchEcho); code uses `elevate` until then.
 2. Modal spend ceiling (card on Person 1's operator account).
-3. The named, rights-cleared badminton clip for fixtures and the demo.
+3. The demo clip (working and eval clips are decided in D-261010-HW1).
 4. Default badminton ruleset (proposed `bwf_3x21`).
 5. Retention default (proposed: server copy of an original deleted after analysis unless kept).
 6. Referee call-coverage threshold for the evaluation (set before results are seen).
@@ -247,3 +247,36 @@ Template (copy to the end of the file):
 - **Proof / evidence:** `docs/AUDIT-FINDINGS.md` items 17-25 (tested in the audit's scratch copy);
   the replacement `append_event` is quoted verbatim from there.
 - **PRs:** this PR; contracts amendment PR to follow.
+
+## D-261010-HW1 · First real clips: a static singles clip to work on, the TrackNetV3 test split to check the method
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none (closes Open item 3)
+- **In one line:** In the context of Person 1's first detection runs, facing no named clip and no
+  ground truth to check our TrackNetV3 port against, we decided a static behind-the-baseline amateur
+  singles clip as the working clip plus the TrackNetV3 authors' labelled test split as the method
+  check, and rejected waiting for team footage or using the EuroGames clip as the main clip.
+- **Context:** Person 1 is blocked on a clip and labels for the TrackNetV3 / D-FINE slices. The
+  EuroGames clip is filmed from the stands at an angle, doubles, with neighbouring courts in frame,
+  at 848×464; TrackNetV3 found candidates in 24% of its frames. Team footage does not exist yet.
+- **Decision:**
+  1. The clips, their roles and fetch commands are in `fixtures/clips.md`: working clip
+     `h13g_singles` 31–91 s (dev), held-out `h13g_singles` 300–360 s (Person 4 labels and scores it;
+     nobody tunes on it), method check `stdata_test`, low-resolution check `eurogames_bern_2023`.
+  2. Person 1's TrackNetV3 must reproduce the published test-split numbers (official `test.py`
+     first, then our module) before any threshold or tracking parameter is tuned.
+  3. Licences are not tracked for these clips; source URL, stream IDs and sha256 are.
+     `stdata_test` is broadcast footage and is never shown in the app or the demo.
+  4. The demo clip is still open (Open item 3).
+- **Alternatives:** (a) EuroGames as the main clip, rejected for the reasons above (kept as the
+  low-resolution check); (b) wait for team footage, rejected because it blocks Persons 1, 2 and 4;
+  (c) Mendeley single-stroke clips, rejected because they are 1–2 s with no rallies; (d) pro
+  matches filmed from the stands, rejected because the near court is cut and the players are pros.
+- **Blast radius:**
+  - People and folders: Person 1 (`engine/eval/clips.json` mirrors `fixtures/clips.md`; method
+    check before tuning); Person 2 (overlay spike on the working segment); Person 4 (start fixtures
+    from the working segment, held-out labels). Person 3 unaffected.
+  - Contracts: none.
+  - Containment: swapping a clip later means relabelling only that clip's fixtures.
+- **Exit:** supersede with a new entry; no point of no return before fixtures are labelled.
+- **Proof / evidence:** `fixtures/clips.md` "First look" (local TrackNetV3 probe: candidates in
+  501/600 frames on the working segment, eye-checked on 20 frames; not accuracy).
+- **PRs:** this PR.
