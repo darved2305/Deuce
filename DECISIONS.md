@@ -40,7 +40,7 @@ Template (copy to the end of the file):
 
 ## Open (decide, then record as entries)
 1. Product name (shortlist: CourtMemory, RallyMirror, MatchEcho); code uses `elevate` until then.
-2. Modal spend ceiling: $30 total, proposed in D-261010-VV1 (needs Person 3's sign-off).
+2. Modal spend ceiling: decided in D-261010-VV1 ($30 total).
 3. The demo clip (working and eval clips are decided in D-261010-HW1).
 4. Default badminton ruleset (proposed `bwf_3x21`).
 5. Retention default (proposed: server copy of an original deleted after analysis unless kept).
@@ -282,7 +282,7 @@ Template (copy to the end of the file):
 - **PRs:** this PR.
 
 ## D-261010-VV1 · Modal spend ceiling is $30 for the project
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-10 · **Owner:** @VrajVed (Person 1) · **Supersedes:** none
 - **In one line:** In the context of running the vision engine on Modal (D-002), facing GPU spend
   on a card with no automatic cap, we decided a $30 total ceiling for the project and rejected
@@ -302,11 +302,11 @@ Template (copy to the end of the file):
   - People and folders: Person 1 `engine/` keeps jobs scaled to zero and watches usage; Person 3
     `supabase/` configures the spend guard threshold below $30 (Phase 4)
   - Data/infra: Modal workspace billing settings; no new env names or secrets
-  - Containment: config only; Person 3 to sign off for the spend guard
+  - Containment: config only; signed off by all four (Person 3 for the spend guard)
 - **Exit:** a new entry raising or lowering the ceiling; no point of no return (money already spent
   is spent).
-- **Proof / evidence:** Ceiling set by Person 1 on 2026-10-10; Person 4 (@HetanshWaghela)
-  agreed the same day; Person 3 (@nikhilpravinpise) sign-off pending (spend guard). Modal Starter credit
+- **Proof / evidence:** Ceiling set by Person 1 on 2026-10-10; all four people agreed the
+  same day (confirmed to Person 1 outside GitHub), including Person 3 for the spend guard. Modal Starter credit
   figures as cited in `docs/plan/03-architecture-and-streaming.md` §7 (UNVERIFIED against
   modal.com/pricing today).
-- **PRs:** #…
+- **PRs:** #6
