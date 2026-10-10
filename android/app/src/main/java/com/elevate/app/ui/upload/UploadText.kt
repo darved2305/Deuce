@@ -51,7 +51,7 @@ object UploadText {
         UploadProgress.Idle, UploadProgress.Cancelled -> null
         is UploadProgress.Preparing -> p.step
         is UploadProgress.Uploading ->
-            listOfNotNull(ofTotal(sentBytes(p), p.totalBytes), rate(p.bytesPerSecond), eta(p.etaSeconds)).joinToString(" · ")
+            listOfNotNull("${ofTotal(p.acceptedBytes, p.totalBytes)} confirmed", rate(p.bytesPerSecond), eta(p.etaSeconds) ?: "time left after the first part").joinToString(" · ")
         is UploadProgress.PausedOffline -> "${ofTotal(p.acceptedBytes, p.totalBytes)} kept · resumes when online"
         UploadProgress.Completing -> "Asking the server to assemble the parts"
         is UploadProgress.Completed -> "${mib(p.serverBytes)} MiB stored"
@@ -65,7 +65,7 @@ object UploadText {
 
     /** Fraction from real bytes, or null when there is no byte progress to show. */
     fun fraction(p: UploadProgress): Float? = when (p) {
-        is UploadProgress.Uploading -> frac(sentBytes(p), p.totalBytes)
+        is UploadProgress.Uploading -> frac(p.acceptedBytes, p.totalBytes)
         is UploadProgress.PausedOffline -> frac(p.acceptedBytes, p.totalBytes)
         is UploadProgress.Failed -> frac(p.acceptedBytes, p.totalBytes)
         else -> null

@@ -62,6 +62,12 @@ class MultipartUploader(
     private val inFlight = HashMap<Int, Long>()
     private val urls = HashMap<Int, Pair<String, Long>>()  // part -> (url, expires at epoch ms)
     private var written = 0L
+    /**
+     * Rate and ETA come from bytes the server confirmed (an ETag came back), never from bytes written
+     * to the socket: on a slow uplink the kernel's send buffer takes megabytes at once (seen on the
+     * A55 on LTE: "0.4 MiB/s" shown while parts were confirmed at about 0.02 MiB/s).
+     */
+    private val confirmed = RateMeter(nowMs, windowMs = 300_000)
     private var retrying: UploadProgress.Retrying? = null
 
     /** Uploads what is missing and completes. Returns the final saved state (Completed or Failed). */
@@ -69,6 +75,8 @@ class MultipartUploader(
         require(initial.sessionId != null && initial.partSize != null) { "no session yet" }
         state = initial
         rate.reset()
+        confirmed.reset()
+        confirmed.record(initial.acceptedBytes)
         return try {
             var repairs = 0
             var done = false
@@ -108,6 +116,7 @@ class MultipartUploader(
                             if (retrying?.part == n) retrying = null
                         }
                         lock.withLock { setState(state.copy(etags = state.etags + (n to etag))) }
+                        confirmed.record(state.acceptedBytes)
                         emitUploading()
                     }
                 }
@@ -120,11 +129,13 @@ class MultipartUploader(
         var attempt = 0
         while (true) {
             attempt++
-            val url = urlFor(n)
             var waitMs: Long
             var reason: String
             var offline = false
             try {
+                // Inside the retry: a connection dropped while fetching the part URL costs one attempt
+                // (seen on the A55 on LTE: SSLHandshakeException on upload/parts ended the whole upload).
+                val url = urlFor(n)
                 val res = put(url, n, plan, source)
                 when {
                     res.status in 200..299 -> {
@@ -173,9 +184,8 @@ class MultipartUploader(
             throw UploadStopped(failureOf(e, n))
         } catch (e: AuthException) {
             throw UploadStopped(UploadFailure("auth", e.message ?: "sign-in failed", retryable = true, part = n))
-        } catch (e: IOException) {
-            throw UploadStopped(networkFailure(e, n))
         }
+        // IOException propagates to uploadPart's retry loop.
         // An unparseable expires_at means "use once": it is not cached.
         part.expiresAtMs?.let { exp -> lock.withLock { urls[n] = part.url to exp } }
         return part.url
@@ -252,8 +262,8 @@ class MultipartUploader(
         val plan = state.plan ?: return
         val (inflight, retry) = synchronized(inFlight) { inFlight.values.sum() to retrying }
         val accepted = state.acceptedBytes
-        val bps = rate.bytesPerSecond()?.takeIf { it > 0 }
-        val remaining = (state.bytes - accepted - inflight).coerceAtLeast(0)
+        val bps = confirmed.bytesPerSecond()?.takeIf { it > 0 }
+        val remaining = (state.bytes - accepted).coerceAtLeast(0)
         progress.value = UploadProgress.Uploading(
             totalBytes = state.bytes,
             acceptedBytes = accepted,

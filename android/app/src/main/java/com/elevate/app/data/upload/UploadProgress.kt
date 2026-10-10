@@ -21,7 +21,7 @@ sealed interface UploadProgress {
         val inFlightBytes: Long,
         val partsDone: Int,
         val partCount: Int,
-        /** Measured over the last [RateMeter.windowMs]; null until there is enough to measure. */
+        /** From server-confirmed parts over time; null until the first part is confirmed. */
         val bytesPerSecond: Double?,
         /** From [bytesPerSecond] only; null when no rate is known. */
         val etaSeconds: Long?,

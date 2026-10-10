@@ -258,6 +258,16 @@ class UploadCoordinatorTest {
         assertThat(fake.calls("/upload/complete")).isEqualTo(2)
     }
 
+    @Test fun `a connection dropped while fetching a part URL is retried, not fatal`() = runBlocking<Unit> {
+        // Seen on the A55 on LTE: SSLHandshakeException on POST upload/parts ended the whole upload.
+        fake.apiFault("/upload/parts", Fault.Throw(offline = false))
+        val f = file(500)
+        val c = coordinator(f)
+        prepare(c, f)
+        assertThat(c.resume()!!.phase).isEqualTo(UploadPhase.Completed)
+        assertThat(fake.calls("/upload/parts")).isAtLeast(2)
+    }
+
     @Test fun `too_many_part_requests stops the upload without retrying`() = runBlocking<Unit> {
         fake.apiFault("/upload/parts", Fault.Status(429, """{"error":{"code":"too_many_part_requests","message":"spent"}}"""))
         val f = file(500)
@@ -341,7 +351,7 @@ class UploadCoordinatorTest {
         assertThat(c.progress.value).isEqualTo(UploadProgress.Completed(4500))
     }
 
-    @Test fun `ETA comes from the measured rate`() = runBlocking<Unit> {
+    @Test fun `ETA comes from server-confirmed bytes only`() = runBlocking<Unit> {
         val f = file(4000)
         var t = 0L
         val tick = object : PartSource {
@@ -354,10 +364,13 @@ class UploadCoordinatorTest {
         val watcher = launch(Dispatchers.IO) { c.progress.collect { seen += it } }
         c.resume()
         watcher.cancel()
-        val rated = seen.filterIsInstance<UploadProgress.Uploading>().filter { it.bytesPerSecond != null }
+        val uploading = seen.filterIsInstance<UploadProgress.Uploading>()
+        // Bytes sitting in a socket buffer are not progress: no rate until a part is confirmed.
+        assertThat(uploading.filter { it.partsDone == 0 }.all { it.bytesPerSecond == null && it.etaSeconds == null }).isTrue()
+        val rated = uploading.filter { it.bytesPerSecond != null }
         assertThat(rated).isNotEmpty()
         for (p in rated) {
-            val remaining = p.totalBytes - p.acceptedBytes - p.inFlightBytes
+            val remaining = p.totalBytes - p.acceptedBytes
             assertThat(p.etaSeconds).isEqualTo(Math.ceil(remaining / p.bytesPerSecond!!).toLong())
         }
     }

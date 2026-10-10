@@ -38,7 +38,14 @@ import com.elevate.app.ui.components.ElevateIcons
 import com.elevate.app.ui.theme.Elevate
 
 @Composable
-fun ImportScreen(opening: Boolean, error: String?, onChoose: () -> Unit, backend: BackendStatus? = null) {
+fun ImportScreen(
+    opening: Boolean,
+    error: String?,
+    onChoose: () -> Unit,
+    backend: BackendStatus? = null,
+    /** Upload / analysis status of an earlier pick, shown under the main card. */
+    status: @Composable () -> Unit = {},
+) {
     val c = Elevate.colors
     Box(
         Modifier
@@ -92,6 +99,9 @@ fun ImportScreen(opening: Boolean, error: String?, onChoose: () -> Unit, backend
                     }
                 }
             }
+
+            Spacer(Modifier.height(16.dp))
+            status()
 
             if (error != null) {
                 Spacer(Modifier.height(16.dp))
