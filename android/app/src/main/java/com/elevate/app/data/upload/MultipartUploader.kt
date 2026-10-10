@@ -105,12 +105,21 @@ class MultipartUploader(
         val queue = ArrayDeque(state.missingParts())
         val workers = minOf(state.maxConcurrency ?: 2, MAX_CONCURRENCY).coerceAtLeast(1)
         emitUploading()
+        // When a part fails for good, no new part is started, but a part already in flight is
+        // allowed to finish and its ETag is saved: cancelling it could drop an ETag R2 already
+        // accepted, and the part would be uploaded again on resume.
+        var stopped: UploadStopped? = null
         coroutineScope {
             repeat(workers) {
                 launch {
                     while (true) {
-                        val n = lock.withLock { queue.removeFirstOrNull() } ?: break
-                        val etag = uploadPart(n, plan, source)
+                        val n = lock.withLock { if (stopped != null) null else queue.removeFirstOrNull() } ?: break
+                        val etag = try {
+                            uploadPart(n, plan, source)
+                        } catch (e: UploadStopped) {
+                            lock.withLock { if (stopped == null) stopped = e }
+                            break
+                        }
                         synchronized(inFlight) {
                             inFlight.remove(n)
                             if (retrying?.part == n) retrying = null
@@ -122,6 +131,7 @@ class MultipartUploader(
                 }
             }
         }
+        stopped?.let { throw it }
     }
 
     /** One part, up to [RetryPolicy.maxAttempts] attempts. Returns its ETag. */
