@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0
+
+- `elevate.trail_labels.v1` is the shape of `fixture_trail.json` (contracts §11, D-261011-HW4): Person 2's
+  hand-label format, with the same rules as the app's parser. `fixtures/fixture_trail.json` holds
+  Person 2's real labels for `h13g_singles` 40.00-43.98 s, and a test keeps the app's copy identical.
+
 ## 1.2.0
 
 - `upload_mode` accepts `segments` as well as `multipart` (chunked real-time analysis, D-261011-HW3).

@@ -196,3 +196,50 @@ test("free play has format none and racket sports never do", () => {
   assert.equal(zodAccepts("session.create.request.v1", session), false, "squash is not a built pack");
   assert.equal(jsonAccepts("session.create.request.v1", session), false);
 });
+
+// fixture_trail.json (D-261011-HW4): Person 2's real hand labels, one shape for app and CI.
+function trailFixture(): Record<string, any> {
+  return JSON.parse(readFileSync(resolve(repoRoot, "fixtures/fixture_trail.json"), "utf8"));
+}
+
+test("fixture_trail.json validates as elevate.trail_labels.v1, and broken copies do not", () => {
+  const doc = trailFixture();
+  assert.equal(zodAccepts("elevate.trail_labels.v1", doc), true);
+  assert.equal(jsonAccepts("elevate.trail_labels.v1", doc), true);
+
+  const machineAsHand = cloneExampleJson(doc);
+  machineAsHand.provenance.engine_version = "0.3.0";
+  assert.equal(zodAccepts("elevate.trail_labels.v1", machineAsHand), false, "user state with engine output");
+
+  const offFrame = cloneExampleJson(doc);
+  offFrame.frames.find((f: any) => f.ball).ball = [doc.clip.width + 5, 10];
+  assert.equal(zodAccepts("elevate.trail_labels.v1", offFrame), false, "ball outside the frame");
+
+  const outOfRange = cloneExampleJson(doc);
+  outOfRange.frames[0].t_us = doc.range_us[1] + 20000;
+  assert.equal(zodAccepts("elevate.trail_labels.v1", outOfRange), false, "frame outside range_us");
+
+  const unknownField = cloneExampleJson(doc);
+  unknownField.frames[0].confidence = 0.9;
+  assert.equal(zodAccepts("elevate.trail_labels.v1", unknownField), false);
+  assert.equal(jsonAccepts("elevate.trail_labels.v1", unknownField), false);
+});
+
+test("the app's bundled trail labels are identical to fixtures/fixture_trail.json", () => {
+  const dir = resolve(repoRoot, "android/app/src/main/assets/fixtures");
+  let bundled: string[] = [];
+  try {
+    bundled = readdirSync(dir).filter((f) => f.startsWith("trail_") && f.endsWith(".json"));
+  } catch {
+    return; // no Android assets in this checkout
+  }
+  for (const file of bundled) {
+    const app = JSON.parse(readFileSync(resolve(dir, file), "utf8"));
+    if (app.clip?.id !== trailFixture().clip.id) continue;
+    assert.deepEqual(app, trailFixture(), `${file} differs from fixtures/fixture_trail.json`);
+  }
+});
+
+function cloneExampleJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value));
+}

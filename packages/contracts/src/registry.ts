@@ -26,6 +26,7 @@ import {
   visionResultSchema,
   segmentManifestSchema,
 } from "./api.ts";
+import { trailLabelsSchema } from "./fixtures.ts";
 import { modelDescriptorSchema } from "./model.ts";
 import { rulesStateSchema, sportPackSchema, sportZoneSchema } from "./sport.ts";
 import { windowResultSchema } from "./window_result.ts";
@@ -44,7 +45,7 @@ function entry(
 ): SchemaRegistryEntry {
   return {
     schema,
-    version: "1.2.0",
+    version: "1.3.0",
     file: `${name}.schema.json`,
     description,
   };
@@ -200,6 +201,11 @@ export const schemaRegistry = {
     "rules.state.v1",
     rulesStateSchema,
     "Rules package state.",
+  ),
+  "elevate.trail_labels.v1": entry(
+    "elevate.trail_labels.v1",
+    trailLabelsSchema,
+    "fixture_trail.json: hand-labelled shuttle points per decoded frame (contracts §11).",
   ),
 } satisfies Record<string, SchemaRegistryEntry>;
 

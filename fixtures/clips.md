@@ -20,7 +20,10 @@ the one below, stop and say so in your PR: never swap a clip silently.
   - video, format 299, H.264 1920×1080 50 fps: 55,643,466 bytes, sha256
     `bfb5ebda742213e225d35135b2d38a28c325f21e4c7510df7b8b201d6c6891ba`
   - audio, format 140, AAC: 7,837,995 bytes, sha256
-    `52582f23252205d4bc86133d7391cc996290a1e65a863355f2f921263257f7b7`
+    `52582f23252205d4bc86133d7391cc996290a1e65a863355f2f921263257f7b7` (Person 4's two fetches).
+    YouTube does not always serve the same audio bytes: Person 2's fetch was 7,837,994 bytes,
+    sha256 `5da67e01…9ff2`. **The video stream hash is the clip's identity**; the audio hash is
+    informational and may differ by fetch (labels and fixtures bind to the video).
 - Layout: intro talk until 30.24 s, then continuous play from one fixed camera to the end (484.5 s);
   no scene cuts after 30.24 s. The score is burned in at the top left, so every rally's winner is
   readable from the video itself.

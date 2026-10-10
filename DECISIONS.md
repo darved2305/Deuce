@@ -464,7 +464,7 @@ Template (copy to the end of the file):
 - **PRs:** #8
 
 ## D-261011-DV1 · Interim app-local trail labels (`elevate.trail_labels.v1`) until `fixture_trail.json` lands; compileSdk 37
-- **Status:** proposed (needs @HetanshWaghela as contracts/fixtures owner)
+- **Status:** accepted (approved by @HetanshWaghela, Person 4, 2026-10-11; adopted in D-261011-HW4)
 - **Date:** 2026-10-11 · **Owner:** @darved2305 (Person 2) · **Supersedes:** none
 - **In one line:** In the context of the Phase 1 overlay spike, facing no `fixture_trail.json` yet
   (contracts §11), we decided to ship Person 2's own real hand labels for `h13g_singles` 40.00–43.98 s
@@ -539,4 +539,27 @@ Template (copy to the end of the file):
 - **Exit:** set `upload_mode` back to `multipart` in the app; the server keeps both.
 - **Proof / evidence:** judges' feedback; latency to be measured on S23 FE, A55 and Modal at the
   Phase 3 check.
+- **PRs:** this PR.
+
+## D-261011-HW4 · `fixture_trail.json` is Person 2's hand labels, in shape `elevate.trail_labels.v1`
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none (accepts D-261011-DV1)
+- **In one line:** In the context of `fixture_trail.json` being owed with no defined shape, facing
+  Person 2 already holding real, visually checked hand labels in an app-local format, we decided to
+  adopt that format as the contract and those labels as the fixture, and rejected relabelling.
+- **Context:** contracts §11 named `fixture_trail.json` without a shape. Person 2 clicked
+  `h13g_singles` 40.00-43.98 s on decoded frames (149 frames labelled, shuttle seen in 107, 51 not
+  labelled), bound to the video by sha256.
+- **Decision:** `packages/contracts` 1.3.0 adds `elevate.trail_labels.v1` with the same rules as
+  `TrailLabelsParser.kt`; `fixtures/fixture_trail.json` is a byte copy of Person 2's file and CI
+  validates it; a test fails if the app's bundled copy and the fixture differ. `fixtures/clips.md`
+  treats the video stream hash as the clip identity (audio bytes can vary by fetch).
+- **Alternatives:** (a) Person 4 relabels in a new format, rejected: duplicate work and a second
+  format; (b) leave it app-local, rejected: CI could not validate it.
+- **Blast radius:**
+  - People and folders: Person 2 keeps loading the same file (no app change; can later copy it from
+    `fixtures/` at build time); Person 1 can score trails against it; Person 4 owns the fixture.
+  - Contracts: 1.3.0, additive (new schema).
+- **Exit:** supersede with a new entry; the shape only grows.
+- **Proof / evidence:** `pnpm --filter @elevate/contracts run check` validates the real fixture;
+  Python `jsonschema` accepts it; 14 tests pass.
 - **PRs:** this PR.
