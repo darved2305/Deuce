@@ -67,6 +67,7 @@ jobs:
             engine:
               - *shared
               - 'engine/**'
+              - 'fixtures/**'
               - 'services/insights/**'
             ts:
               - *shared

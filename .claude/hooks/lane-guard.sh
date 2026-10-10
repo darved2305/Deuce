@@ -4,8 +4,8 @@
 set -uo pipefail
 
 input=$(cat)
-file=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$input")
-cwd=$(jq -r '.cwd // empty' <<<"$input")
+file=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$input" | tr -d '\r')
+cwd=$(jq -r '.cwd // empty' <<<"$input" | tr -d '\r')
 [ -z "$file" ] && exit 0
 
 root=$(git -C "${cwd:-.}" rev-parse --show-toplevel 2>/dev/null) || exit 0
@@ -25,7 +25,7 @@ case "/$rel/" in
   */../*) echo "Blocked: path traversal in '$file'." >&2; exit 2 ;;
 esac
 
-allowed=$(jq -r --arg l "$lane" '((.[$l] // []) + (.shared // []))[]' "$root/.claude/lanes.json")
+allowed=$(jq -r --arg l "$lane" '((.[$l] // []) + (.shared // []))[]' "$root/.claude/lanes.json" | tr -d '\r')
 while IFS= read -r p; do
   [ -z "$p" ] && continue
   case "$p" in

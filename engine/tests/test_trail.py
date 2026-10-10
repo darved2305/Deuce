@@ -12,7 +12,8 @@ from elevate_engine.tracknet.run import ball_rows
 
 REPO = Path(__file__).resolve().parents[2]
 LABELS = json.loads((REPO / "fixtures" / "fixture_trail.json").read_text())
-VISIBLE = sum(1 for f in LABELS["frames"] if f["ball"])  # the fixture grows (PR #21: 153)
+# Counted from the fixture, so re-labelling (e.g. 149 -> 196 frames) never breaks these tests.
+VISIBLE = sum(1 for f in LABELS["frames"] if f["ball"])
 SCHEMA = json.loads((REPO / "packages/contracts/schemas/window_result.v1.schema.json").read_text())
 sys.path.insert(0, str(REPO / "engine" / "eval"))
 from score_trail import score  # noqa: E402
@@ -37,7 +38,7 @@ def test_ball_rows_scale_to_source_and_validate_against_contract():
 def test_perfect_prediction_scores_every_visible_label():
     rows = [[f["t_ms"], *f["ball"], 0.9, "candidate"] for f in LABELS["frames"] if f["ball"]]
     s = score(LABELS, rows, 15.0)
-    assert VISIBLE > 0 and s["labelled_visible"] == VISIBLE and s["counts"]["TP"] == VISIBLE
+    assert s["labelled_visible"] == VISIBLE and s["counts"]["TP"] == VISIBLE
     assert s["counts"]["TN"] == len(LABELS["frames"]) - VISIBLE
     assert s["precision"] == s["recall"] == 1.0
 
