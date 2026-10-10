@@ -7,8 +7,9 @@ values ('00000000-0000-0000-0000-000000000000', '22222222-2222-2222-2222-2222222
         'authenticated', 'authenticated', 'p3-budget@elevate.dev', '', now(), now(), now());
 insert into public.matches (id, owner_id, sport, format, ruleset_id, ruleset_version)
 values ('m_b', '22222222-2222-2222-2222-222222222222', 'badminton', 'singles', 'bwf_singles', 'v1');
-insert into public.sessions (id, match_id, owner_id, mode, source)
-values ('s_b', 'm_b', '22222222-2222-2222-2222-222222222222', 'match', '{}'::jsonb);
+insert into public.sessions (id, match_id, owner_id, mode, source, who_is_me)
+values ('s_b', 'm_b', '22222222-2222-2222-2222-222222222222', 'match', '{}'::jsonb,
+        '{"image_xy":[0.5,0.5],"t_ms":0}'::jsonb);
 insert into public.uploads (session_id, owner_id, r2_key, r2_upload_id, bytes, sha256, status)
 values ('s_b', '22222222-2222-2222-2222-222222222222', 'orig/s_b/source.mp4', 'UP', 1000, 'x', 'initiated');
 

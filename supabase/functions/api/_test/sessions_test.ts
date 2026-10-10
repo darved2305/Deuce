@@ -325,7 +325,7 @@ Deno.test("court template that does not match format is 422 calibration_template
 
 Deno.test("other schema violations stay validation_failed", async () => {
   const { app } = build();
-  const res = await create(app, { ...BODY, upload_mode: "segments" });
+  const res = await create(app, { ...BODY, upload_mode: "carrier_pigeon" });
   assert.equal(res.status, 422);
   assert.equal(await errCode(res), "validation_failed");
 });
