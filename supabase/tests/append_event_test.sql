@@ -9,8 +9,9 @@ values ('00000000-0000-0000-0000-000000000000', '11111111-1111-1111-1111-1111111
 
 insert into public.matches (owner_id, sport, format, ruleset_id, ruleset_version)
 values ('11111111-1111-1111-1111-111111111111', 'badminton', 'singles', 'bwf_singles', 'v1');
-insert into public.sessions (match_id, owner_id, mode, source)
-select id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb
+insert into public.sessions (match_id, owner_id, mode, source, who_is_me)
+select id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb,
+       '{"image_xy":[0.5,0.5],"t_ms":0}'::jsonb
 from public.matches limit 1;
 insert into public.analysis_runs (session_id, match_id, owner_id, idempotency_key)
 select s.id, s.match_id, s.owner_id, 'k1' from public.sessions s limit 1;
@@ -137,8 +138,9 @@ do $$
 begin
   for i in 3..10 loop
     with s as (
-      insert into public.sessions (match_id, owner_id, mode, source)
-      select m.id, m.owner_id, 'match', '{"kind":"upload","bytes":1024}'::jsonb
+      insert into public.sessions (match_id, owner_id, mode, source, who_is_me)
+      select m.id, m.owner_id, 'match', '{"kind":"upload","bytes":1024}'::jsonb,
+             '{"image_xy":[0.5,0.5],"t_ms":0}'::jsonb
       from public.matches m where m.owner_id = '11111111-1111-1111-1111-111111111111' limit 1
       returning id, match_id, owner_id
     )
@@ -265,12 +267,14 @@ select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222
 select is((select count(*)::int from public.matches where owner_id = '11111111-1111-1111-1111-111111111111'),
     0, 'RLS: user B cannot select user A matches');
 select throws_matching(
-    $$insert into public.sessions(match_id,owner_id,mode,source)
-      values ('m_does_not_exist','22222222-2222-2222-2222-222222222222','match','{}'::jsonb)$$,
+    $$insert into public.sessions(match_id,owner_id,mode,source,who_is_me)
+      values ('m_does_not_exist','22222222-2222-2222-2222-222222222222','match','{}'::jsonb,
+      '{"image_xy":[0.5,0.5],"t_ms":0}'::jsonb)$$,
     'row-level security policy', 'RLS: session insert fails when match is not owned by the caller');
 select lives_ok(
-    $$insert into public.sessions(match_id,owner_id,mode,source)
-      select id, '22222222-2222-2222-2222-222222222222', 'match', '{}'::jsonb
+    $$insert into public.sessions(match_id,owner_id,mode,source,who_is_me)
+      select id, '22222222-2222-2222-2222-222222222222', 'match', '{}'::jsonb,
+      '{"image_xy":[0.5,0.5],"t_ms":0}'::jsonb
       from public.matches where owner_id = '22222222-2222-2222-2222-222222222222' limit 1$$,
     'RLS: session insert into own match allowed');
 select throws_ok(

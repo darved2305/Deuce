@@ -59,7 +59,7 @@ export async function idemStore(
   status: number,
   response: unknown,
 ): Promise<void> {
-  if (status !== 200 && status !== 202) return;
+  if (status !== 200 && status !== 201 && status !== 202) return;
   const { error } = await admin.from("idempotency").upsert({
     key,
     owner_id: ownerId,

@@ -1,3 +1,4 @@
+import { addUsage } from "../lib/budget.ts";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { AppEnv } from "../lib/auth.ts";
 import {
@@ -138,6 +139,7 @@ export function registerInternal(api: OpenAPIHono<AppEnv>): void {
       if (!again) throw ins.error;
       return reuse(again);
     }
+    await addUsage(admin, 1, 0); // the engine's PutObject for this artifact is Class A (G5)
     return c.json({ artifact_id: (ins.data as ArtifactRow).id }, 200);
   });
 

@@ -271,3 +271,23 @@ Deno.test("artifact insert race (23505) re-selects the winner", async () => {
   );
   assert.deepEqual(await res.json(), { artifact_id: "art_win" });
 });
+
+Deno.test("G5: a newly registered artifact counts one Class A op; a re-registration does not", async () => {
+  const fresh = build();
+  await call(fresh.app, "artifacts", art("analysis/a_1/0.3.0/windows/0.json"));
+  const usage = fresh.log.filter((c) =>
+    c.kind === "rpc" && c.name === "r2_add_usage"
+  );
+  assert.equal(usage.length, 1);
+  assert.deepEqual((usage[0] as { args: unknown }).args, {
+    p_class_a: 1,
+    p_class_b: 0,
+  });
+  const again = build({ existing: { id: "art_old", analysis_id: "a_1" } });
+  await call(again.app, "artifacts", art("analysis/a_1/0.3.0/windows/0.json"));
+  assert.equal(
+    again.log.filter((c) => c.kind === "rpc" && c.name === "r2_add_usage")
+      .length,
+    0,
+  );
+});

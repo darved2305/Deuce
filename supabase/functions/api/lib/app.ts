@@ -5,8 +5,10 @@ import { defaultDeps, type Deps } from "./deps.ts";
 import { env } from "./env.ts";
 import { defaultHook, notFound, onError } from "./errors.ts";
 import { registerAnalyses } from "../routes/analyses.ts";
+import { registerArtifacts } from "../routes/artifacts.ts";
 import { registerHealth } from "../routes/health.ts";
 import { registerInternal } from "../routes/internal.ts";
+import { registerSessions } from "../routes/sessions.ts";
 
 export function createApp(deps: Deps = defaultDeps()): Hono {
   const api = new OpenAPIHono<AppEnv>({ defaultHook });
@@ -18,6 +20,8 @@ export function createApp(deps: Deps = defaultDeps()): Hono {
   api.use("/v1/*", userAuth);
   registerHealth(api);
   registerAnalyses(api);
+  registerArtifacts(api);
+  registerSessions(api);
   registerInternal(api);
   // Internal routes (Modal only) are not part of the public document.
   api.get("/v1/openapi.json", (c) => {

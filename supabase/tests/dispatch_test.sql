@@ -12,23 +12,29 @@ values ('11111111-1111-1111-1111-111111111111', 'badminton', 'singles', 'bwf_sin
 
 -- one session per live run: analysis_runs_one_live_per_session forbids a second
 -- non-terminal run on the same session
-insert into public.sessions (id, match_id, owner_id, mode, source)
-select 's_live', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb
+insert into public.sessions (id, match_id, owner_id, mode, source, who_is_me)
+select 's_live', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb,
+       '{"image_xy":[0,0],"t_ms":0}'::jsonb
 from public.matches limit 1;
-insert into public.sessions (id, match_id, owner_id, mode, source)
-select 's_term', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb
+insert into public.sessions (id, match_id, owner_id, mode, source, who_is_me)
+select 's_term', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb,
+       '{"image_xy":[0,0],"t_ms":0}'::jsonb
 from public.matches limit 1;
-insert into public.sessions (id, match_id, owner_id, mode, source)
-select 's_claim', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb
+insert into public.sessions (id, match_id, owner_id, mode, source, who_is_me)
+select 's_claim', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb,
+       '{"image_xy":[0,0],"t_ms":0}'::jsonb
 from public.matches limit 1;
-insert into public.sessions (id, match_id, owner_id, mode, source)
-select 's_claim_failed', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb
+insert into public.sessions (id, match_id, owner_id, mode, source, who_is_me)
+select 's_claim_failed', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb,
+       '{"image_xy":[0,0],"t_ms":0}'::jsonb
 from public.matches limit 1;
-insert into public.sessions (id, match_id, owner_id, mode, source)
-select 's_claim_proc', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb
+insert into public.sessions (id, match_id, owner_id, mode, source, who_is_me)
+select 's_claim_proc', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb,
+       '{"image_xy":[0,0],"t_ms":0}'::jsonb
 from public.matches limit 1;
-insert into public.sessions (id, match_id, owner_id, mode, source)
-select 's_capped', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb
+insert into public.sessions (id, match_id, owner_id, mode, source, who_is_me)
+select 's_capped', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb,
+       '{"image_xy":[0,0],"t_ms":0}'::jsonb
 from public.matches limit 1;
 insert into public.sessions (id, match_id, owner_id, mode, source, calibration_input, who_is_me, rally_candidates, upload_mode)
 select 's_spec', id, owner_id, 'match',

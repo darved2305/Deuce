@@ -3,6 +3,7 @@
     "hono": "npm:hono@4.13.13",
     "@hono/zod-openapi": "npm:@hono/zod-openapi@1.6.3",
     "zod": "npm:zod@4.6.5",
+    "aws4fetch": "npm:aws4fetch@1.0.20",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.117.2"
   },
   "fmt": {
