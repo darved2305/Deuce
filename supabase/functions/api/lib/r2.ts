@@ -1,7 +1,7 @@
 import { AwsClient } from "aws4fetch";
 import { ApiFailure } from "./errors.ts";
 
-export const PART_URL_TTL_S = 900;
+export const PART_URL_TTL_S = 600; // G6: at most 10 minutes
 export const GET_URL_TTL_S = 300;
 // R2 rate limits writes to one key; requests retry on 429 with this backoff.
 export const BACKOFF_MS = [250, 500, 1000];

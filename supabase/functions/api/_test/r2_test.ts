@@ -57,14 +57,14 @@ Deno.test("createMultipart signs a server-side POST ?uploads and parses UploadId
   );
 });
 
-Deno.test("presignPart puts partNumber and uploadId in the signed query, 900 s, host only", async () => {
+Deno.test("presignPart puts partNumber and uploadId in the signed query, 600 s, host only", async () => {
   const { r2 } = make([xml(200, "")]);
   const url = new URL(await r2.presignPart(KEY, "up/id+=", 2));
   assert.equal(url.origin, "https://acc.r2.cloudflarestorage.com");
   assert.equal(url.pathname, `/bkt/${KEY}`);
   assert.equal(url.searchParams.get("partNumber"), "2");
   assert.equal(url.searchParams.get("uploadId"), "up/id+=");
-  assert.equal(url.searchParams.get("X-Amz-Expires"), "900");
+  assert.equal(url.searchParams.get("X-Amz-Expires"), "600");
   assert.equal(url.searchParams.get("X-Amz-Algorithm"), "AWS4-HMAC-SHA256");
   assert.match(
     url.searchParams.get("X-Amz-Credential") ?? "",

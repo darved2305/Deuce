@@ -12,10 +12,16 @@ import {
 import { ApiFailure, defaultHook, fail } from "../lib/errors.ts";
 import { canonicalHash, idemBegin, idemStore } from "../lib/idempotency.ts";
 import { type R2, R2Error } from "../lib/r2.ts";
+import {
+  addUsage,
+  assertCanCreateUpload,
+  assertWritesAllowed,
+  BUDGET,
+  takePartUrls,
+} from "../lib/budget.ts";
 
 const ENDPOINT = "POST /v1/sessions";
 export const PART_SIZE = 8 * 1024 * 1024;
-export const MAX_BYTES = 2 * 1024 * 1024 * 1024;
 export const MAX_PARTS_PER_CALL = 50;
 const MAX_CONCURRENCY = 2;
 
@@ -225,6 +231,7 @@ async function createUploadRecords(
     // Person 1's Modal submit rejects any other key.
     const r2Key = `orig/${sessionId}/source.mp4`;
     const uploadId = await r2.createMultipart(r2Key);
+    await addUsage(admin, 1, 0); // CreateMultipartUpload is Class A
     const ins = await admin.from("uploads").insert({
       session_id: sessionId,
       owner_id: ownerId,
@@ -236,7 +243,9 @@ async function createUploadRecords(
       status: "initiated",
     });
     if (ins.error) {
-      await r2.abortMultipart(r2Key, uploadId).catch(() => {});
+      await r2.abortMultipart(r2Key, uploadId).catch((e) =>
+        console.error("r2 abort after failed insert", (e as Error).message)
+      );
       throw ins.error;
     }
     return {
@@ -262,11 +271,11 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     const key = c.req.valid("header")["idempotency-key"];
     const ownerId = c.var.userId;
 
-    if (body.source.bytes > MAX_BYTES) {
+    if (body.source.bytes > BUDGET.maxVideoBytes) {
       throw new ApiFailure(
         413,
         "upload_too_large",
-        `video exceeds ${MAX_BYTES} bytes`,
+        `video exceeds ${BUDGET.maxVideoBytes} bytes`,
       );
     }
     if (body.source.bytes < 1) {
@@ -294,6 +303,9 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
       );
     }
 
+    // G9/G10 pause, then G3/G5/G2 budgets. A replay above never reaches here.
+    const snap = await assertWritesAllowed(admin, ownerId);
+    assertCanCreateUpload(snap, body.source.bytes);
     const out = await createUploadRecords(
       { user: deps.user(jwtOf(c)), admin, r2: deps.r2() },
       ownerId,
@@ -365,6 +377,10 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
         );
       }
     }
+    // G9/G10 pause, then G4 (3 x part count per session); the URLs also count as Class A.
+    const admin = c.var.deps.admin();
+    await assertWritesAllowed(admin, c.var.userId);
+    await takePartUrls(admin, id, c.var.userId, part_numbers.length, count);
     const r2 = c.var.deps.r2();
     const urls = await Promise.all(
       part_numbers.map((n) => r2.presignPart(up.r2_key, up.r2_upload_id, n)),
@@ -414,18 +430,62 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     }
 
     const r2 = deps.r2();
+    const admin = deps.admin();
+
+    // Records the finished upload. The stored object size is what Modal will read, so it
+    // wins over the declared size. Only one caller can move initiated -> completed.
+    const finalize = async () => {
+      const head = await r2.head(up.r2_key);
+      await addUsage(admin, 0, 1); // HeadObject is Class B
+      if (!head) {
+        throw new ApiFailure(
+          409,
+          "upload_parts_invalid",
+          "the uploaded object is missing",
+        );
+      }
+      const upd = await admin.from("uploads").update({
+        status: "completed",
+        parts: sorted,
+        bytes: head.bytes,
+        completed_at: new Date().toISOString(),
+      }).eq("session_id", id).eq("owner_id", c.var.userId)
+        .eq("status", "initiated").select("bytes").maybeSingle();
+      if (upd.error) throw upd.error;
+      if (upd.data) {
+        return c.json({ status: "completed" as const, bytes: head.bytes }, 200);
+      }
+      const cur = await loadUpload(user, id);
+      if (cur.status !== "completed") {
+        throw new ApiFailure(
+          409,
+          "invalid_transition",
+          `upload is ${cur.status}`,
+        );
+      }
+      return c.json(
+        { status: "completed" as const, bytes: Number(cur.bytes) },
+        200,
+      );
+    };
+
     try {
       await r2.completeMultipart(up.r2_key, up.r2_upload_id, sorted);
+      await addUsage(admin, 1, 0); // CompleteMultipartUpload is Class A
     } catch (err) {
       if (!(err instanceof R2Error)) throw err;
       if (err.code === "NoSuchUpload") {
-        // A concurrent complete may have won; return its outcome.
+        // A concurrent complete won, or an earlier attempt completed in R2 but failed before
+        // the row was updated. Recover from the stored object instead of sticking at initiated.
         const cur = await loadUpload(user, id);
         if (cur.status === "completed") {
           return c.json(
             { status: "completed" as const, bytes: Number(cur.bytes) },
             200,
           );
+        }
+        if (cur.status === "initiated" && await r2.head(up.r2_key)) {
+          return await finalize();
         }
         throw new ApiFailure(
           409,
@@ -441,34 +501,7 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
       }
       throw err;
     }
-
-    // The stored object size is what Modal will read, so it wins over the declared size.
-    const head = await r2.head(up.r2_key);
-    const bytes = head?.bytes ?? Number(up.bytes);
-    const admin = deps.admin();
-    const upd = await admin.from("uploads").update({
-      status: "completed",
-      parts: sorted,
-      bytes,
-      completed_at: new Date().toISOString(),
-    }).eq("session_id", id).eq("owner_id", c.var.userId)
-      .eq("status", "initiated").select("bytes").maybeSingle();
-    if (upd.error) throw upd.error;
-    if (!upd.data) {
-      const cur = await loadUpload(user, id);
-      if (cur.status !== "completed") {
-        throw new ApiFailure(
-          409,
-          "invalid_transition",
-          `upload is ${cur.status}`,
-        );
-      }
-      return c.json(
-        { status: "completed" as const, bytes: Number(cur.bytes) },
-        200,
-      );
-    }
-    return c.json({ status: "completed" as const, bytes }, 200);
+    return await finalize();
   });
 
   api.openapi(uploadAbort, async (c) => {
@@ -488,8 +521,19 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     }
     const upd = await deps.admin().from("uploads").update({ status: "aborted" })
       .eq("session_id", id).eq("owner_id", c.var.userId)
-      .eq("status", "initiated");
+      .eq("status", "initiated").select("session_id").maybeSingle();
     if (upd.error) throw upd.error;
+    if (!upd.data) {
+      // Lost a race with complete: report the real state.
+      const cur = await loadUpload(deps.user(jwtOf(c)), id);
+      if (cur.status !== "aborted") {
+        throw new ApiFailure(
+          409,
+          "invalid_transition",
+          `upload is ${cur.status}`,
+        );
+      }
+    }
     return c.json({ status: "aborted" as const }, 200);
   });
 }

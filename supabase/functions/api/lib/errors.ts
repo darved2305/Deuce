@@ -15,6 +15,11 @@ export type ErrorCode =
   | "already_finalized"
   | "idempotency_conflict"
   | "storage_busy"
+  | "uploads_paused"
+  | "storage_budget_reached"
+  | "daily_upload_limit"
+  | "too_many_part_requests"
+  | "daily_download_limit"
   | "engine_unavailable"
   | "quota_exhausted"
   | "internal";
@@ -38,14 +43,22 @@ export class ApiFailure extends Error {
     readonly code: ErrorCode,
     message: string,
     readonly details?: unknown,
+    readonly retryAfterS?: number,
   ) {
     super(message);
   }
 }
 
-export function errorBody(code: ErrorCode, message: string, details?: unknown) {
+// retry_after_s is a sibling of `error` (error.envelope.v1).
+export function errorBody(
+  code: ErrorCode,
+  message: string,
+  details?: unknown,
+  retryAfterS?: number,
+) {
   return {
     error: { code, message, ...(details === undefined ? {} : { details }) },
+    ...(retryAfterS === undefined ? {} : { retry_after_s: retryAfterS }),
   };
 }
 
@@ -55,8 +68,10 @@ export function fail(
   code: ErrorCode,
   message: string,
   details?: unknown,
+  retryAfterS?: number,
 ) {
-  return c.json(errorBody(code, message, details), status);
+  if (retryAfterS !== undefined) c.header("Retry-After", String(retryAfterS));
+  return c.json(errorBody(code, message, details, retryAfterS), status);
 }
 
 const STATUS_CODES: Partial<Record<number, ErrorCode>> = {
@@ -87,7 +102,14 @@ export function notFound(c: Context): Response {
 
 export function onError(err: Error, c: Context): Response {
   if (err instanceof ApiFailure) {
-    return fail(c, err.status, err.code, err.message, err.details);
+    return fail(
+      c,
+      err.status,
+      err.code,
+      err.message,
+      err.details,
+      err.retryAfterS,
+    );
   }
   if (err instanceof HTTPException) {
     const code = STATUS_CODES[err.status] ?? "internal";

@@ -83,6 +83,8 @@ type Opts = {
   r2?: (req: Request) => Response;
   adminUploadUpdate?: unknown; // result of the admin update ... returning
   insertSessionError?: boolean;
+  snap?: Partial<Record<string, number>>;
+  takeParts?: unknown; // r2_take_part_urls result (null refuses)
 };
 
 function build(o: Opts = {}) {
@@ -121,6 +123,19 @@ function build(o: Opts = {}) {
     }
     if (c.kind === "from" && c.table === "uploads" && c.op === "update") {
       return ok("adminUploadUpdate" in o ? o.adminUploadUpdate : { bytes: 1 });
+    }
+    if (c.kind === "rpc" && c.name === "r2_budget_snapshot") {
+      return ok({
+        sessions_today: 0,
+        uploads_today: 0,
+        storage_bytes: 0,
+        class_a: 0,
+        class_b: 0,
+        ...o.snap,
+      });
+    }
+    if (c.kind === "rpc" && c.name === "r2_take_part_urls") {
+      return ok("takeParts" in o ? o.takeParts : 3);
     }
     return ok(null);
   };
@@ -281,22 +296,22 @@ Deno.test("same Idempotency-Key with a different body is 409 idempotency_conflic
   assert.equal(r2Seen.length, 0);
 });
 
-Deno.test("source.bytes over 2 GB is 413 upload_too_large", async () => {
+Deno.test("source.bytes over 300 MiB is 413 upload_too_large", async () => {
   const { app, r2Seen } = build();
   const res = await create(app, {
     ...BODY,
-    source: { ...BODY.source, bytes: 2147483649 },
+    source: { ...BODY.source, bytes: 300 * MIB + 1 },
   });
   assert.equal(res.status, 413);
   assert.equal(await errCode(res), "upload_too_large");
   assert.equal(r2Seen.length, 0);
 });
 
-Deno.test("exactly 2 GB is accepted", async () => {
+Deno.test("exactly 300 MiB is accepted", async () => {
   const { app } = build();
   const res = await create(app, {
     ...BODY,
-    source: { ...BODY.source, bytes: 2147483648 },
+    source: { ...BODY.source, bytes: 300 * MIB },
   });
   assert.equal(res.status, 201);
 });
@@ -352,7 +367,7 @@ Deno.test("persistent R2 429 on create is 503 storage_busy", async () => {
   assert.equal(await errCode(res), "storage_busy");
 });
 
-Deno.test("upload/parts returns 900 s presigned PUT URLs in request order", async () => {
+Deno.test("upload/parts returns 600 s presigned PUT URLs in request order", async () => {
   const { app, r2Seen } = build();
   const res = await call(app, "POST", "/v1/sessions/s_1/upload/parts", {
     part_numbers: [3, 1],
@@ -363,7 +378,7 @@ Deno.test("upload/parts returns 900 s presigned PUT URLs in request order", asyn
   const u0 = new URL(urls[0]);
   assert.equal(u0.searchParams.get("partNumber"), "3");
   assert.equal(u0.searchParams.get("uploadId"), "UP1");
-  assert.equal(u0.searchParams.get("X-Amz-Expires"), "900");
+  assert.equal(u0.searchParams.get("X-Amz-Expires"), "600");
   assert.equal(new URL(urls[1]).searchParams.get("partNumber"), "1");
   assert.equal(r2Seen.length, 0); // presigning is local
 });
@@ -615,4 +630,212 @@ Deno.test("GET /v1/sessions/{id} for a session the caller cannot see is 404", as
   const res = await call(app, "GET", "/v1/sessions/s_other");
   assert.equal(res.status, 404);
   assert.equal(await errCode(res), "not_found");
+});
+
+// ---- R2 budget guards (docs/ops/cloudflare-budget.md, D-261011-HW2) ----
+
+const GIB = 1024 * MIB;
+const rpcs = (log: Call[], name: string) =>
+  log.filter((c) => c.kind === "rpc" && c.name === name) as Array<
+    { args: Record<string, unknown> }
+  >;
+
+async function withEnv<T>(value: string, fn: () => Promise<T>): Promise<T> {
+  Deno.env.set("R2_WRITES_ENABLED", value);
+  try {
+    return await fn();
+  } finally {
+    Deno.env.delete("R2_WRITES_ENABLED");
+  }
+}
+
+Deno.test("G3: 5 sessions per user per day, 429 daily_upload_limit with retry_after_s", async () => {
+  const { app, r2Seen, userLog } = build({ snap: { sessions_today: 5 } });
+  const res = await create(app);
+  assert.equal(res.status, 429);
+  const body = await res.json();
+  assert.equal(body.error.code, "daily_upload_limit");
+  assert.ok(body.retry_after_s > 0 && body.retry_after_s <= 86400);
+  assert.equal(res.headers.get("retry-after"), String(body.retry_after_s));
+  assert.equal(r2Seen.length, 0);
+  assert.equal(userLog.length, 0);
+  const ok4 = build({ snap: { sessions_today: 4 } });
+  assert.equal((await create(ok4.app)).status, 201);
+});
+
+Deno.test("G3: 30 uploads per day in total", async () => {
+  const over = build({ snap: { uploads_today: 30 } });
+  const res = await create(over.app);
+  assert.equal(res.status, 429);
+  assert.equal(await errCode(res), "daily_upload_limit");
+  const under = build({ snap: { uploads_today: 29 } });
+  assert.equal((await create(under.app)).status, 201);
+});
+
+Deno.test("G10: storage at 1 GiB pauses uploads with 503 uploads_paused", async () => {
+  const at = build({ snap: { storage_bytes: GIB } });
+  const res = await create(at.app);
+  assert.equal(res.status, 503);
+  assert.equal(await errCode(res), "uploads_paused");
+  assert.equal(at.r2Seen.length, 0);
+  const below = build({ snap: { storage_bytes: GIB - 1 } });
+  assert.equal((await create(below.app)).status, 201);
+});
+
+Deno.test("G10: Class A at 100,000 pauses uploads", async () => {
+  const at = build({ snap: { class_a: 100_000 } });
+  const res = await create(at.app);
+  assert.equal(res.status, 503);
+  assert.equal(await errCode(res), "uploads_paused");
+  const below = build({ snap: { class_a: 99_999 } });
+  assert.equal((await create(below.app)).status, 201);
+});
+
+Deno.test("G10 also pauses part URLs", async () => {
+  const { app, adminLog } = build({ snap: { class_a: 100_000 } });
+  const res = await call(app, "POST", "/v1/sessions/s_1/upload/parts", {
+    part_numbers: [1],
+  });
+  assert.equal(res.status, 503);
+  assert.equal(await errCode(res), "uploads_paused");
+  assert.equal(rpcs(adminLog, "r2_take_part_urls").length, 0);
+});
+
+Deno.test("G9: R2_WRITES_ENABLED=false pauses create and parts without touching R2 or the DB", async () => {
+  await withEnv("false", async () => {
+    const { app, r2Seen, adminLog, userLog } = build();
+    const c1 = await create(app);
+    assert.equal(c1.status, 503);
+    assert.equal(await errCode(c1), "uploads_paused");
+    const c2 = await call(app, "POST", "/v1/sessions/s_1/upload/parts", {
+      part_numbers: [1],
+    });
+    assert.equal(c2.status, 503);
+    assert.equal(await errCode(c2), "uploads_paused");
+    assert.equal(r2Seen.length, 0);
+    assert.equal(rpcs(adminLog, "r2_budget_snapshot").length, 0);
+    assert.equal(
+      userLog.filter((c) => c.kind === "from" && c.table === "matches").length,
+      0,
+    );
+  });
+});
+
+Deno.test("G9: anything but false leaves uploads on; complete and abort stay available", async () => {
+  await withEnv("true", async () => {
+    assert.equal((await create(build().app)).status, 201);
+  });
+  await withEnv("false", async () => {
+    const res = await call(
+      build().app,
+      "POST",
+      "/v1/sessions/s_1/upload/complete",
+      { parts: PARTS },
+    );
+    assert.equal(res.status, 200);
+    const ab = await call(build().app, "POST", "/v1/sessions/s_1/upload/abort");
+    assert.equal(ab.status, 200);
+  });
+});
+
+Deno.test("G4: part URL allowance is 3 x part count, refusal is 429 too_many_part_requests", async () => {
+  const { app, adminLog } = build({ takeParts: null });
+  const res = await call(app, "POST", "/v1/sessions/s_1/upload/parts", {
+    part_numbers: [1, 2],
+  });
+  assert.equal(res.status, 429);
+  assert.equal(await errCode(res), "too_many_part_requests");
+  assert.deepEqual(rpcs(adminLog, "r2_take_part_urls")[0].args, {
+    p_session: "s_1",
+    p_owner: "u1",
+    p_count: 2,
+    p_limit: 9, // 20 MiB = 3 parts, 3 x 3
+  });
+});
+
+Deno.test("Class A is counted when part URLs are issued (inside r2_take_part_urls)", async () => {
+  const { app, adminLog } = build();
+  const res = await call(app, "POST", "/v1/sessions/s_1/upload/parts", {
+    part_numbers: [1, 2, 3],
+  });
+  assert.equal(res.status, 200);
+  assert.equal(rpcs(adminLog, "r2_take_part_urls")[0].args.p_count, 3);
+});
+
+Deno.test("Class A is counted for CreateMultipartUpload; Class A and B for complete and HEAD", async () => {
+  const created = build();
+  await create(created.app);
+  assert.deepEqual(rpcs(created.adminLog, "r2_add_usage").map((r) => r.args), [
+    { p_class_a: 1, p_class_b: 0 },
+  ]);
+  const done = build();
+  await call(done.app, "POST", "/v1/sessions/s_1/upload/complete", {
+    parts: PARTS,
+  });
+  assert.deepEqual(rpcs(done.adminLog, "r2_add_usage").map((r) => r.args), [
+    { p_class_a: 1, p_class_b: 0 },
+    { p_class_a: 0, p_class_b: 1 },
+  ]);
+});
+
+Deno.test("an idempotent replay is not blocked by the daily limits", async () => {
+  const stored = {
+    session_id: "s_1",
+    match_id: "m_1",
+    upload: {
+      upload_id: "UP1",
+      r2_key: "orig/s_1/source.mp4",
+      part_size: 8388608,
+      max_concurrency: 2,
+    },
+  };
+  const { app } = build({
+    snap: { sessions_today: 5 },
+    idem: ok({
+      request_hash: await canonicalHash(BODY),
+      status_code: 201,
+      response: stored,
+      created_at: new Date().toISOString(),
+    }),
+  });
+  assert.equal((await create(app)).status, 201);
+});
+
+Deno.test("complete recovers when R2 already completed but the row is still initiated", async () => {
+  let reads = 0;
+  const user: Handler = (c) =>
+    c.kind === "from" && c.table === "uploads"
+      ? ok(upRow({ status: ++reads <= 2 ? "initiated" : "completed" }))
+      : ok(null);
+  let first = true;
+  const app = makeApp(
+    user,
+    (c) =>
+      c.kind === "from" && c.table === "uploads"
+        ? ok({ bytes: 20 * MIB })
+        : ok(null),
+    undefined,
+    [],
+    [],
+    createR2({
+      accountId: "a",
+      accessKeyId: "k",
+      secretAccessKey: "s",
+      bucket: "b",
+      fetchImpl: ((req: Request) => {
+        if (req.method === "POST" && first) {
+          first = false;
+          return Promise.resolve(errXml(404, "NoSuchUpload"));
+        }
+        return Promise.resolve(
+          xml(200, "", { "content-length": String(20 * MIB) }),
+        );
+      }) as typeof fetch,
+    }),
+  );
+  const res = await call(app, "POST", "/v1/sessions/s_1/upload/complete", {
+    parts: PARTS,
+  });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { status: "completed", bytes: 20 * MIB });
 });
