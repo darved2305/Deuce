@@ -19,7 +19,8 @@ class TrackingConfig:
     conf_bonus: float  # cost reduction per unit of heatmap confidence
     max_missed: int  # frames a tracklet survives without a match (1: at most one filled)
     min_observed: int  # tracklets with fewer observed points are dropped as noise
-    static_radius_px: float  # tracklets that never leave this radius are dropped as static
+    static_radius_px: float  # radius a static tracklet stays within
+    static_fraction: float  # share of its points that must stay within it to count as static
 
 
 BADMINTON = TrackingConfig(
@@ -31,4 +32,5 @@ BADMINTON = TrackingConfig(
     max_missed=1,  # the plan's rule: interpolate at most one slot
     min_observed=4,
     static_radius_px=12.0,  # wall marks and floor spots sit still to within a few px
+    static_fraction=0.9,  # tolerate a stray point absorbed from a passing shuttle
 )

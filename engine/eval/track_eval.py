@@ -1,6 +1,7 @@
 """Score raw candidates vs the tracking layer against hand labels (elevate.trail_labels.v1).
 
-    uv run python eval/track_eval.py ../fixtures/fixture_trail.json TRACK_RESULT.json
+    cd engine && PYTHONPATH=.:eval uv run python eval/track_eval.py \
+        ../fixtures/fixture_trail.json eval/runs/h13g_31_91/candidates.json
 TRACK_RESULT is a track_clip output ({"t_ms": [...], "ball": [...]}) from a real Modal run.
 """
 
@@ -22,7 +23,8 @@ def main(labels_path: str, result_path: str) -> None:
     rows, stats = track(result["t_ms"], candidates_by_frame(result["t_ms"], result["ball"]),
                         BADMINTON)  # fmt: skip
     print(json.dumps({"tracker": stats}))
-    for name, ball in (("raw", result["ball"]), ("tracked", rows)):
+    observed = [r for r in rows if r[4] != "inferred"]  # plan step 4: inferred not in metrics
+    for name, ball in (("raw", result["ball"]), ("tracked", observed), ("tracked+inferred", rows)):
         print(json.dumps({name: score(labels, ball, 15.0)}))
 
 

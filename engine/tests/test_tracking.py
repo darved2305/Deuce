@@ -55,3 +55,18 @@ def test_on_real_window_1_tracking_beats_raw_candidates_on_the_labels():
     raw, tracked = score(inside, w["ball"], 15.0), score(inside, rows, 15.0)
     assert tracked["precision"] > raw["precision"] + 0.15
     assert tracked["recall"] >= raw["recall"] - 0.05
+
+
+def test_a_wall_mark_that_absorbs_one_stray_point_is_still_static():
+    wall = (760.0, 320.0, 0.95)
+    cands = [[wall] for _ in T]
+    cands[25] = [(778.0, 320.0, 0.6)]  # one stray candidate 18 px away, inside the gate
+    rows, stats = track(T, cands, BADMINTON)
+    assert rows == [] and stats["dropped_static"] >= 1
+
+
+def test_filled_frame_uses_the_real_time_of_the_missed_frame():
+    t_vfr = [0, 34, 66, 100, 133, 167, 200, 234]  # variable frame rate, no constant step
+    cands = [[] if t == 66 else [(300 + 1.5 * t, 700.0, 0.9)] for t in t_vfr]
+    rows, _ = track(t_vfr, cands, BADMINTON)
+    assert [r[0] for r in rows if r[4] == "inferred"] == [66]

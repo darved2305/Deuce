@@ -6,7 +6,8 @@
 - A candidate that no tracklet takes starts a new tracklet.
 - A tracklet survives one missed frame; if it is matched on the next frame, the missed frame
   is filled by the filter's midpoint and marked "inferred" (never more than one frame).
-- Tracklets that never move (wall marks, floor spots) or are too short are dropped.
+- Tracklets that barely move (wall marks, floor spots: 90% of points within a small radius)
+  or are too short are dropped.
 - Per frame, the trail takes the point of the best surviving tracklet (longest, then most
   confident). Process noise and gates are sport configuration (elevate_engine.sports).
 """
@@ -85,13 +86,14 @@ def _new(tid: int, t: int, cand, cfg: TrackingConfig) -> Tracklet:
 
 
 def is_static(tr: Tracklet, cfg: TrackingConfig) -> bool:
-    """True if all observed points stay within cfg.static_radius_px of their median."""
+    """True if at least cfg.static_fraction of the observed points stay within
+    cfg.static_radius_px of their median: one stray point must not turn a wall mark into a
+    moving track."""
     pts = np.array([[p[1], p[2]] for p in tr.observed()])
     if len(pts) == 0:
         return True
-    return float(np.max(np.linalg.norm(pts - np.median(pts, axis=0), axis=1))) <= (
-        cfg.static_radius_px
-    )
+    dist = np.linalg.norm(pts - np.median(pts, axis=0), axis=1)
+    return float(np.mean(dist <= cfg.static_radius_px)) >= cfg.static_fraction
 
 
 def track(
@@ -124,9 +126,9 @@ def track(
             taken_c.add(j)
             tr, (xp, Pp), c = by_id[tid], preds[tid], cands[j]
             if tr.missed == 1:  # one-frame gap: fill it from the filter, marked inferred
-                gap_t = tr.points[-1][0] + (t - tr.points[-1][0]) // 2
-                mid = _predict(tr, gap_t, cfg)[0]
-                tr.points.append([gap_t, float(mid[0]), float(mid[1]), None, "inferred"])
+                # tr.last_t is the missed frame's real PTS and tr.x the prediction there.
+                gap = [tr.last_t, float(tr.x[0]), float(tr.x[1]), None, "inferred"]
+                tr.points.append(gap)
             tr.x, tr.P = _update(xp, Pp, np.array(c[:2], float), cfg)
             tr.last_t, tr.missed = t, 0
             tr.points.append([t, float(c[0]), float(c[1]), c[2], "observed"])
@@ -162,8 +164,9 @@ def track(
         obs = tr.observed()
         rank = (len(obs), float(np.mean([p[3] for p in obs])))
         for p in tr.points:
-            if p[0] not in best or rank > best[p[0]][0]:
-                best[p[0]] = (rank, p)
+            key = (p[4] == "observed", *rank)  # an observed point beats any inferred one
+            if p[0] not in best or key > best[p[0]][0]:
+                best[p[0]] = (key, p)
     rows = [best[t][1] for t in sorted(best)]
     stats = {
         "tracklets": len(done),
