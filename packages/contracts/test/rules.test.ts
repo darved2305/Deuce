@@ -184,7 +184,7 @@ test("enums match the database CHECK constraints in supabase/migrations", () => 
     assert.ok(db[column], `no CHECK constraint found for ${column}; update this test with the migration`);
     assert.deepEqual([...options].sort(), [...db[column]].sort(), `${column}: contracts vs database`);
   }
-  assert.ok(db.upload_mode?.includes("multipart"), "upload_mode: the database must accept multipart");
+  assert.deepEqual(["multipart", "segments"], [...(db.upload_mode ?? [])].sort(), "upload_mode: contracts vs database");
 });
 
 test("free play has format none and racket sports never do", () => {

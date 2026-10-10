@@ -67,7 +67,8 @@ the real trail draws on the real video; a missed hint is recovered by the cursor
 |---|---|---|---|
 | Finalizer (stitching, rallies, score proposal via vectors-checked rules, metrics, flight times); review estimates (`07` §3); clip cutting + posters; free-play TAPIR | Review screen (MODEL ESTIMATE, confirm/correct); compare screen with two real clips synced at contact; Room cache + offline history; Kotlin rules port passing the vectors | Persist vision result; insights job (shot records, hero insight, similar-moment search, comparison endpoint with real clip choice); confirm endpoint + `point.confirmed`; history endpoints; TS SDK; local MCP (tested against the actual Claude host or shown via the MCP inspector) | Eval results into `RESULTS.md`; reference library (team drills through the real engine, consent recorded); seed JSON for `seed_demo_match` |
 
-**End-of-phase check:** a fresh phone upload completes end to end; a landing is reviewed and the
+**End-of-phase check:** a fresh phone upload completes end to end, and the first trail appears
+while later segments are still uploading (chunked real-time analysis, D-261011-HW3); a landing is reviewed and the
 confirmed point updates the score; a comparison opens a real clip with provenance; airplane mode
 still shows the cached record; the TS SDK and MCP return the same `match_id`. "History across
 two matches" needs two distinct sources (two rights-cleared clips or two team sessions).
@@ -75,7 +76,7 @@ two matches" needs two distinct sources (two rights-cleared clips or two team se
 ### Phase 4 · Depth and extras
 | Person 1 | Person 2 | Person 3 | Person 4 |
 |---|---|---|---|
-| Throughput and warm-image tuning; quality gates; capability numbers with Person 4; WASB as challenger once its weight terms are checked | Matches history + search chips, Today, Glance widget, notifications, highlight export (Media3 Transformer), simulation screens, segment-upload upgrade behind a flag, motion polish | Simulation and opponent-scout endpoints; developer keys, embed tokens, share grants, delete cascade; optional one-line LLM captions with fallback; quotas and spend guard | Embed component + academy page on the SDK; capability slide; remaining rulesets (`casual_21`, `ittf_11`, `tennis_bo3_tb`, `bwf_3x15`) |
+| Throughput and warm-image tuning; quality gates; capability numbers with Person 4; WASB as challenger once its weight terms are checked | Matches history + search chips, Today, Glance widget, notifications, highlight export (Media3 Transformer), simulation screens, motion polish | Simulation and opponent-scout endpoints; developer keys, embed tokens, share grants, delete cascade; optional one-line LLM captions with fallback; quotas and spend guard | Embed component + academy page on the SDK; capability slide; remaining rulesets (`casual_21`, `ittf_11`, `tennis_bo3_tb`, `bwf_3x15`) |
 
 **End-of-phase check (freeze):** full demo run on the real setup; nothing new after this.
 

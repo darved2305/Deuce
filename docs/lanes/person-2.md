@@ -58,6 +58,11 @@ In slices, straight to `main`, through the pipeline in `docs/plan/10-build-plan.
   tick, playback at 0.25× / 0.5× / 1×.
 
 ## Phase 3 · Full loop
+- **Chunked upload (D-261011-HW3, judges' ask):** remux the original into ~6 s keyframe-aligned
+  segments (MediaExtractor + MediaMuxer, stream copy), upload in order with one presigned PUT
+  each, 2 in flight, retry each at most 3 times (Cloudflare rule G11). Show the trail for finished
+  segments while later ones upload. Measure keyframe spacing on real S23 FE and A55 files first;
+  keep whole-file multipart as the fallback.
 - Review screen (`07` §4): three frames, surface map, `MODEL ESTIMATE` chip, Confirm / Correct.
 - Compare: two real clips synced at `contact_ms`, one scrubber, provenance and role chips; A55
   fallback (one plays, the other steps).
@@ -67,9 +72,7 @@ In slices, straight to `main`, through the pipeline in `docs/plan/10-build-plan.
 
 ## Phase 4 · Depth and extras
 Matches history + search chips, Today, Glance widget, notifications, highlight export (Media3
-Transformer with the same overlay effect), simulation screens, segment-upload upgrade behind a
-flag (MediaExtractor + MediaMuxer, keyframe-aligned, verified on real S23 FE and A55 files), voice
-query, motion polish.
+Transformer with the same overlay effect), simulation screens, voice query, motion polish.
 
 ## Phase 5 · Demo-ready
 Release APK on both phones; airplane-mode checks; DeX/HDMI mirroring path.
