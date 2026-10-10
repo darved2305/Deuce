@@ -11,3 +11,6 @@ functions/.env
 .env.keys
 .env.local
 .env.*.local
+
+# Deno lockfile: CI resolves from the canonical registry (local runs may use a mirror)
+functions/deno.lock
