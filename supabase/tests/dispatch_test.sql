@@ -1,6 +1,6 @@
 -- pgTAP for create_analysis_run, claim_dispatch, session_spec (spec §7.1). Run: supabase test db
 begin;
-select plan(30);
+select plan(38);
 
 -- fixtures (test role bypasses RLS for setup)
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
@@ -20,6 +20,12 @@ select 's_term', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":
 from public.matches limit 1;
 insert into public.sessions (id, match_id, owner_id, mode, source)
 select 's_claim', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb
+from public.matches limit 1;
+insert into public.sessions (id, match_id, owner_id, mode, source)
+select 's_claim_failed', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb
+from public.matches limit 1;
+insert into public.sessions (id, match_id, owner_id, mode, source)
+select 's_claim_proc', id, owner_id, 'match', '{"kind":"upload","bytes":1024,"sha256":"x"}'::jsonb
 from public.matches limit 1;
 insert into public.sessions (id, match_id, owner_id, mode, source, calibration_input, who_is_me, rally_candidates, upload_mode)
 select 's_spec', id, owner_id, 'match',
@@ -68,6 +74,15 @@ select isnt((select (public.create_analysis_run('s_term', 'k2')).id),
 select is((select count(*)::int from public.analysis_runs where session_id = 's_term'),
     2, 'terminal run plus new run = 2 rows on the session');
 
+-- same-key replay against a terminal run returns that terminal row, not an error or a new run
+select is((select (public.create_analysis_run('s_term', 'k1')).id),
+    (select id from public.analysis_runs where session_id = 's_term' and idempotency_key = 'k1'),
+    'same-key replay on a terminal run returns the terminal run id');
+select is((select (public.create_analysis_run('s_term', 'k1')).state),
+    'failed', 'the returned terminal row keeps its failed state');
+select is((select count(*)::int from public.analysis_runs where session_id = 's_term'),
+    2, 'same-key replay on a terminal run creates no new row');
+
 -- unknown session -> P0002 session_not_found
 select throws_ok(
     $$select public.create_analysis_run('s_missing', 'k')$$,
@@ -77,6 +92,8 @@ select throws_ok(
 insert into public.analysis_runs (id, session_id, match_id, owner_id, idempotency_key)
 select 'a_claim', s.id, s.match_id, s.owner_id, 'k_claim'
 from public.sessions s where s.id = 's_claim';
+-- claim_dispatch only claims queued runs
+update public.analysis_runs set state = 'queued' where id = 'a_claim';
 
 select is((select (public.claim_dispatch('a_claim')).id),
     'a_claim', 'first claim returns the run');
@@ -101,6 +118,26 @@ update public.analysis_runs set modal_call_id = 'mc_test_1', dispatching = false
 select ok((select (public.claim_dispatch('a_claim')).id) is null,
     'run with modal_call_id set is not claimable');
 
+-- a failed run is never claimable, even while modal_call_id is still null (same-key replay safety)
+insert into public.analysis_runs (id, session_id, match_id, owner_id, idempotency_key)
+select 'a_failed', s.id, s.match_id, s.owner_id, 'k_failed'
+from public.sessions s where s.id = 's_claim_failed';
+update public.analysis_runs set state = 'failed', failure_reason = 'dispatch_failed'
+  where id = 'a_failed';
+select ok((select (public.claim_dispatch('a_failed')).id) is null,
+    'failed run with null modal_call_id is not claimable');
+select is((select dispatch_attempts from public.analysis_runs where id = 'a_failed'),
+    0, 'failed claim leaves dispatch_attempts at 0');
+
+-- a processing run is not claimable
+insert into public.analysis_runs (id, session_id, match_id, owner_id, idempotency_key, state)
+select 'a_proc', s.id, s.match_id, s.owner_id, 'k_proc', 'processing'
+from public.sessions s where s.id = 's_claim_proc';
+select ok((select (public.claim_dispatch('a_proc')).id) is null,
+    'processing run is not claimable');
+select is((select dispatch_attempts from public.analysis_runs where id = 'a_proc'),
+    0, 'processing claim leaves dispatch_attempts at 0');
+
 -- session_spec: contracts 2 key set, sport/format/ruleset read from the match
 select is((select array_agg(k order by k) from jsonb_object_keys(public.session_spec('s_spec')) k),
     '{calibration_input,format,free_play_seed,mode,rally_candidates,ruleset,source,sport,upload_mode,who_is_me}'::text[],
@@ -110,6 +147,8 @@ select is(public.session_spec('s_spec')->>'sport', 'badminton',
 select is(public.session_spec('s_spec')->'ruleset',
     '{"id":"bwf_singles","version":"v1"}'::jsonb,
     'ruleset carries the match ruleset id and version');
+select ok(public.session_spec('s_nonexistent') is null,
+    'session_spec returns null for an unknown session');
 
 -- grants: service_role can execute all three, authenticated/anon cannot
 select is((select count(*)::int from information_schema.role_routine_grants

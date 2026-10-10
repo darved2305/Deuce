@@ -31,7 +31,7 @@ returns public.analysis_runs language sql set search_path = '' security definer 
   update public.analysis_runs
      set dispatching = true, dispatch_attempts = dispatch_attempts + 1,
          dispatch_claimed_at = now(), updated_at = now()
-   where id = p_analysis_id and modal_call_id is null
+   where id = p_analysis_id and state = 'queued' and modal_call_id is null
      and (dispatching = false or dispatch_claimed_at < now() - interval '60 seconds')
    returning * $$;
 
