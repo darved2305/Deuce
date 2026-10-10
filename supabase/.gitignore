@@ -14,3 +14,4 @@ functions/.env
 
 # Deno lockfile: CI resolves from the canonical registry (local runs may use a mirror)
 functions/deno.lock
+.cloudflare/
