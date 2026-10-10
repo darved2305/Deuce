@@ -210,10 +210,16 @@
             "type": "number"
           },
           {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           {
             "type": "number"

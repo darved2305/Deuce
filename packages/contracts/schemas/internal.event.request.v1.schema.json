@@ -60,6 +60,11 @@
           "maximum": 9007199254740991,
           "minimum": 0,
           "type": "integer"
+        },
+        "windows_expected": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
         }
       },
       "required": [
@@ -123,6 +128,11 @@
           "type": "string"
         },
         "window_seq": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "windows_expected": {
           "maximum": 9007199254740991,
           "minimum": 0,
           "type": "integer"
@@ -193,6 +203,11 @@
           "maximum": 9007199254740991,
           "minimum": 0,
           "type": "integer"
+        },
+        "windows_expected": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
         }
       },
       "required": [
@@ -258,6 +273,11 @@
           "type": "string"
         },
         "window_seq": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "windows_expected": {
           "maximum": 9007199254740991,
           "minimum": 0,
           "type": "integer"
