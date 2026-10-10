@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "continuation_clip_id": {
+      "anyOf": [
+        {
+          "pattern": "^c_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        {
+          "pattern": "^c_r_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        {
+          "pattern": "^c_sh_[A-Za-z0-9_-]+$",
+          "type": "string"
+        }
+      ]
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "result": {
+      "anyOf": [
+        {
+          "enum": [
+            "exact",
+            "adjacent",
+            "wrong",
+            "unscored"
+          ],
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "legal": {
+              "type": "boolean"
+            },
+            "spacing": {
+              "enum": [
+                "covered",
+                "adjacent",
+                "separated"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "legal",
+            "spacing"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "required": [
+    "result",
+    "evidence_ids",
+    "continuation_clip_id"
+  ],
+  "type": "object"
+}

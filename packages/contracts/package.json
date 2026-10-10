@@ -1,0 +1,19 @@
+{
+  "name": "@elevate/contracts",
+  "version": "1.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schemas/*": "./schemas/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "generate": "tsx scripts/generate.ts",
+    "validate": "tsx scripts/validate.ts",
+    "check": "pnpm run typecheck && pnpm run generate && pnpm run validate",
+    "test": "node --import=tsx --test test/*.test.ts"
+  },
+  "peerDependencies": {
+    "zod": "^4.0.0"
+  }
+}

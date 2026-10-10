@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "session_id": {
+      "pattern": "^s_[A-Za-z0-9_-]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "session_id"
+  ],
+  "type": "object"
+}

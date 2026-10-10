@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "enum": [
+        "read",
+        "decide"
+      ],
+      "type": "string"
+    },
+    "moment_id": {
+      "pattern": "^mo_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "target_zone": {
+      "enum": [
+        "F1",
+        "F2",
+        "F3",
+        "M1",
+        "M2",
+        "M3",
+        "B1",
+        "B2",
+        "B3",
+        "S",
+        "L"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "moment_id",
+    "mode"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "at": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+      "type": "string"
+    },
+    "by": {
+      "pattern": "^p_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "confirmed_point_id": {
+      "pattern": "^cp_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "rally_id": {
+      "pattern": "^r_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "review_id": {
+      "pattern": "^rv_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "winner": {
+      "pattern": "^p_[A-Za-z0-9_-]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "confirmed_point_id",
+    "rally_id",
+    "winner",
+    "by",
+    "at",
+    "review_id"
+  ],
+  "type": "object"
+}
