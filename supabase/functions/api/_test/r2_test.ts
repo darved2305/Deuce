@@ -143,12 +143,13 @@ Deno.test("head returns the stored size, null on 404", async () => {
   assert.equal(await miss.r2.head(KEY), null);
 });
 
-Deno.test("429 backs off 250/500/1000 ms then 503 storage_busy", async () => {
+Deno.test("429 backs off 250/500/1000 ms then 503 engine_unavailable", async () => {
   const { r2, sleeps, seen } = make([errXml(429, "SlowDown")]);
   await assert.rejects(
     () => r2.createMultipart(KEY),
     (e) =>
-      e instanceof ApiFailure && e.status === 503 && e.code === "storage_busy",
+      e instanceof ApiFailure && e.status === 503 &&
+      e.code === "engine_unavailable",
   );
   assert.deepEqual(sleeps, [250, 500, 1000]);
   assert.equal(seen.length, 4);

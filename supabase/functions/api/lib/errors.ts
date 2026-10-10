@@ -103,6 +103,9 @@ export function onError(err: Error, c: Context): Response {
     );
   }
   if (err instanceof HTTPException) {
+    if (err.status === 400) {
+      return fail(c, 422, "invalid_body", err.message);
+    }
     const code = STATUS_CODES[err.status] ?? "internal";
     if (knownErrorCodes[code] === err.status) {
       return fail(c, err.status as ErrorStatus, code, err.message);

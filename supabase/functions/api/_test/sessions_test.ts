@@ -316,11 +316,11 @@ Deno.test("exactly 300 MiB is accepted", async () => {
   assert.equal(res.status, 201);
 });
 
-Deno.test("court template that does not match format is 422 calibration_template_mismatch", async () => {
+Deno.test("court template that does not match format is 422 validation_failed", async () => {
   const { app } = build();
   const res = await create(app, { ...BODY, format: "doubles" });
   assert.equal(res.status, 422);
-  assert.equal(await errCode(res), "calibration_template_mismatch");
+  assert.equal(await errCode(res), "validation_failed");
 });
 
 Deno.test("other schema violations stay validation_failed", async () => {
@@ -360,37 +360,48 @@ Deno.test("R2 create failure rolls back the match", async () => {
   );
 });
 
-Deno.test("persistent R2 429 on create is 503 storage_busy", async () => {
+Deno.test("persistent R2 429 on create is 503 engine_unavailable", async () => {
   const { app } = build({ r2: () => errXml(429, "SlowDown") });
   const res = await create(app);
   assert.equal(res.status, 503);
-  assert.equal(await errCode(res), "storage_busy");
+  assert.equal(await errCode(res), "engine_unavailable");
 });
 
-Deno.test("upload/parts returns 600 s presigned PUT URLs in request order", async () => {
+Deno.test("upload/parts returns 600 s URL objects in request order", async () => {
   const { app, r2Seen } = build();
   const res = await call(app, "POST", "/v1/sessions/s_1/upload/parts", {
     part_numbers: [3, 1],
   });
   assert.equal(res.status, 200);
-  const urls = (await res.json()) as string[];
-  assert.equal(urls.length, 2);
-  const u0 = new URL(urls[0]);
+  const body = await res.json();
+  conforms("upload.parts.response.v1", body);
+  assert.deepEqual(body.parts.map((part: { n: number }) => part.n), [3, 1]);
+  const u0 = new URL(body.parts[0].url);
   assert.equal(u0.searchParams.get("partNumber"), "3");
   assert.equal(u0.searchParams.get("uploadId"), "UP1");
   assert.equal(u0.searchParams.get("X-Amz-Expires"), "600");
-  assert.equal(new URL(urls[1]).searchParams.get("partNumber"), "1");
+  assert.equal(new URL(body.parts[1].url).searchParams.get("partNumber"), "1");
+  const issued = u0.searchParams.get("X-Amz-Date")!;
+  const issuedAtMs = Date.parse(
+    `${issued.slice(0, 4)}-${issued.slice(4, 6)}-${issued.slice(6, 8)}T${
+      issued.slice(9, 11)
+    }:${issued.slice(11, 13)}:${issued.slice(13, 15)}Z`,
+  );
+  assert.equal(
+    body.parts[0].expires_at,
+    new Date(issuedAtMs + 600_000).toISOString(),
+  );
   assert.equal(r2Seen.length, 0); // presigning is local
 });
 
-Deno.test("upload/parts rejects numbers outside 1..count with 400 invalid_part_number", async () => {
+Deno.test("upload/parts rejects numbers outside 1..count with 422 validation_failed", async () => {
   const { app } = build();
   for (const n of [0, 4]) {
     const res = await call(app, "POST", "/v1/sessions/s_1/upload/parts", {
       part_numbers: [1, n],
     });
-    assert.equal(res.status, 400, `part ${n}`);
-    assert.equal(await errCode(res), "invalid_part_number");
+    assert.equal(res.status, 422, `part ${n}`);
+    assert.equal(await errCode(res), "validation_failed");
   }
 });
 
@@ -425,13 +436,13 @@ Deno.test("another user's (or missing) session is 404 not_found on every upload 
   assert.ok(!adminLog.some((c) => c.kind === "from" && c.table === "uploads"));
 });
 
-Deno.test("upload/parts on a non-initiated upload is 409 invalid_transition", async () => {
+Deno.test("upload/parts on a non-initiated upload is 409 conflict", async () => {
   const { app } = build({ upload: upRow({ status: "completed" }) });
   const res = await call(app, "POST", "/v1/sessions/s_1/upload/parts", {
     part_numbers: [1],
   });
   assert.equal(res.status, 409);
-  assert.equal(await errCode(res), "invalid_transition");
+  assert.equal(await errCode(res), "conflict");
 });
 
 const PARTS = [
@@ -446,7 +457,9 @@ Deno.test("upload/complete completes in R2, records parts and returns the stored
     parts: [PARTS[2], PARTS[0], PARTS[1]],
   });
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { status: "completed", bytes: 20 * MIB });
+  const body = await res.json();
+  assert.deepEqual(body, { status: "completed", bytes: 20 * MIB });
+  conforms("upload.complete.response.v1", body);
   assert.equal(r2Seen[0].method, "POST");
   assert.match(r2Seen[0].url, /uploadId=UP1/);
   // Parts go to R2 in ascending order.
@@ -478,7 +491,9 @@ Deno.test("upload/complete on an already completed upload returns the same body 
     parts: PARTS,
   });
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { status: "completed", bytes: 123 });
+  const body = await res.json();
+  assert.deepEqual(body, { status: "completed", bytes: 123 });
+  conforms("upload.complete.response.v1", body);
   assert.equal(r2Seen.length, 0);
   assert.equal(adminLog.length, 0);
 });
@@ -531,7 +546,7 @@ Deno.test("R2 InvalidPart is 409 upload_parts_invalid with R2's message; status 
   const body = (await res.json()) as {
     error: { code: string; message: string };
   };
-  assert.equal(body.error.code, "upload_parts_invalid");
+  assert.equal(body.error.code, "conflict");
   assert.equal(body.error.message, "etag mismatch part 2");
   assert.ok(!adminLog.some((c) => c.kind === "from" && c.table === "uploads"));
 });
@@ -542,16 +557,16 @@ Deno.test("InvalidPartOrder maps the same way", async () => {
     parts: PARTS,
   });
   assert.equal(res.status, 409);
-  assert.equal(await errCode(res), "upload_parts_invalid");
+  assert.equal(await errCode(res), "conflict");
 });
 
 Deno.test("complete with missing, duplicate or out-of-range parts never reaches R2", async () => {
   const { app, r2Seen } = build();
   const cases: Array<[unknown, number, string]> = [
-    [[PARTS[0], PARTS[1]], 409, "upload_parts_invalid"],
-    [[PARTS[0], PARTS[0], PARTS[1], PARTS[2]], 409, "upload_parts_invalid"],
-    [[...PARTS, { n: 4, etag: "x" }], 400, "invalid_part_number"],
-    [[], 409, "upload_parts_invalid"],
+    [[PARTS[0], PARTS[1]], 409, "conflict"],
+    [[PARTS[0], PARTS[0], PARTS[1], PARTS[2]], 409, "conflict"],
+    [[...PARTS, { n: 4, etag: "x" }], 422, "validation_failed"],
+    [[], 409, "conflict"],
   ];
   for (const [parts, status, code] of cases) {
     const res = await call(app, "POST", "/v1/sessions/s_1/upload/complete", {
@@ -563,20 +578,22 @@ Deno.test("complete with missing, duplicate or out-of-range parts never reaches 
   assert.equal(r2Seen.length, 0);
 });
 
-Deno.test("complete after abort is 409 invalid_transition", async () => {
+Deno.test("complete after abort is 409 conflict", async () => {
   const { app } = build({ upload: upRow({ status: "aborted" }) });
   const res = await call(app, "POST", "/v1/sessions/s_1/upload/complete", {
     parts: PARTS,
   });
   assert.equal(res.status, 409);
-  assert.equal(await errCode(res), "invalid_transition");
+  assert.equal(await errCode(res), "conflict");
 });
 
 Deno.test("upload/abort aborts in R2 and marks the row, owner-scoped", async () => {
   const { app, adminLog, r2Seen } = build();
   const res = await call(app, "POST", "/v1/sessions/s_1/upload/abort");
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { status: "aborted" });
+  const body = await res.json();
+  assert.deepEqual(body, { status: "aborted" });
+  conforms("upload.abort.response.v1", body);
   assert.equal(r2Seen[0].method, "DELETE");
   const upd = adminLog.find((c) =>
     c.kind === "from" && c.table === "uploads"
@@ -608,11 +625,12 @@ Deno.test("abort tolerates NoSuchUpload from R2", async () => {
   assert.equal(res.status, 200);
 });
 
-Deno.test("GET /v1/sessions/{id} returns the session with upload status (proposed shape)", async () => {
+Deno.test("GET /v1/sessions/{id} returns the contract session response", async () => {
   const { app } = build();
   const res = await call(app, "GET", "/v1/sessions/s_1");
   assert.equal(res.status, 200);
   const out = await res.json();
+  conforms("session.get.response.v1", out);
   assert.equal(out.session_id, "s_1");
   assert.equal(out.match_id, "m_1");
   assert.deepEqual(out.upload, {
@@ -656,6 +674,7 @@ Deno.test("G3: 5 sessions per user per day, 429 daily_upload_limit with retry_af
   const body = await res.json();
   assert.equal(body.error.code, "daily_upload_limit");
   assert.ok(body.retry_after_s > 0 && body.retry_after_s <= 86400);
+  conforms("error.envelope.v1", body);
   assert.equal(res.headers.get("retry-after"), String(body.retry_after_s));
   assert.equal(r2Seen.length, 0);
   assert.equal(userLog.length, 0);

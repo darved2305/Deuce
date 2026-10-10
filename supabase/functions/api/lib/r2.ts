@@ -86,7 +86,7 @@ export function createR2(cfg: R2Config): R2 {
   const objectUrl = (key: string) =>
     `${base}/${key.split("/").map(encodeURIComponent).join("/")}`;
 
-  // Signs and sends one request. 429 backs off 250 ms, 500 ms, 1 s, then 503 storage_busy.
+  // Signs and sends one request. 429 backs off 250 ms, 500 ms, 1 s, then 503 engine_unavailable.
   // aws4fetch's own retries are bypassed (sign + our fetch) so the policy is ours and each
   // attempt carries a fresh signature.
   async function send(
@@ -108,7 +108,7 @@ export function createR2(cfg: R2Config): R2 {
         if (attempt >= BACKOFF_MS.length) {
           throw new ApiFailure(
             503,
-            "storage_busy",
+            "engine_unavailable",
             "storage is busy, retry shortly",
           );
         }

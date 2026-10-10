@@ -5,13 +5,16 @@ import type { AppEnv } from "../lib/auth.ts";
 import {
   sessionCreateRequestSchema,
   sessionCreateResponseSchema,
+  sessionGetResponseSchema,
+  uploadAbortResponseSchema,
   uploadCompleteRequestSchema,
+  uploadCompleteResponseSchema,
   uploadPartsRequestSchema,
   uploadPartsResponseSchema,
 } from "../lib/contracts_vendor/index.ts";
 import { ApiFailure, defaultHook, fail } from "../lib/errors.ts";
 import { canonicalHash, idemBegin, idemStore } from "../lib/idempotency.ts";
-import { type R2, R2Error } from "../lib/r2.ts";
+import { PART_URL_TTL_S, type R2, R2Error } from "../lib/r2.ts";
 import {
   addUsage,
   assertCanCreateUpload,
@@ -30,27 +33,31 @@ const IdemHeader = z.object({
   "idempotency-key": z.string().min(1).max(255),
 });
 
-// Response shape proposed, pending Person 4 (not in contracts yet).
-const CompleteResponse = z.object({
-  status: z.literal("completed"),
-  bytes: z.number().int(),
-});
-const AbortResponse = z.object({ status: z.literal("aborted") });
-const GetResponse = z.object({
-  session_id: z.string(),
-  match_id: z.string(),
-  mode: z.string(),
-  upload_mode: z.string(),
-  source: z.unknown(),
-  created_at: z.string(),
-  upload: z.object({
-    status: z.enum(["initiated", "completed", "aborted"]),
-    part_size: z.number().int(),
-    bytes: z.number().int(),
-    part_count: z.number().int(),
-    completed_at: z.string().nullable(),
-  }).nullable(),
-});
+function partUrlExpiresAt(signedUrl: string): string {
+  const url = new URL(signedUrl);
+  const issued = url.searchParams.get("X-Amz-Date") ?? "";
+  const ttl = url.searchParams.get("X-Amz-Expires");
+  const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(
+    issued,
+  );
+  if (ttl !== String(PART_URL_TTL_S) || !match) {
+    throw new Error("presigned part URL has invalid expiry metadata");
+  }
+  const issuedAtMs = Date.parse(
+    `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}Z`,
+  );
+  if (!Number.isFinite(issuedAtMs)) {
+    throw new Error("presigned part URL has an invalid issue time");
+  }
+  return new Date(issuedAtMs + PART_URL_TTL_S * 1000).toISOString();
+}
+
+const completedResponse = (bytes: number) =>
+  uploadCompleteResponseSchema.parse({ status: "completed", bytes });
+const abortedResponse = () =>
+  uploadAbortResponseSchema.parse({
+    status: "aborted",
+  });
 
 const createSession = createRoute({
   method: "post",
@@ -74,12 +81,13 @@ const createSession = createRoute({
 const getSession = createRoute({
   method: "get",
   path: "/v1/sessions/{id}",
-  description: "Response shape is proposed, pending Person 4 (contracts).",
   request: { params: z.object({ id: SessionId }) },
   responses: {
     200: {
       description: "session",
-      content: { "application/json": { schema: GetResponse } },
+      content: {
+        "application/json": { schema: sessionGetResponseSchema },
+      },
     },
   },
 });
@@ -115,7 +123,9 @@ const uploadComplete = createRoute({
   responses: {
     200: {
       description: "upload completed (idempotent)",
-      content: { "application/json": { schema: CompleteResponse } },
+      content: {
+        "application/json": { schema: uploadCompleteResponseSchema },
+      },
     },
   },
 });
@@ -127,7 +137,9 @@ const uploadAbort = createRoute({
   responses: {
     200: {
       description: "upload aborted (idempotent)",
-      content: { "application/json": { schema: AbortResponse } },
+      content: {
+        "application/json": { schema: uploadAbortResponseSchema },
+      },
     },
   },
 });
@@ -191,7 +203,7 @@ function templateMismatch(result: unknown, c: Context): Response | undefined {
     return fail(
       c,
       422,
-      "calibration_template_mismatch",
+      "validation_failed",
       "court template does not match format",
       r.error.issues,
     );
@@ -334,7 +346,7 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     const row = s.data as Record<string, unknown> & { id: string };
     const up = u.data as UploadRow | null;
     return c.json(
-      GetResponse.parse({
+      sessionGetResponseSchema.parse({
         session_id: row.id,
         match_id: row.match_id,
         mode: row.mode,
@@ -365,14 +377,14 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     }
     const up = await loadUpload(c.var.deps.user(jwtOf(c)), id);
     if (up.status !== "initiated") {
-      throw new ApiFailure(409, "invalid_transition", `upload is ${up.status}`);
+      throw new ApiFailure(409, "conflict", `upload is ${up.status}`);
     }
     const count = partCount(Number(up.bytes));
     for (const n of part_numbers) {
       if (n < 1 || n > count) {
         throw new ApiFailure(
-          400,
-          "invalid_part_number",
+          422,
+          "validation_failed",
           `part numbers must be in 1..${count}`,
         );
       }
@@ -382,10 +394,11 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     await assertWritesAllowed(admin, c.var.userId);
     await takePartUrls(admin, id, c.var.userId, part_numbers.length, count);
     const r2 = c.var.deps.r2();
-    const urls = await Promise.all(
-      part_numbers.map((n) => r2.presignPart(up.r2_key, up.r2_upload_id, n)),
-    );
-    return c.json(urls, 200);
+    const parts = await Promise.all(part_numbers.map(async (n) => {
+      const url = await r2.presignPart(up.r2_key, up.r2_upload_id, n);
+      return { n, url, expires_at: partUrlExpiresAt(url) };
+    }));
+    return c.json(uploadPartsResponseSchema.parse({ parts }), 200);
   });
 
   api.openapi(uploadComplete, async (c) => {
@@ -395,13 +408,10 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     const user = deps.user(jwtOf(c));
     const up = await loadUpload(user, id);
     if (up.status === "completed") {
-      return c.json(
-        { status: "completed" as const, bytes: Number(up.bytes) },
-        200,
-      );
+      return c.json(completedResponse(Number(up.bytes)), 200);
     }
     if (up.status === "aborted") {
-      throw new ApiFailure(409, "invalid_transition", "upload was aborted");
+      throw new ApiFailure(409, "conflict", "upload was aborted");
     }
 
     const count = partCount(Number(up.bytes));
@@ -409,8 +419,8 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     for (const p of sorted) {
       if (p.n < 1 || p.n > count) {
         throw new ApiFailure(
-          400,
-          "invalid_part_number",
+          422,
+          "validation_failed",
           `part numbers must be in 1..${count}`,
         );
       }
@@ -423,7 +433,7 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     if (missing.length > 0 || dup) {
       throw new ApiFailure(
         409,
-        "upload_parts_invalid",
+        "conflict",
         "parts must list every part 1..N exactly once",
         { expected_parts: count, missing },
       );
@@ -440,7 +450,7 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
       if (!head) {
         throw new ApiFailure(
           409,
-          "upload_parts_invalid",
+          "conflict",
           "the uploaded object is missing",
         );
       }
@@ -470,20 +480,17 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
         .eq("status", "initiated").select("bytes").maybeSingle();
       if (upd.error) throw upd.error;
       if (upd.data) {
-        return c.json({ status: "completed" as const, bytes: head.bytes }, 200);
+        return c.json(completedResponse(head.bytes), 200);
       }
       const cur = await loadUpload(user, id);
       if (cur.status !== "completed") {
         throw new ApiFailure(
           409,
-          "invalid_transition",
+          "conflict",
           `upload is ${cur.status}`,
         );
       }
-      return c.json(
-        { status: "completed" as const, bytes: Number(cur.bytes) },
-        200,
-      );
+      return c.json(completedResponse(Number(cur.bytes)), 200);
     };
 
     try {
@@ -496,10 +503,7 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
         // the row was updated. Recover from the stored object instead of sticking at initiated.
         const cur = await loadUpload(user, id);
         if (cur.status === "completed") {
-          return c.json(
-            { status: "completed" as const, bytes: Number(cur.bytes) },
-            200,
-          );
+          return c.json(completedResponse(Number(cur.bytes)), 200);
         }
         const exists = cur.status === "initiated"
           ? await r2.head(up.r2_key)
@@ -510,7 +514,7 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
         }
         throw new ApiFailure(
           409,
-          "upload_parts_invalid",
+          "conflict",
           "the multipart upload no longer exists",
         );
       }
@@ -518,7 +522,7 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
         err.code === "InvalidPart" || err.code === "InvalidPartOrder" ||
         err.code === "EntityTooSmall"
       ) {
-        throw new ApiFailure(409, "upload_parts_invalid", err.message);
+        throw new ApiFailure(409, "conflict", err.message);
       }
       throw err;
     }
@@ -530,10 +534,10 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     const deps = c.var.deps;
     const up = await loadUpload(deps.user(jwtOf(c)), id);
     if (up.status === "aborted") {
-      return c.json({ status: "aborted" as const }, 200);
+      return c.json(abortedResponse(), 200);
     }
     if (up.status === "completed") {
-      throw new ApiFailure(409, "invalid_transition", "upload is completed");
+      throw new ApiFailure(409, "conflict", "upload is completed");
     }
     try {
       await deps.r2().abortMultipart(up.r2_key, up.r2_upload_id);
@@ -550,11 +554,11 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
       if (cur.status !== "aborted") {
         throw new ApiFailure(
           409,
-          "invalid_transition",
+          "conflict",
           `upload is ${cur.status}`,
         );
       }
     }
-    return c.json({ status: "aborted" as const }, 200);
+    return c.json(abortedResponse(), 200);
   });
 }
