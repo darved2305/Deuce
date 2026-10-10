@@ -1,0 +1,487 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "analysis_id": {
+      "pattern": "^a_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "r2_key": {
+      "pattern": "^orig\\/s_[A-Za-z0-9_-]+\\/source\\.mp4$",
+      "type": "string"
+    },
+    "session_spec": {
+      "additionalProperties": false,
+      "properties": {
+        "calibration_input": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "frame_ms": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "method": {
+                  "type": "string"
+                },
+                "plane": {
+                  "const": "court",
+                  "type": "string"
+                },
+                "points_px": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "far_left": {
+                      "items": false,
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "type": "array"
+                    },
+                    "far_right": {
+                      "items": false,
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "type": "array"
+                    },
+                    "near_left": {
+                      "items": false,
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "type": "array"
+                    },
+                    "near_right": {
+                      "items": false,
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "near_left",
+                    "near_right",
+                    "far_right",
+                    "far_left"
+                  ],
+                  "type": "object"
+                },
+                "template": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "method",
+                "plane",
+                "template",
+                "points_px",
+                "frame_ms"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "frame_ms": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "method": {
+                  "type": "string"
+                },
+                "plane": {
+                  "const": "floor",
+                  "type": "string"
+                },
+                "points_px": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "far_left": {
+                      "items": false,
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "type": "array"
+                    },
+                    "far_right": {
+                      "items": false,
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "type": "array"
+                    },
+                    "near_left": {
+                      "items": false,
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "type": "array"
+                    },
+                    "near_right": {
+                      "items": false,
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "near_left",
+                    "near_right",
+                    "far_right",
+                    "far_left"
+                  ],
+                  "type": "object"
+                },
+                "template": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "method",
+                "plane",
+                "points_px",
+                "frame_ms"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "format": {
+          "enum": [
+            "singles",
+            "doubles",
+            "none"
+          ],
+          "type": "string"
+        },
+        "free_play_seed": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "image_xy": {
+                  "items": false,
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array"
+                },
+                "t_ms": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "t_ms",
+                "image_xy"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mode": {
+          "enum": [
+            "match",
+            "practice",
+            "free_play"
+          ],
+          "type": "string"
+        },
+        "rally_candidates": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "end_ms": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "onsets": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "start_ms": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "state": {
+                "enum": [
+                  "observed",
+                  "candidate",
+                  "inferred",
+                  "user"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "start_ms",
+              "end_ms",
+              "onsets",
+              "state"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "ruleset": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "version"
+          ],
+          "type": "object"
+        },
+        "source": {
+          "additionalProperties": false,
+          "properties": {
+            "audio_rate_hz": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "bytes": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "codec": {
+              "type": "string"
+            },
+            "device": {
+              "type": "string"
+            },
+            "duration_ms": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fps_nominal": {
+              "type": "number"
+            },
+            "has_audio": {
+              "type": "boolean"
+            },
+            "height": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "pts": {
+              "additionalProperties": false,
+              "properties": {
+                "gaps": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "max_us": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "median_interval_us": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "min_us": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "vfr": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "median_interval_us",
+                "min_us",
+                "max_us",
+                "gaps",
+                "vfr"
+              ],
+              "type": "object"
+            },
+            "rotation": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "sha256": {
+              "pattern": "^[A-Fa-f0-9]{64}$",
+              "type": "string"
+            },
+            "width": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "rotation",
+            "fps_nominal",
+            "duration_ms",
+            "pts",
+            "codec",
+            "has_audio",
+            "audio_rate_hz",
+            "device",
+            "bytes",
+            "sha256"
+          ],
+          "type": "object"
+        },
+        "sport": {
+          "enum": [
+            "badminton",
+            "table_tennis",
+            "tennis",
+            "free_play"
+          ],
+          "type": "string"
+        },
+        "upload_mode": {
+          "const": "multipart",
+          "type": "string"
+        },
+        "who_is_me": {
+          "additionalProperties": false,
+          "properties": {
+            "image_xy": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "t_ms": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "image_xy",
+            "t_ms"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "sport",
+        "format",
+        "ruleset",
+        "mode",
+        "source",
+        "calibration_input",
+        "who_is_me",
+        "free_play_seed",
+        "rally_candidates",
+        "upload_mode"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "analysis_id",
+    "r2_key",
+    "session_spec"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "pattern": "^art_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "decode_window_us": {
+          "description": "Section 0 time range [start, end]. Producers enforce start <= end with Zod; JSON Schema preserves the tuple shape but cannot compare its items.",
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        },
+        "emit_range_us": {
+          "description": "Section 0 time range [start, end]. Producers enforce start <= end with Zod; JSON Schema preserves the tuple shape but cannot compare its items.",
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "type": {
+          "const": "window.failed",
+          "type": "string"
+        },
+        "window_seq": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "reason"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "pattern": "^art_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "decode_window_us": {
+          "description": "Section 0 time range [start, end]. Producers enforce start <= end with Zod; JSON Schema preserves the tuple shape but cannot compare its items.",
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        },
+        "emit_range_us": {
+          "description": "Section 0 time range [start, end]. Producers enforce start <= end with Zod; JSON Schema preserves the tuple shape but cannot compare its items.",
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "type": {
+          "const": "analysis.started",
+          "type": "string"
+        },
+        "window_seq": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "pattern": "^art_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "decode_window_us": {
+          "description": "Section 0 time range [start, end]. Producers enforce start <= end with Zod; JSON Schema preserves the tuple shape but cannot compare its items.",
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        },
+        "emit_range_us": {
+          "description": "Section 0 time range [start, end]. Producers enforce start <= end with Zod; JSON Schema preserves the tuple shape but cannot compare its items.",
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "type": {
+          "const": "window.completed",
+          "type": "string"
+        },
+        "window_seq": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "pattern": "^art_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "decode_window_us": {
+          "description": "Section 0 time range [start, end]. Producers enforce start <= end with Zod; JSON Schema preserves the tuple shape but cannot compare its items.",
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        },
+        "emit_range_us": {
+          "description": "Section 0 time range [start, end]. Producers enforce start <= end with Zod; JSON Schema preserves the tuple shape but cannot compare its items.",
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "type": {
+          "const": "analysis.failed",
+          "type": "string"
+        },
+        "window_seq": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    }
+  ]
+}

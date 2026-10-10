@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "current": {
+      "items": false,
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      ],
+      "type": "array"
+    },
+    "ends": {
+      "additionalProperties": false,
+      "properties": {
+        "team0": {
+          "enum": [
+            "near",
+            "far"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "team0"
+      ],
+      "type": "object"
+    },
+    "format": {
+      "enum": [
+        "singles",
+        "doubles",
+        "none"
+      ],
+      "type": "string"
+    },
+    "games": {
+      "items": {
+        "items": false,
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        ],
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "ruleset_id": {
+      "type": "string"
+    },
+    "ruleset_version": {
+      "type": "string"
+    },
+    "server": {
+      "pattern": "^p_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "service_court": {
+      "enum": [
+        "right",
+        "left"
+      ],
+      "type": "string"
+    },
+    "sport": {
+      "enum": [
+        "badminton",
+        "table_tennis",
+        "tennis",
+        "free_play"
+      ],
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "in_progress",
+        "game_over",
+        "match_over"
+      ],
+      "type": "string"
+    },
+    "teams": {
+      "items": false,
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "items": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "items": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "type": "array"
+        }
+      ],
+      "type": "array"
+    }
+  },
+  "required": [
+    "ruleset_id",
+    "ruleset_version",
+    "sport",
+    "format",
+    "teams",
+    "games",
+    "current",
+    "server",
+    "service_court",
+    "ends",
+    "status"
+  ],
+  "type": "object"
+}

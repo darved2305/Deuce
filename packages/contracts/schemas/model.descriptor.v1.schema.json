@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "code_license": {
+      "type": "string"
+    },
+    "file": {
+      "type": "string"
+    },
+    "id": {
+      "enum": [
+        "tracknet_v3",
+        "wasb_hrnet_badminton",
+        "wasb_hrnet_tennis",
+        "dfine_s_coco",
+        "tapir_causal"
+      ],
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[A-Fa-f0-9]{64}$",
+      "type": "string"
+    },
+    "source_url": {
+      "format": "uri",
+      "type": "string"
+    },
+    "trained_on": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "used_for": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "weights_license": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "source_url",
+    "file",
+    "sha256",
+    "bytes",
+    "code_license",
+    "weights_license",
+    "trained_on",
+    "used_for"
+  ],
+  "type": "object"
+}

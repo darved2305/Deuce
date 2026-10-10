@@ -43,7 +43,7 @@ Template (copy to the end of the file):
 2. Modal spend ceiling: decided in D-261010-VV1 ($30 total).
 3. The demo clip (working and eval clips are decided in D-261010-HW1).
 4. Default badminton ruleset (proposed `bwf_3x21`).
-5. Retention default (proposed: server copy of an original deleted after analysis unless kept).
+5. Retention of results and clips beyond 14 days (originals: deleted after 1 day, D-261011-HW2).
 6. Referee call-coverage threshold for the evaluation (set before results are seen).
 
 ---
@@ -310,6 +310,114 @@ Template (copy to the end of the file):
   figures as cited in `docs/plan/03-architecture-and-streaming.md` §7 (UNVERIFIED against
   modal.com/pricing today).
 - **PRs:** #6
+
+## D-261010-HW2 · `@elevate/contracts` is the single source of truth for contracts v1
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of every lane needing the same data shapes, facing drift between
+  TypeScript, Deno, Python and Kotlin, we decided zod 4 schemas in `packages/contracts/src` with
+  generated JSON Schemas and spec-sync tests, and rejected hand-written schemas per lane.
+- **Context:** Person 3 (API, SDK, MCP) and Person 2 (Android) are blocked on the schemas; Person 1
+  validates engine output in CI.
+- **Decision:**
+  1. `packages/contracts/src` (zod 4.6.5) is the source. `schemas/*.schema.json` (draft 2020-12) are
+     generated and committed; CI fails if they are stale. Person 3 vendors `src/` into Deno;
+     Person 1 validates with Python `jsonschema`; Person 2 generates or validates Kotlin from
+     `schemas/`.
+  2. Producers validate strictly (unknown fields rejected); readers ignore unknown fields, so
+     additive changes never break a deployed reader. Breaking changes ship as `.v2` beside `.v1`.
+  3. Tests fail when `contracts.md` and the schemas disagree: every fenced JSON example and every
+     enum written in its prose.
+  4. Interpretations of v1 (no contract change): the engine posts only `analysis.started`,
+     `window.completed`, `window.failed`, `analysis.failed` to `/internal` (§3, D-261010-NP1);
+     times are never negative (§0); the badminton court template must equal
+     `badminton_<format>` (§2); a free-play floor rectangle carries its four named tapped corners
+     (§2); a match event with `contact_xy_m` needs `plane`, and an airborne event may carry
+     `image_xy` instead (§0; additive optional field).
+  5. Rules JSON Schema cannot express (range order, template vs format, contact needs plane) are
+     listed in the package README with a Python check.
+- **Alternatives:** (a) hand-written JSON Schema, rejected: a second source drifts; (b) OpenAPI as
+  the source, rejected: it does not cover R2 artifacts (`window_result.v1`) or Kotlin models.
+- **Blast radius:**
+  - People and folders: Person 1 validates `window_result.v1` / `vision_result.v1` from
+    `schemas/`; Person 2 builds models from `schemas/`; Person 3 vendors `src/` and uses it in
+    `@hono/zod-openapi`; Person 4 owns `packages/contracts`.
+  - Contracts: v1 unchanged except the additive optional `image_xy` on match events.
+  - Containment: open questions are listed in `packages/contracts/CHANGELOG.md` for the
+    contracts amendment PR (D-012 sign-off by all four).
+- **Exit:** revert the package PR; nothing else imports it yet.
+- **Proof / evidence:** the PR's Proof section (Python, Deno, Hono and CI runs).
+- **PRs:** this PR.
+
+## D-261010-HW3 · Contracts enums equal the database CHECK constraints
+- **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of the API validating requests with `@elevate/contracts` before
+  writing to Postgres, facing enums that differed from Person 3's CHECK constraints, we decided the
+  contracts accept exactly what the database accepts (tested), and rejected leaving them looser.
+- **Context:** Audit of `main` after PR #10: the contracts allowed 7 sports (database: 4), lacked
+  format `none` (database has it for free play), and left `mode` and artifact `kind` as free
+  strings (database: fixed lists). A request could pass validation and then fail in Postgres.
+- **Decision:** sessions, matches and rules use the 4 built sports (sport packs keep all 7);
+  format adds `none`, used exactly when sport is `free_play`; `mode` and artifact `kind` use the
+  database's lists. A test reads `supabase/migrations/*.sql` and fails when they differ; CI's
+  `ts` job now also runs on migration changes. Package 1.1.0.
+- **Alternatives:** (a) widen the database to 7 sports, rejected: squash, padel and pickleball are
+  unsupported until built (§9); (b) no test, rejected: the next migration would drift silently.
+- **Blast radius:**
+  - People and folders: Person 3 (a migration that changes one of these CHECKs now needs the same
+    change in `packages/contracts`, or the `ts` job fails); Person 1 posts artifact kinds from the
+    list; Person 2 models get the narrower enums.
+  - Contracts: v1, tightened to match the database; additive `none` format.
+- **Exit:** supersede with a new entry; change both the migration and the package together.
+- **Proof / evidence:** the PR's Proof section.
+- **PRs:** this PR.
+
+## D-261011-HW1 · Cloudflare stays at $0: free tier only, enforced in code, config and a card limit
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of R2 storing every upload and Workers AI being available, facing
+  Cloudflare having no hard spending cap, we decided to keep usage under half the free tier with
+  code guards, bucket configuration and a low-limit card, and rejected relying on budget alerts.
+- **Context:** Cloudflare's budget alerts only email; nothing stops usage. R2 bills beyond 10
+  GB-month, 1M Class A and 10M Class B ops; every multipart part is a Class A op.
+- **Decision:** follow `docs/ops/cloudflare-budget.md`: budget = half of each free dimension;
+  guards G1-G9 in the API and engine; lifecycle rules (originals 3 days, results and clips 30
+  days, abandoned multipart 1 day); no public access; Standard storage only; Workers Free plan
+  only; scoped tokens; daily 2-minute check; kill switch `R2_WRITES_ENABLED`.
+- **Alternatives:** (a) budget alerts only, rejected: they do not stop spend; (b) no R2, rejected:
+  the upload flow (D-004) needs object storage.
+- **Blast radius:**
+  - People and folders: Person 3 implements G1-G7 and G9 in `supabase/` (new 429/413/503 error
+    codes and an `r2_usage_monthly` table); Person 1 implements G8 in `engine/`; the Cloudflare
+    account owner applies layers 2 and 3 and does the daily check; Person 2 shows the 429/503
+    messages in the app.
+  - Contracts: none (error codes are free strings in the §1 envelope).
+  - Data/infra: R2 lifecycle rules delete originals after 3 days (closes the retention open item
+    for originals).
+- **Exit:** raise a budget with a new entry; never remove the guards.
+- **Proof / evidence:** limits and commands from developers.cloudflare.com (R2 pricing, R2 object
+  lifecycles, Workers AI pricing, Wrangler R2 commands, usage-based billing), read 2026-10-11.
+- **PRs:** this PR.
+
+## D-261011-HW2 · Cloudflare budget is 20% of the free tier, with an automatic pause at 10%
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** the numbers in D-261011-HW1
+- **In one line:** In the context of D-261011-HW1, facing the team's requirement that the free tier
+  is never even approached ("not even $1"), we decided a hard budget of 20% of each free limit with
+  an automatic pause at 10%, and rejected the earlier 50% budget.
+- **Context:** Our counters are estimates (retries, failed requests and ranged reads also count at
+  Cloudflare), so the margin has to be large.
+- **Decision:** in `docs/ops/cloudflare-budget.md`: storage 2 GiB (pause at 1 GiB), Class A
+  200,000/month (pause at 100,000), Class B 2,000,000 (pause at 1,000,000); one video at most 300
+  MiB; 5 sessions per user and 30 uploads per day; upload-part URLs live 10 minutes; 200 download
+  URLs per user per day; 40 clips per analysis; new guards G10 (automatic pause) and G11 (the app
+  retries a part at most 3 times); originals deleted after 1 day, results and clips after 14 days.
+- **Alternatives:** (a) keep 50%, rejected by the team; (b) no R2, rejected: uploads need it.
+- **Blast radius:**
+  - People and folders: Person 3 implements the tighter G1-G6 and new G10 in `supabase/`; Person 1
+    caps clips at 40 (G8); Person 2 implements G11 and shows the pause message; the Cloudflare
+    account owner applies the 1-day and 14-day lifecycle rules.
+  - Contracts: none.
+- **Exit:** a new entry; never above 50% of any free limit.
+- **Proof / evidence:** same Cloudflare sources as D-261011-HW1.
+- **PRs:** this PR.
 
 ## D-261010-NP2 · Dispatch RPC spec corrections
 - **Status:** accepted · **Date:** 2026-10-10 · **Owner:** @nikhilpravinpise (Person 3) · **Supersedes:** none

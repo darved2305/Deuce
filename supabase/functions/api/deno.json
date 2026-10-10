@@ -1,0 +1,14 @@
+{
+  "imports": {
+    "hono": "npm:hono@4.13.13",
+    "@hono/zod-openapi": "npm:@hono/zod-openapi@1.6.3",
+    "zod": "npm:zod@4.6.5",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.117.2"
+  },
+  "fmt": {
+    "exclude": ["lib/*_vendor/"]
+  },
+  "lint": {
+    "exclude": ["lib/*_vendor/"]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "workspace": ["./api"],
+  "nodeModulesDir": "none",
+  "fmt": {
+    "exclude": ["api/lib/*_vendor/"]
+  },
+  "lint": {
+    "exclude": ["api/lib/*_vendor/"]
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "kind": {
+      "enum": [
+        "window_result",
+        "ball_track",
+        "player_tracks",
+        "match_vision",
+        "clip",
+        "poster"
+      ],
+      "type": "string"
+    },
+    "r2_key": {
+      "anyOf": [
+        {
+          "pattern": "^orig\\/s_[A-Za-z0-9_-]+\\/source\\.mp4$",
+          "type": "string"
+        },
+        {
+          "pattern": "^analysis\\/a_[A-Za-z0-9_-]+\\/[^/]+\\/windows\\/[0-9]+\\.json$",
+          "type": "string"
+        },
+        {
+          "pattern": "^analysis\\/a_[A-Za-z0-9_-]+\\/[^/]+\\/tracks\\/[^/]+\\.json$",
+          "type": "string"
+        },
+        {
+          "pattern": "^clips\\/m_[A-Za-z0-9_-]+\\/c_[A-Za-z0-9_-]+\\.mp4$",
+          "type": "string"
+        },
+        {
+          "pattern": "^clips\\/m_[A-Za-z0-9_-]+\\/c_[A-Za-z0-9_-]+\\.jpg$",
+          "type": "string"
+        }
+      ]
+    },
+    "sha256": {
+      "pattern": "^[A-Fa-f0-9]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "r2_key",
+    "bytes",
+    "sha256"
+  ],
+  "type": "object"
+}
