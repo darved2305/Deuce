@@ -15,6 +15,7 @@ type Opts = {
   upload?: unknown;
   idem?: Res;
   run?: Res;
+  runs?: Res;
   claim?: unknown;
   persist?: Res;
   curState?: string;
@@ -67,6 +68,7 @@ function build(o: Opts = {}) {
       }
     }
     if (c.kind === "from" && c.table === "analysis_runs") {
+      if (c.filters.session_id) return o.runs ?? ok([]);
       if (c.op === "update") return o.persist ?? ok({ id: "a_1" });
       return ok({
         id: "a_1",
@@ -128,11 +130,13 @@ Deno.test("dispatch happy path -> 202, ordered steps, modal_call_id stored", asy
   assert.equal(t.modalCalls(), 1);
 });
 
-Deno.test("modal 4xx -> 503, one call, analysis.failed dispatch_failed, no idem row", async () => {
+Deno.test("modal 4xx -> 503 with Modal code, one call and analysis.failed", async () => {
   const t = build({ modal: [() => jsonRes(422, { error: { code: "x" } })] });
   const res = await post(t.app);
   assert.equal(res.status, 503);
-  assert.equal((await res.json()).error.code, "engine_unavailable");
+  const body = await res.json();
+  assert.equal(body.error.code, "engine_unavailable");
+  assert.deepEqual(body.error.details, { modal_error_code: "x" });
   assert.equal(t.modalCalls(), 1);
   const failed = t.log.find((c) =>
     c.kind === "rpc" && c.name === "append_event" &&
@@ -153,16 +157,44 @@ Deno.test("modal 5xx x3 then 200 -> 202 with 4 calls and backoff", async () => {
   assert.deepEqual(t.sleeps, [500, 1000, 2000]);
 });
 
-Deno.test("modal 5xx x4 -> 503 and analysis.failed", async () => {
+Deno.test("modal 5xx x4 -> queued 202, released claim and stored idempotency", async () => {
   const f = () => jsonRes(500, {});
   const t = build({ modal: [f, f, f, f] });
   const res = await post(t.app);
-  assert.equal(res.status, 503);
+  assert.equal(res.status, 202);
+  assert.deepEqual(await res.json(), { analysis_id: "a_1", state: "queued" });
   assert.equal(t.modalCalls(), 4);
-  assert.ok(t.log.some((c) =>
-    c.kind === "rpc" && c.name === "append_event" &&
-    c.args.p_type === "analysis.failed"
-  ));
+  assert.ok(
+    !t.log.some((c) =>
+      c.kind === "rpc" && c.name === "append_event" &&
+      c.args.p_type === "analysis.failed"
+    ),
+  );
+  const upd = t.log.find((c) => c.kind === "from" && c.op === "update") as
+    & Call
+    & { payload: Record<string, unknown> };
+  assert.equal(upd.payload.dispatching, false);
+  const stored = t.log.find((c) => c.kind === "from" && c.op === "upsert") as
+    & Call
+    & { payload: Record<string, unknown> };
+  assert.equal(stored.payload.status_code, 202);
+});
+
+Deno.test("Modal network errors after retries keep the run queued", async () => {
+  const fail = () => {
+    throw new Error("network unavailable");
+  };
+  const t = build({ modal: [fail, fail, fail, fail] });
+  const res = await post(t.app);
+  assert.equal(res.status, 202);
+  assert.deepEqual(await res.json(), { analysis_id: "a_1", state: "queued" });
+  assert.equal(t.modalCalls(), 4);
+  assert.ok(
+    !t.log.some((c) =>
+      c.kind === "rpc" && c.name === "append_event" &&
+      c.args.p_type === "analysis.failed"
+    ),
+  );
 });
 
 Deno.test("idempotency replay returns stored 202 without touching Modal", async () => {
@@ -170,6 +202,11 @@ Deno.test("idempotency replay returns stored 202 without touching Modal", async 
     session_id: "s_1",
   });
   const t = build({
+    runs: ok([
+      { id: "a_1", state: "completed" },
+      { id: "a_2", state: "failed" },
+      { id: "a_3", state: "completed" },
+    ]),
     idem: ok({
       request_hash: hash,
       status_code: 202,
@@ -182,6 +219,9 @@ Deno.test("idempotency replay returns stored 202 without touching Modal", async 
   assert.deepEqual(await res.json(), { analysis_id: "a_9", state: "queued" });
   assert.equal(t.modalCalls(), 0);
   assert.deepEqual(names(t.log), []);
+  assert.ok(
+    !t.log.some((c) => c.kind === "from" && c.table === "analysis_runs"),
+  );
 });
 
 Deno.test("idempotency key reused with different body -> 409", async () => {
@@ -249,11 +289,11 @@ Deno.test("claim miss, run already processing -> 200 and idem row stored", async
   });
 });
 
-Deno.test("expired attempt-cap lease returned as failed -> 503, no duplicate event or modal", async () => {
+Deno.test("expired attempt-cap lease returns failed state without another event or Modal call", async () => {
   const t = build({ claim: { id: "a_1", state: "failed" } });
   const res = await post(t.app);
-  assert.equal(res.status, 503);
-  assert.equal((await res.json()).error.code, "engine_unavailable");
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { analysis_id: "a_1", state: "failed" });
   assert.equal(t.modalCalls(), 0);
   assert.ok(
     !t.log.some((c) =>
@@ -262,7 +302,10 @@ Deno.test("expired attempt-cap lease returned as failed -> 503, no duplicate eve
     ),
   );
   assert.ok(!t.log.some((c) => c.kind === "from" && c.op === "update"));
-  assert.ok(!t.log.some((c) => c.kind === "from" && c.op === "upsert"));
+  const stored = t.log.find((c) => c.kind === "from" && c.op === "upsert") as
+    & Call
+    & { payload: Record<string, unknown> };
+  assert.equal(stored.payload.status_code, 200);
 });
 
 Deno.test("attempt-cap live lease remains queued until SQL expires it", async () => {
@@ -329,15 +372,21 @@ Deno.test("replay of a stored 200 returns the stored body, no rpc, no modal", as
   assert.equal(t.modalCalls(), 0);
 });
 
-Deno.test("session_spec null -> 503, analysis.failed, no modal call", async () => {
+Deno.test("session_spec null -> internal error, releases claim without failing run", async () => {
   const t = build({ spec: null });
   const res = await post(t.app);
-  assert.equal(res.status, 503);
-  assert.equal((await res.json()).error.code, "engine_unavailable");
-  assert.ok(t.log.some((c) =>
-    c.kind === "rpc" && c.name === "append_event" &&
-    c.args.p_type === "analysis.failed"
-  ));
+  assert.equal(res.status, 500);
+  assert.equal((await res.json()).error.code, "internal");
+  assert.ok(
+    !t.log.some((c) =>
+      c.kind === "rpc" && c.name === "append_event" &&
+      c.args.p_type === "analysis.failed"
+    ),
+  );
+  const upd = t.log.find((c) => c.kind === "from" && c.op === "update") as
+    & Call
+    & { payload: Record<string, unknown> };
+  assert.equal(upd.payload.dispatching, false);
   assert.equal(t.modalCalls(), 0);
 });
 
@@ -371,6 +420,37 @@ Deno.test("upload not complete -> 409; no upload row -> 409", async () => {
 Deno.test("session not visible to caller (other owner) -> 404", async () => {
   const res = await post(build({ session: null }).app);
   assert.equal(res.status, 404);
+});
+
+Deno.test("three terminal runs block another analysis with 429 and no retry field", async () => {
+  const t = build({
+    runs: ok([
+      { id: "a_1", state: "completed" },
+      { id: "a_2", state: "failed" },
+      { id: "a_3", state: "completed" },
+    ]),
+  });
+  const res = await post(t.app);
+  assert.equal(res.status, 429);
+  const body = await res.json();
+  assert.equal(body.error.code, "analysis_limit_reached");
+  assert.equal("retry_after_s" in body, false);
+  assert.ok(!names(t.log).includes("create_analysis_run"));
+});
+
+Deno.test("three runs including a live run still return the existing live run", async () => {
+  const t = build({
+    runs: ok([
+      { id: "a_1", state: "completed" },
+      { id: "a_2", state: "failed" },
+      { id: "a_3", state: "queued" },
+    ]),
+    claim: null,
+    curState: "queued",
+  });
+  const res = await post(t.app);
+  assert.equal(res.status, 202);
+  assert.deepEqual(await res.json(), { analysis_id: "a_1", state: "queued" });
 });
 
 function getEvents(app: ReturnType<typeof build>["app"], qs: string) {

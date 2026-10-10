@@ -2,21 +2,27 @@ import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { knownErrorCodes } from "./contracts_vendor/api.ts";
 
-export type ErrorCode = keyof typeof knownErrorCodes;
-export type ErrorStatus = typeof knownErrorCodes[ErrorCode];
+export type ErrorCode = keyof typeof knownErrorCodes | "analysis_limit_reached";
+export type ErrorStatus =
+  | typeof knownErrorCodes[keyof typeof knownErrorCodes]
+  | 429;
 
 function assertErrorContract(
   status: ErrorStatus,
   code: ErrorCode,
   retryAfterS?: number,
 ): void {
-  if (knownErrorCodes[code] !== status) {
+  const expected = code === "analysis_limit_reached"
+    ? 429
+    : knownErrorCodes[code];
+  if (expected !== status) {
     throw new TypeError(`error code ${code} does not use HTTP ${status}`);
   }
   if (
     status === 429 &&
-    (retryAfterS === undefined || !Number.isFinite(retryAfterS) ||
-      retryAfterS < 0)
+    ((code !== "analysis_limit_reached" && retryAfterS === undefined) ||
+      (retryAfterS !== undefined &&
+        (!Number.isFinite(retryAfterS) || retryAfterS < 0)))
   ) {
     throw new TypeError("429 errors require a non-negative retry_after_s");
   }
@@ -102,7 +108,10 @@ export function onError(err: Error, c: Context): Response {
   }
   if (err instanceof HTTPException) {
     const code = STATUS_CODES[err.status] ?? "internal";
-    if (knownErrorCodes[code] === err.status) {
+    if (
+      code !== "analysis_limit_reached" &&
+      knownErrorCodes[code] === err.status
+    ) {
       return fail(c, err.status as ErrorStatus, code, err.message);
     }
     return fail(c, 500, "internal", "internal error");
