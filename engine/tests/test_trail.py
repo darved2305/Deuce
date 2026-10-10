@@ -12,6 +12,7 @@ from elevate_engine.tracknet.run import ball_rows
 
 REPO = Path(__file__).resolve().parents[2]
 LABELS = json.loads((REPO / "fixtures" / "fixture_trail.json").read_text())
+VISIBLE = sum(1 for f in LABELS["frames"] if f["ball"])  # the fixture grows (PR #21: 153)
 SCHEMA = json.loads((REPO / "packages/contracts/schemas/window_result.v1.schema.json").read_text())
 sys.path.insert(0, str(REPO / "engine" / "eval"))
 from score_trail import score  # noqa: E402
@@ -36,14 +37,14 @@ def test_ball_rows_scale_to_source_and_validate_against_contract():
 def test_perfect_prediction_scores_every_visible_label():
     rows = [[f["t_ms"], *f["ball"], 0.9, "candidate"] for f in LABELS["frames"] if f["ball"]]
     s = score(LABELS, rows, 15.0)
-    assert s["labelled_visible"] == 107 and s["counts"]["TP"] == 107
-    assert s["counts"]["TN"] == len(LABELS["frames"]) - 107
+    assert VISIBLE > 0 and s["labelled_visible"] == VISIBLE and s["counts"]["TP"] == VISIBLE
+    assert s["counts"]["TN"] == len(LABELS["frames"]) - VISIBLE
     assert s["precision"] == s["recall"] == 1.0
 
 
 def test_no_prediction_misses_every_visible_label():
     s = score(LABELS, [], 15.0)
-    assert s["counts"]["FN"] == 107 and s["recall"] == 0.0
+    assert s["counts"]["FN"] == VISIBLE and s["recall"] == 0.0
 
 
 def test_top_candidate_is_highest_confidence():
