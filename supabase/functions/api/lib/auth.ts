@@ -1,4 +1,5 @@
 import { createMiddleware } from "hono/factory";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { userClient } from "./db.ts";
 import { fail } from "./errors.ts";
 
@@ -16,7 +17,23 @@ export function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+// Paths include the function name: the root app mounts the API at /api (lib/app.ts).
 const PUBLIC_PATHS = new Set(["/api/v1/health", "/api/v1/openapi.json"]);
+
+// A missing or malformed JWKS falls back to getClaims fetching the project's keys.
+type Jwks = NonNullable<
+  NonNullable<Parameters<SupabaseClient["auth"]["getClaims"]>[1]>["jwks"]
+>;
+
+function parseJwks(raw: string | undefined): Jwks | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.keys) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export const internalAuth = createMiddleware<AppEnv>(async (c, next) => {
   const token = c.req.header("X-Internal-Token");
@@ -34,8 +51,7 @@ export const userAuth = createMiddleware<AppEnv>(async (c, next) => {
     return fail(c, 401, "unauthorized", "missing bearer token");
   }
   const jwt = header.slice("Bearer ".length);
-  const rawJwks = Deno.env.get("SUPABASE_JWKS");
-  const jwks = rawJwks ? JSON.parse(rawJwks) : undefined;
+  const jwks = parseJwks(Deno.env.get("SUPABASE_JWKS"));
   const { data, error } = await userClient(jwt).auth.getClaims(
     jwt,
     jwks ? { jwks } : undefined,
