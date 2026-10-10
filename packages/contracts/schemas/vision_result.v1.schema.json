@@ -1,0 +1,1582 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "analysis": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_id": {
+          "pattern": "^a_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "artifacts": {
+          "additionalProperties": false,
+          "properties": {
+            "ball_track": {
+              "pattern": "^art_[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "player_tracks": {
+              "pattern": "^art_[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "ball_track",
+            "player_tracks"
+          ],
+          "type": "object"
+        },
+        "engine_version": {
+          "type": "string"
+        },
+        "models": {
+          "items": {
+            "enum": [
+              "tracknet_v3",
+              "wasb_hrnet_badminton",
+              "wasb_hrnet_tennis",
+              "dfine_s_coco",
+              "tapir_causal"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "enum": [
+            "awaiting_upload",
+            "uploaded",
+            "queued",
+            "processing",
+            "partial",
+            "finalizing",
+            "completed",
+            "failed"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "analysis_id",
+        "engine_version",
+        "state",
+        "models",
+        "artifacts"
+      ],
+      "type": "object"
+    },
+    "calibration": {
+      "additionalProperties": false,
+      "properties": {
+        "H": {
+          "items": false,
+          "maxItems": 9,
+          "minItems": 9,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "H_cov": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "calibration_id": {
+          "pattern": "^cal_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "plane": {
+          "enum": [
+            "court",
+            "tabletop",
+            "floor"
+          ],
+          "type": "string"
+        },
+        "residual_px": {
+          "type": "number"
+        },
+        "template": {
+          "type": "string"
+        },
+        "tier": {
+          "type": "string"
+        },
+        "visible_fraction": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "calibration_id",
+        "plane",
+        "template",
+        "method",
+        "H",
+        "H_cov",
+        "residual_px",
+        "visible_fraction",
+        "tier"
+      ],
+      "type": "object"
+    },
+    "capabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "ball": {
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "unknown",
+                "pass",
+                "unmet",
+                "could-not-run"
+              ],
+              "type": "string"
+            },
+            "tier": {
+              "enum": [
+                "core",
+                "assisted",
+                "experimental",
+                "unsupported"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "tier",
+            "status"
+          ],
+          "type": "object"
+        },
+        "court": {
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "unknown",
+                "pass",
+                "unmet",
+                "could-not-run"
+              ],
+              "type": "string"
+            },
+            "tier": {
+              "enum": [
+                "core",
+                "assisted",
+                "experimental",
+                "unsupported"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "tier",
+            "status"
+          ],
+          "type": "object"
+        },
+        "reviews": {
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "unknown",
+                "pass",
+                "unmet",
+                "could-not-run"
+              ],
+              "type": "string"
+            },
+            "tier": {
+              "enum": [
+                "core",
+                "assisted",
+                "experimental",
+                "unsupported"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "tier",
+            "status"
+          ],
+          "type": "object"
+        },
+        "score": {
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "unknown",
+                "pass",
+                "unmet",
+                "could-not-run"
+              ],
+              "type": "string"
+            },
+            "tier": {
+              "enum": [
+                "core",
+                "assisted",
+                "experimental",
+                "unsupported"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "tier",
+            "status"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "court",
+        "ball",
+        "reviews",
+        "score"
+      ],
+      "type": "object"
+    },
+    "clips": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "attribution": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clip_id": {
+            "anyOf": [
+              {
+                "pattern": "^c_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_r_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_sh_[A-Za-z0-9_-]+$",
+                "type": "string"
+              }
+            ]
+          },
+          "contact_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "end_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "local": {
+            "additionalProperties": false,
+            "properties": {
+              "offset_ms": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "source_uri": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "source_uri",
+              "offset_ms"
+            ],
+            "type": "object"
+          },
+          "match_id": {
+            "pattern": "^m_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "owner": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "remote": {
+            "additionalProperties": false,
+            "properties": {
+              "artifact_id": {
+                "pattern": "^art_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              "poster_artifact_id": {
+                "pattern": "^art_[A-Za-z0-9_-]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "artifact_id",
+              "poster_artifact_id"
+            ],
+            "type": "object"
+          },
+          "rights": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "start_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clip_id",
+          "source",
+          "rights",
+          "owner",
+          "match_id",
+          "start_ms",
+          "end_ms",
+          "contact_ms",
+          "remote",
+          "local",
+          "attribution"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "confirmed_points": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "by": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "confirmed_point_id": {
+            "pattern": "^cp_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "rally_id": {
+            "pattern": "^r_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "review_id": {
+            "pattern": "^rv_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "winner": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmed_point_id",
+          "rally_id",
+          "winner",
+          "by",
+          "at",
+          "review_id"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "corrections": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "correction_id": {
+            "pattern": "^cr_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "new": {},
+          "old": {},
+          "reason": {
+            "type": "string"
+          },
+          "target": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "correction_id",
+          "target",
+          "field",
+          "old",
+          "new",
+          "actor",
+          "at",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "events": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "contact_xy_m": {
+            "items": false,
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "cov_m2": {
+            "items": false,
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "items": false,
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "items": false,
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              }
+            ],
+            "type": "array"
+          },
+          "cues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "event_id": {
+            "pattern": "^e_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "t_ms": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "t_ms"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "image_xy": {
+            "items": false,
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "plane": {
+            "enum": [
+              "court",
+              "tabletop",
+              "floor"
+            ],
+            "type": "string"
+          },
+          "rally_id": {
+            "pattern": "^r_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "observed",
+              "candidate",
+              "inferred",
+              "user"
+            ],
+            "type": "string"
+          },
+          "t_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "t_sigma_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "type",
+          "t_ms",
+          "t_sigma_ms",
+          "rally_id",
+          "cues",
+          "state",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "format": {
+      "enum": [
+        "singles",
+        "doubles"
+      ],
+      "type": "string"
+    },
+    "match_id": {
+      "pattern": "^m_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "metrics": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "definition_version": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "denominator": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "numerator": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "player_id": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "source_event_ids": {
+            "items": {
+              "pattern": "^e_[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tier": {
+            "enum": [
+              "core",
+              "assisted",
+              "experimental",
+              "unsupported"
+            ],
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "definition_version",
+          "player_id",
+          "numerator",
+          "denominator",
+          "unit",
+          "tier",
+          "source_event_ids"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "moments": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "anyOf": [
+              {
+                "pattern": "^c_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_r_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_sh_[A-Za-z0-9_-]+$",
+                "type": "string"
+              }
+            ]
+          },
+          "contact_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "end_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "moment_id": {
+            "pattern": "^mo_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "rally_id": {
+            "pattern": "^r_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "shot_id": {
+            "pattern": "^sh_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "start_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "moment_id",
+          "rally_id",
+          "shot_id",
+          "start_ms",
+          "end_ms",
+          "contact_ms",
+          "tags",
+          "clip_id"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "players": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "identity": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "player_id": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "track_ids": {
+            "items": {
+              "pattern": "^t_[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "player_id",
+          "track_ids",
+          "label",
+          "identity"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "rallies": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "ball_coverage": {
+            "type": "number"
+          },
+          "clip_id": {
+            "anyOf": [
+              {
+                "pattern": "^c_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_r_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_sh_[A-Za-z0-9_-]+$",
+                "type": "string"
+              }
+            ]
+          },
+          "end_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "end_reason": {
+            "type": "string"
+          },
+          "rally_id": {
+            "pattern": "^r_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "server": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "shot_ids": {
+            "items": {
+              "pattern": "^sh_[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "start_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "observed",
+              "candidate",
+              "inferred",
+              "user"
+            ],
+            "type": "string"
+          },
+          "winner": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "winner_state": {
+            "enum": [
+              "observed",
+              "candidate",
+              "inferred",
+              "user"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "rally_id",
+          "start_ms",
+          "end_ms",
+          "shot_ids",
+          "server",
+          "winner",
+          "winner_state",
+          "end_reason",
+          "ball_coverage",
+          "clip_id",
+          "state"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "reviews": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "calibration_id": {
+            "pattern": "^cal_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "confirmed_at": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "confirmed_by": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "confirmed_point_winner": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "contact_xy_m": {
+            "items": false,
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "cov_m2": {
+            "items": false,
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "items": false,
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "items": false,
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              }
+            ],
+            "type": "array"
+          },
+          "estimate": {
+            "enum": [
+              "IN",
+              "OUT",
+              "TOO_CLOSE",
+              "UNOBSERVED"
+            ],
+            "type": "string"
+          },
+          "event_id": {
+            "pattern": "^e_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "evidence_frames": {
+            "items": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "line_id": {
+            "type": "string"
+          },
+          "margin_m": {
+            "type": "number"
+          },
+          "match_id": {
+            "pattern": "^m_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "model_ids": {
+            "items": {
+              "enum": [
+                "tracknet_v3",
+                "wasb_hrnet_badminton",
+                "wasb_hrnet_tennis",
+                "dfine_s_coco",
+                "tapir_causal"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rally_id": {
+            "pattern": "^r_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "review_id": {
+            "pattern": "^rv_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "sigma_m": {
+            "type": "number"
+          },
+          "t_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "visibility": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "review_id",
+          "match_id",
+          "rally_id",
+          "event_id",
+          "t_ms",
+          "evidence_frames",
+          "contact_xy_m",
+          "cov_m2",
+          "line_id",
+          "margin_m",
+          "sigma_m",
+          "estimate",
+          "visibility",
+          "model_ids",
+          "calibration_id",
+          "confirmed_point_winner",
+          "confirmed_by",
+          "confirmed_at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "ruleset": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "match.v1",
+      "type": "string"
+    },
+    "score": {
+      "additionalProperties": false,
+      "properties": {
+        "games": {
+          "items": {
+            "items": false,
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "timeline": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "after": {
+                "items": false,
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                ],
+                "type": "array"
+              },
+              "rally_id": {
+                "pattern": "^r_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              "server_next": {
+                "pattern": "^p_[A-Za-z0-9_-]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "rally_id",
+              "after",
+              "server_next"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "timeline",
+        "games"
+      ],
+      "type": "object"
+    },
+    "session_ids": {
+      "items": {
+        "pattern": "^s_[A-Za-z0-9_-]+$",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "shots": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "chosen": {
+            "additionalProperties": false,
+            "properties": {
+              "family": {
+                "type": "string"
+              },
+              "landing_state": {
+                "enum": [
+                  "observed",
+                  "candidate",
+                  "inferred",
+                  "user"
+                ],
+                "type": "string"
+              },
+              "landing_xy_m": {
+                "items": false,
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "target_zone": {
+                "enum": [
+                  "F1",
+                  "F2",
+                  "F3",
+                  "M1",
+                  "M2",
+                  "M3",
+                  "B1",
+                  "B2",
+                  "B3",
+                  "S",
+                  "L"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "target_zone",
+              "landing_xy_m",
+              "landing_state",
+              "family"
+            ],
+            "type": "object"
+          },
+          "clip_id": {
+            "anyOf": [
+              {
+                "pattern": "^c_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_r_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_sh_[A-Za-z0-9_-]+$",
+                "type": "string"
+              }
+            ]
+          },
+          "contact_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "contact_sigma_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "context": {
+            "additionalProperties": false,
+            "properties": {
+              "pressure_bucket": {
+                "type": "string"
+              },
+              "rally_len_so_far": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "score_before": {
+                "items": false,
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                ],
+                "type": "array"
+              },
+              "state": {
+                "enum": [
+                  "observed",
+                  "candidate",
+                  "inferred",
+                  "user"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "score_before",
+              "pressure_bucket",
+              "rally_len_so_far",
+              "state"
+            ],
+            "type": "object"
+          },
+          "coordinate_frame_version": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "flight_time_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "flight_time_state": {
+            "enum": [
+              "observed",
+              "candidate",
+              "inferred",
+              "user"
+            ],
+            "type": "string"
+          },
+          "incoming": {
+            "additionalProperties": false,
+            "properties": {
+              "family": {
+                "type": "string"
+              },
+              "landing_zone": {
+                "enum": [
+                  "F1",
+                  "F2",
+                  "F3",
+                  "M1",
+                  "M2",
+                  "M3",
+                  "B1",
+                  "B2",
+                  "B3",
+                  "S",
+                  "L"
+                ],
+                "type": "string"
+              },
+              "source_zone": {
+                "enum": [
+                  "F1",
+                  "F2",
+                  "F3",
+                  "M1",
+                  "M2",
+                  "M3",
+                  "B1",
+                  "B2",
+                  "B3",
+                  "S",
+                  "L"
+                ],
+                "type": "string"
+              },
+              "zones_state": {
+                "enum": [
+                  "observed",
+                  "candidate",
+                  "inferred",
+                  "user"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "source_zone",
+              "landing_zone",
+              "zones_state",
+              "family"
+            ],
+            "type": "object"
+          },
+          "index": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "outcome": {
+            "additionalProperties": false,
+            "properties": {
+              "point_winner": {
+                "pattern": "^p_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              "shots_to_end": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "state": {
+                "enum": [
+                  "observed",
+                  "candidate",
+                  "inferred",
+                  "user"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "point_winner",
+              "shots_to_end",
+              "state"
+            ],
+            "type": "object"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "player_id": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "quality": {
+            "additionalProperties": false,
+            "properties": {
+              "camera_quality_grade": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "camera_quality_grade"
+            ],
+            "type": "object"
+          },
+          "rally_id": {
+            "pattern": "^r_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "reference_plane": {
+            "enum": [
+              "court",
+              "tabletop",
+              "floor"
+            ],
+            "type": "string"
+          },
+          "roles": {
+            "additionalProperties": false,
+            "properties": {
+              "focal": {
+                "additionalProperties": false,
+                "properties": {
+                  "conf": {
+                    "type": "number"
+                  },
+                  "player_id": {
+                    "pattern": "^p_[A-Za-z0-9_-]+$",
+                    "type": "string"
+                  },
+                  "state": {
+                    "enum": [
+                      "observed",
+                      "candidate",
+                      "inferred",
+                      "user"
+                    ],
+                    "type": "string"
+                  },
+                  "xy_m": {
+                    "items": false,
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "prefixItems": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "player_id",
+                  "xy_m",
+                  "state",
+                  "conf"
+                ],
+                "type": "object"
+              },
+              "opponent": {
+                "additionalProperties": false,
+                "properties": {
+                  "conf": {
+                    "type": "number"
+                  },
+                  "player_id": {
+                    "pattern": "^p_[A-Za-z0-9_-]+$",
+                    "type": "string"
+                  },
+                  "state": {
+                    "enum": [
+                      "observed",
+                      "candidate",
+                      "inferred",
+                      "user"
+                    ],
+                    "type": "string"
+                  },
+                  "xy_m": {
+                    "items": false,
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "prefixItems": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "player_id",
+                  "xy_m",
+                  "state",
+                  "conf"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "focal",
+              "opponent"
+            ],
+            "type": "object"
+          },
+          "shot_id": {
+            "pattern": "^sh_[A-Za-z0-9_-]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "shot_id",
+          "rally_id",
+          "index",
+          "player_id",
+          "contact_ms",
+          "contact_sigma_ms",
+          "phase",
+          "reference_plane",
+          "coordinate_frame_version",
+          "roles",
+          "incoming",
+          "chosen",
+          "flight_time_ms",
+          "flight_time_state",
+          "context",
+          "outcome",
+          "quality",
+          "clip_id"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "sport": {
+      "enum": [
+        "badminton",
+        "table_tennis",
+        "tennis",
+        "free_play",
+        "squash",
+        "padel",
+        "pickleball"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "match_id",
+    "session_ids",
+    "sport",
+    "format",
+    "ruleset",
+    "players",
+    "calibration",
+    "analysis",
+    "capabilities",
+    "rallies",
+    "shots",
+    "events",
+    "reviews",
+    "confirmed_points",
+    "score",
+    "metrics",
+    "moments",
+    "clips",
+    "corrections"
+  ],
+  "type": "object"
+}

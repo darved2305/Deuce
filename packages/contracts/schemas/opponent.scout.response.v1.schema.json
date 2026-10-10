@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "items": {
+    "additionalProperties": false,
+    "properties": {
+      "clip_ids": {
+        "items": {
+          "anyOf": [
+            {
+              "pattern": "^c_[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "pattern": "^c_r_[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "pattern": "^c_sh_[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          ]
+        },
+        "type": "array"
+      },
+      "matches": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "n": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "pattern": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "pattern",
+      "n",
+      "matches",
+      "clip_ids"
+    ],
+    "type": "object"
+  },
+  "type": "array"
+}

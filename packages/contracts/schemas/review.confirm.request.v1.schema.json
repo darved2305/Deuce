@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "winner": {
+      "pattern": "^p_[A-Za-z0-9_-]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "winner"
+  ],
+  "type": "object"
+}
