@@ -50,6 +50,32 @@ export const apiErrorSchema = strictObject({
   details: z.unknown().optional(),
 });
 
+// §1: error.code is a free string; these are the codes the API and engine emit today, with
+// their HTTP status. 429s also carry top-level retry_after_s where stated.
+export const knownErrorCodes = {
+  unauthorized: 401,
+  not_found: 404,
+  analysis_not_found: 404,
+  conflict: 409,
+  idempotency_conflict: 409,
+  analysis_run_conflict: 409,
+  upload_too_large: 413,
+  validation_failed: 422,
+  invalid_body: 422,
+  storage_budget_reached: 429,
+  daily_upload_limit: 429,
+  too_many_part_requests: 429,
+  daily_download_limit: 429,
+  internal: 500,
+  dispatch_in_flight: 503,
+  engine_unavailable: 503,
+  uploads_paused: 503,
+} as const;
+
+export const healthResponseSchema = strictObject({
+  status: z.literal("ok"),
+});
+
 export const errorEnvelopeSchema = strictObject({
   error: apiErrorSchema,
   retry_after_s: z.number().nonnegative().optional(),
@@ -177,7 +203,43 @@ export const uploadPartsRequestSchema = strictObject({
   part_numbers: z.array(nonNegativeInteger),
 });
 
-export const uploadPartsResponseSchema = z.array(z.string().url());
+// Each part URL with its number and expiry, so the app can resume and re-request before expiry
+// (Cloudflare rule G6: upload-part URLs live 10 minutes).
+export const uploadPartsResponseSchema = strictObject({
+  parts: z.array(
+    strictObject({
+      n: nonNegativeInteger,
+      url: z.string().url(),
+      expires_at: isoTimestampSchema,
+    }),
+  ),
+});
+
+export const uploadCompleteResponseSchema = strictObject({
+  status: z.literal("completed"),
+  bytes: nonNegativeInteger,
+});
+
+export const uploadAbortResponseSchema = strictObject({
+  status: z.literal("aborted"),
+});
+
+// GET /v1/sessions/{id}
+export const sessionGetResponseSchema = strictObject({
+  session_id: sessionIdSchema,
+  match_id: matchIdSchema,
+  mode: sessionModeSchema,
+  upload_mode: z.enum(["multipart", "segments"]),
+  source: mediaSourceSchema,
+  created_at: isoTimestampSchema,
+  upload: strictObject({
+    status: z.enum(["initiated", "completed", "aborted"]),
+    part_size: nonNegativeInteger,
+    bytes: nonNegativeInteger,
+    part_count: nonNegativeInteger,
+    completed_at: isoTimestampSchema.nullable(),
+  }).nullable(),
+});
 
 export const uploadCompleteRequestSchema = strictObject({
   parts: z.array(
@@ -236,8 +298,9 @@ export const modalSubmitRequestSchema = strictObject({
   session_spec: sessionCreateRequestSchema,
 });
 
-const internalEventFields = {
-  window_seq: nonNegativeInteger.optional(),
+// §3 window fields. window_seq is required on window.completed / window.failed: the event
+// dedupe key is (type, window_seq), so a missing window_seq would merge every window into one.
+const windowRangeFields = {
   decode_window_us: rangeUsSchema.optional(),
   emit_range_us: rangeUsSchema.optional(),
   artifact_id: artifactIdSchema.optional(),
@@ -252,24 +315,28 @@ export const engineEventTypeSchema = z.enum([
   "analysis.failed",
 ]);
 
-const otherInternalEventTypes = engineEventTypeSchema.options.filter(
-  (type) => type !== "window.failed",
-);
-
-export const internalEventRequestSchema = z.union([
-  strictObject({
-    type: z.literal("window.failed"),
-    ...internalEventFields,
-    reason: z.string(),
-  }),
-  ...otherInternalEventTypes.map((type) =>
-    strictObject({
+function eventVariants<const T extends string>(
+  types: readonly T[],
+  base: Record<string, z.ZodType>,
+) {
+  return types.map((type) => {
+    const isWindow = type === "window.completed" || type === "window.failed";
+    return strictObject({
+      ...base,
+      ...windowRangeFields,
       type: z.literal(type),
-      ...internalEventFields,
-      reason: z.string().optional(),
-    }),
-  ),
-]);
+      window_seq: isWindow ? nonNegativeInteger : nonNegativeInteger.optional(),
+      reason: type === "window.failed" ? z.string() : z.string().optional(),
+    });
+  });
+}
+
+// engine_version is sent by the engine (set on analysis.started at the latest, D-261010-NP1 item 2).
+export const internalEventRequestSchema = z.union(
+  eventVariants(engineEventTypeSchema.options, {
+    engine_version: z.string().optional(),
+  }) as unknown as [z.ZodType, z.ZodType, ...z.ZodType[]],
+);
 
 export const internalArtifactRequestSchema = strictObject({
   kind: artifactKindSchema,
@@ -288,33 +355,38 @@ const analysisEventFields = {
   match_id: matchIdSchema,
   seq: nonNegativeInteger,
   schema_version: z.literal(1),
-  window_seq: nonNegativeInteger.optional(),
-  decode_window_us: rangeUsSchema.optional(),
-  emit_range_us: rangeUsSchema.optional(),
-  artifact_id: artifactIdSchema.optional(),
-  engine_version: z.string(),
+  // API-emitted events (analysis.queued, point.confirmed, ...) carry no engine version.
+  engine_version: z.string().nullable().optional(),
   created_at: isoTimestampSchema,
 };
 
-export const analysisEventSchema = z.union([
-  strictObject({
-    ...analysisEventFields,
-    type: z.literal("window.failed"),
-    reason: z.string(),
-  }),
-  ...otherInternalEventTypes.map((type) =>
-    strictObject({
-      ...analysisEventFields,
-      type: z.literal(type),
-      reason: z.string().optional(),
-    }),
-  ),
-]);
+// Read events (the cursor) carry every §3 type, not only the engine's four.
+export const analysisEventSchema = z.union(
+  eventVariants(analysisEventTypeSchema.options, analysisEventFields) as unknown as [
+    z.ZodType,
+    z.ZodType,
+    ...z.ZodType[],
+  ],
+);
 
 export const realtimeHintSchema = strictObject({
   schema_version: z.literal(1),
   analysis_id: analysisIdSchema,
   latest_seq: nonNegativeInteger,
+});
+
+// GET /v1/analyses/{id}. Never exposes modal_call_id or dispatch columns.
+export const analysisGetResponseSchema = strictObject({
+  analysis_id: analysisIdSchema,
+  session_id: sessionIdSchema,
+  match_id: matchIdSchema,
+  state: analysisStateSchema,
+  engine_version: z.string().nullable(),
+  last_seq: nonNegativeInteger,
+  failure_reason: z.string().nullable(),
+  created_at: isoTimestampSchema,
+  updated_at: isoTimestampSchema,
+  finalized_at: isoTimestampSchema.nullable(),
 });
 
 export const analysisEventsPageSchema = strictObject({

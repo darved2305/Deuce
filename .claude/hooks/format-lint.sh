@@ -5,8 +5,8 @@
 set -uo pipefail
 
 input=$(cat)
-f=$(jq -r '.tool_input.file_path // empty' <<<"$input")
-cwd=$(jq -r '.cwd // empty' <<<"$input")
+f=$(jq -r '.tool_input.file_path // empty' <<<"$input" | tr -d '\r')
+cwd=$(jq -r '.cwd // empty' <<<"$input" | tr -d '\r')
 [ -f "$f" ] || exit 0
 root=$(git -C "${cwd:-.}" rev-parse --show-toplevel 2>/dev/null) || exit 0
 cd "$root" || exit 0

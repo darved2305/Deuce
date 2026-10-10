@@ -5,9 +5,11 @@ import {
   analysisEventSchema,
   analysisEventsPageSchema,
   analysisFinalizeRequestSchema,
+  analysisGetResponseSchema,
   comparisonsResponseSchema,
   confirmedPointSchema,
   errorEnvelopeSchema,
+  healthResponseSchema,
   internalArtifactRequestSchema,
   internalArtifactResponseSchema,
   internalEventRequestSchema,
@@ -16,15 +18,18 @@ import {
   opponentScoutResponseSchema,
   realtimeHintSchema,
   reviewConfirmRequestSchema,
+  segmentManifestSchema,
   sessionCreateRequestSchema,
   sessionCreateResponseSchema,
+  sessionGetResponseSchema,
   simulationRunRequestSchema,
   simulationRunResponseSchema,
+  uploadAbortResponseSchema,
   uploadCompleteRequestSchema,
+  uploadCompleteResponseSchema,
   uploadPartsRequestSchema,
   uploadPartsResponseSchema,
   visionResultSchema,
-  segmentManifestSchema,
 } from "./api.ts";
 import { trailLabelsSchema } from "./fixtures.ts";
 import { modelDescriptorSchema } from "./model.ts";
@@ -45,7 +50,7 @@ function entry(
 ): SchemaRegistryEntry {
   return {
     schema,
-    version: "1.3.0",
+    version: "1.4.0",
     file: `${name}.schema.json`,
     description,
   };
@@ -201,6 +206,31 @@ export const schemaRegistry = {
     "rules.state.v1",
     rulesStateSchema,
     "Rules package state.",
+  ),
+  "health.response.v1": entry(
+    "health.response.v1",
+    healthResponseSchema,
+    "GET /v1/health response.",
+  ),
+  "session.get.response.v1": entry(
+    "session.get.response.v1",
+    sessionGetResponseSchema,
+    "GET /v1/sessions/{id} response.",
+  ),
+  "upload.complete.response.v1": entry(
+    "upload.complete.response.v1",
+    uploadCompleteResponseSchema,
+    "POST /v1/sessions/{id}/upload/complete response.",
+  ),
+  "upload.abort.response.v1": entry(
+    "upload.abort.response.v1",
+    uploadAbortResponseSchema,
+    "POST /v1/sessions/{id}/upload/abort response.",
+  ),
+  "analysis.get.response.v1": entry(
+    "analysis.get.response.v1",
+    analysisGetResponseSchema,
+    "GET /v1/analyses/{id} response.",
   ),
   "elevate.trail_labels.v1": entry(
     "elevate.trail_labels.v1",
