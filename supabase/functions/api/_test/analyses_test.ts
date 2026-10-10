@@ -16,6 +16,8 @@ type Opts = {
   idem?: Res;
   run?: Res;
   claim?: unknown;
+  curState?: string;
+  spec?: unknown;
   modal?: Array<() => Response>;
   events?: unknown[];
 };
@@ -58,10 +60,12 @@ function build(o: Opts = {}) {
       if (c.name === "claim_dispatch") {
         return ok("claim" in o ? o.claim : { id: "a_1", state: "queued" });
       }
-      if (c.name === "session_spec") return ok({ sport: "badminton" });
+      if (c.name === "session_spec") {
+        return ok("spec" in o ? o.spec : { sport: "badminton" });
+      }
     }
     if (c.kind === "from" && c.table === "analysis_runs") {
-      return ok({ id: "a_1", state: "queued" });
+      return ok({ id: "a_1", state: o.curState ?? "queued" });
     }
     return ok(null);
   };
@@ -206,10 +210,69 @@ Deno.test("missing Idempotency-Key -> 422", async () => {
   assert.equal((await res.json()).error.code, "validation_failed");
 });
 
-Deno.test("live run under another key (claim miss) -> 200, no dispatch", async () => {
+Deno.test("live run under another key (claim miss, still queued) -> 202, no dispatch", async () => {
   const t = build({ claim: null });
   const res = await post(t.app);
+  assert.equal(res.status, 202);
+  assert.deepEqual(await res.json(), { analysis_id: "a_1", state: "queued" });
+  assert.equal(t.modalCalls(), 0);
+  const stored = t.log.find((c) => c.kind === "from" && c.op === "upsert") as
+    & Call
+    & { payload: Record<string, unknown> };
+  assert.equal(stored.payload.status_code, 202);
+});
+
+Deno.test("claim miss, run already processing -> 200 and idem row stored", async () => {
+  const t = build({ claim: null, curState: "processing" });
+  const res = await post(t.app, { "Idempotency-Key": "k2" });
   assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), {
+    analysis_id: "a_1",
+    state: "processing",
+  });
+  assert.equal(t.modalCalls(), 0);
+  const stored = t.log.find((c) => c.kind === "from" && c.op === "upsert") as
+    & Call
+    & { payload: Record<string, unknown> };
+  assert.equal(stored.payload.status_code, 200);
+  assert.equal(stored.payload.key, "k2");
+  assert.deepEqual(stored.payload.response, {
+    analysis_id: "a_1",
+    state: "processing",
+  });
+});
+
+Deno.test("replay of a stored 200 returns the stored body, no rpc, no modal", async () => {
+  const hash = await (await import("../lib/idempotency.ts")).canonicalHash({
+    session_id: "s_1",
+  });
+  const t = build({
+    idem: ok({
+      request_hash: hash,
+      status_code: 200,
+      response: { analysis_id: "a_1", state: "processing" },
+      created_at: new Date().toISOString(),
+    }),
+  });
+  const res = await post(t.app, { "Idempotency-Key": "k2" });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), {
+    analysis_id: "a_1",
+    state: "processing",
+  });
+  assert.ok(!names(t.log).includes("create_analysis_run"));
+  assert.equal(t.modalCalls(), 0);
+});
+
+Deno.test("session_spec null -> 502, analysis.failed, no modal call", async () => {
+  const t = build({ spec: null });
+  const res = await post(t.app);
+  assert.equal(res.status, 502);
+  assert.equal((await res.json()).error.code, "engine_unavailable");
+  assert.ok(t.log.some((c) =>
+    c.kind === "rpc" && c.name === "append_event" &&
+    c.args.p_type === "analysis.failed"
+  ));
   assert.equal(t.modalCalls(), 0);
 });
 

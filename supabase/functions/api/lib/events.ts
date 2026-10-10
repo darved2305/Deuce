@@ -105,7 +105,7 @@ export async function appendEvent(
     if (error.code === "P0002") {
       throw new ApiFailure(404, "not_found", "analysis not found");
     }
-    if (error.message === "invalid_transition") {
+    if (error.code === "P0001" || error.message === "invalid_transition") {
       throw new ApiFailure(
         409,
         "invalid_transition",

@@ -118,6 +118,7 @@ async function dispatch(
 ): Promise<string | null> {
   const spec = await admin.rpc("session_spec", { p_session_id: sessionId });
   if (spec.error) throw spec.error;
+  if (spec.data == null) return null;
   try {
     const out = await submitToModal({
       analysis_id: run.id,
@@ -193,7 +194,13 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
     const run = created.data as RunRow;
     const state = run.state as z.infer<typeof CreateResponse>["state"];
     if (isTerminal(run.state)) {
-      return c.json({ analysis_id: run.id, state }, 200);
+      const body = { analysis_id: run.id, state };
+      try {
+        await idemStore(admin, key, ownerId, ENDPOINT, hash, 200, body);
+      } catch (err) {
+        console.error("idempotency store failed", (err as Error).message);
+      }
+      return c.json(body, 200);
     }
 
     await appendEvent(admin, run.id, "analysis.queued");
@@ -206,7 +213,14 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
       if (cur.error) throw cur.error;
       const s =
         ((cur.data as RunRow | null)?.state ?? "queued") as typeof state;
-      return c.json({ analysis_id: run.id, state: s }, 200);
+      const body = { analysis_id: run.id, state: s };
+      const status = s === "queued" ? 202 : 200;
+      try {
+        await idemStore(admin, key, ownerId, ENDPOINT, hash, status, body);
+      } catch (err) {
+        console.error("idempotency store failed", (err as Error).message);
+      }
+      return status === 202 ? c.json(body, 202) : c.json(body, 200);
     }
 
     const callId = await dispatch(
