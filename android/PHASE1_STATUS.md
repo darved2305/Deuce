@@ -138,7 +138,14 @@ build time, so today it ships Person 4's 149-frame file ("107 of 149").
 - 4 frames unlabelled (48, 136, 137, 174); optional re-click.
 - Independent review: done (`slice-reviewer`); 4 blocking findings addressed. Decision entry D-261011-DV1 proposed (needs Person 4).
 - Debug builds stamp PTS into frames: demos must use a release build.
-- Accessibility: TalkBack labels exist on controls; no full TalkBack pass or font-scale check yet.
+- Accessibility, checked on the A55 (2026-10-11, uiautomator dump + screenshots):
+  - every clickable control is at least 48 dp (Back 48×48, Replay 52, Play/Pause 64, speeds 52×48,
+    trail row 344×115);
+  - every control has a spoken label; the speed buttons and the trail switch expose their
+    selected/checked state;
+  - font scale 1.5 and 2.0: no clipped or overlapping text; the import screen scrolls; on replay the
+    controls stay usable and the video shrinks.
+  - Not done: a live TalkBack walk-through and a contrast measurement.
 
 ## Media3 1.11.1 facts this code relies on (read in the `-sources.jar`, not assumed)
 | Fact | Source | Also checked on device |
