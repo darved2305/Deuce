@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { adminClient, userClient } from "./db.ts";
 import { env } from "./env.ts";
 import type { ModalDeps } from "./modal.ts";
+import { type R2, r2FromEnv } from "./r2.ts";
 
 export type Claims = { sub: string; isAnonymous: boolean };
 
@@ -9,6 +10,7 @@ export type Deps = {
   user: (jwt: string) => SupabaseClient;
   admin: () => SupabaseClient;
   modal: () => ModalDeps;
+  r2: () => R2;
   verifyJwt: (jwt: string) => Promise<Claims | null>;
 };
 
@@ -48,6 +50,7 @@ export function defaultDeps(): Deps {
       url: env("MODAL_SUBMIT_URL"),
       token: env("MODAL_SUBMIT_TOKEN"),
     }),
+    r2: r2FromEnv,
     verifyJwt,
   };
 }
