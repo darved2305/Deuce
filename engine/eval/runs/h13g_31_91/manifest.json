@@ -1,0 +1,14 @@
+{
+  "what": "Raw TrackNet port candidates (window_result.v1 ball rows, state candidate) for h13g_singles 31-91 s, input to the tracking layer evaluation.",
+  "clip": "h13g_singles.mp4",
+  "video_stream_sha256": "bfb5ebda742213e225d35135b2d38a28c325f21e4c7510df7b8b201d6c6891ba",
+  "range_ms": [
+    31000,
+    91000
+  ],
+  "frames": 3000,
+  "candidates": 3866,
+  "modal_run": "https://modal.com/apps/voidinvariant/main/ap-8SQ0A1UyFEMxcuHGzetA5F",
+  "produced_by": "modal run -m elevate_engine.modal_app::track_clip --clip h13g_singles.mp4 --start-s 31 --end-s 91 (engine at PR #24)",
+  "sha256": "5ad85cc788171954035ced0dbefe54ec8a0bd54fea9f9c5ab0bbfbd34feca1cb"
+}
