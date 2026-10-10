@@ -35,7 +35,13 @@ def _source(image: modal.Image) -> modal.Image:
 base = modal.Image.debian_slim(python_version="3.12")
 image = _source(base.uv_sync(str(ENGINE_DIR), extra_options="--no-dev", uv_version=UV_VERSION))
 gpu_image = _source(
-    base.uv_sync(str(ENGINE_DIR), groups=["gpu"], extra_options="--no-dev", uv_version=UV_VERSION)
+    base.apt_install("git")
+    .run_commands(
+        # Official D-FINE code (Apache-2.0) at a pinned commit; see elevate_engine/dfine/run.py.
+        "git clone https://github.com/Peterande/D-FINE.git /opt/D-FINE",
+        "git -C /opt/D-FINE checkout 956d1709314c",
+    )
+    .uv_sync(str(ENGINE_DIR), groups=["gpu"], extra_options="--no-dev", uv_version=UV_VERSION)
 )
 clips = modal.Volume.from_name("elevate-clips", create_if_missing=True)
 models = modal.Volume.from_name("elevate-models", create_if_missing=True)
@@ -263,6 +269,48 @@ class Models:
         log("track.done", **result)
         return {**result, "t_ms": t_ms, "ball": rows}
 
+    @modal.method()
+    def detect_players(self, clip: str, start_ms: int, end_ms: int, fps: float = 12.0) -> dict:
+        """D-FINE-S person boxes on [start_ms, end_ms) of a clip, sampled at about `fps`.
+
+        Rows are [t_ms, x1, y1, x2, y2, score] in source pixels. They are detections, not
+        window_result.v1 player rows yet: track ids and foot positions in metres need player
+        association and court calibration (Phase 2).
+        """
+        import time
+
+        from elevate_engine.dfine import run as dfine
+        from elevate_engine.log import log
+        from elevate_engine.video import frames_in_range
+
+        if not hasattr(self, "dfine"):
+            state = self.checkpoints["dfine_s_coco"]["model"]
+            model, post = dfine.build(state)
+            self.dfine = (model.cuda(), post.cuda())
+        keep = dfine.sampler(fps)  # raises on fps <= 0 before any decoding
+        started = time.perf_counter()
+        # Sample while decoding: only the ~fps frames are held, not every full-size frame.
+        picked = [
+            f for f in frames_in_range(Path(CLIPS_PATH) / clip, start_ms, end_ms) if keep(f.t_ms)
+        ]
+        boxes = dfine.detect(*self.dfine, [f.image for f in picked])
+        rows = [
+            [f.t_ms, *b] for f, frame_boxes in zip(picked, boxes, strict=True) for b in frame_boxes
+        ]
+        per_frame = [len(b) for b in boxes]
+        result = {
+            "clip": clip,
+            "range_ms": [start_ms, end_ms],
+            "frames_sampled": len(picked),
+            "fps": fps,
+            "persons": len(rows),
+            "persons_per_frame": {str(n): per_frame.count(n) for n in sorted(set(per_frame))},
+            "total_s": round(time.perf_counter() - started, 1),
+            "raw_top_first_frame": dfine.raw_top(*self.dfine, picked[0].image) if picked else [],
+        }
+        log("detect.done", **result)
+        return {**result, "rows": rows}
+
 
 @app.local_entrypoint()
 def main(clip: str) -> None:
@@ -282,5 +330,13 @@ def track_clip(clip: str, start_s: float, end_s: float, out: str = "") -> None:
     result = Models().track.remote(clip, int(start_s * 1000), int(end_s * 1000))
     summary = {k: v for k, v in result.items() if k not in {"t_ms", "ball"}}
     print(json.dumps(summary, indent=2))
+    if out:
+        Path(out).write_text(json.dumps(result))
+
+
+@app.local_entrypoint()
+def detect_clip(clip: str, start_s: float, end_s: float, fps: float = 12.0, out: str = "") -> None:
+    result = Models().detect_players.remote(clip, int(start_s * 1000), int(end_s * 1000), fps)
+    print(json.dumps({k: v for k, v in result.items() if k != "rows"}, indent=2))
     if out:
         Path(out).write_text(json.dumps(result))

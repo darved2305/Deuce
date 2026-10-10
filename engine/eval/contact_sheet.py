@@ -1,7 +1,8 @@
 """Draw engine candidates on real frames: a contact sheet for PR proof.
 
 Red ring: top candidate (highest confidence). Yellow ring: other candidates. Green cross: hand
-label (when a trail_labels.v1 file is given). Frames are decoded from the real video.
+label (when a trail_labels.v1 file is given). Cyan boxes: person detections (when a D-FINE
+detect_clip result is given with --persons). Frames are decoded from the real video.
 
     uv run python eval/contact_sheet.py CLIP RESULT.json OUT.jpg --times 40120,41000 \
         [--labels ../fixtures/fixture_trail.json]
@@ -21,11 +22,20 @@ from elevate_engine.video import frames_in_range
 TILE_W, TILE_H, COLS = 640, 360, 3
 
 
-def sheet(clip: str, rows: list[list], times: list[int], labels: dict | None) -> Image.Image:
+def sheet(
+    clip: str,
+    rows: list[list],
+    times: list[int],
+    labels: dict | None,
+    persons: list[list] | None = None,
+) -> Image.Image:
     by_t = defaultdict(list)
     for r in rows:
         by_t[int(r[0])].append(r)
     gt = {int(f["t_ms"]): f["ball"] for f in (labels or {}).get("frames", [])}
+    boxes = defaultdict(list)
+    for p in persons or []:
+        boxes[int(p[0])].append(p)
     tiles = []
     for t in times:
         frame = next(frames_in_range(clip, t, t + 1))
@@ -37,13 +47,17 @@ def sheet(clip: str, rows: list[list], times: list[int], labels: dict | None) ->
         for i, (_, x, y, _conf, _) in enumerate(cands):
             color, r = ((255, 40, 40), 11) if i == 0 else ((255, 220, 0), 8)
             d.ellipse([x * sx - r, y * sy - r, x * sx + r, y * sy + r], outline=color, width=3)
+        for _, x1, y1, x2, y2, score in boxes.get(t, []):
+            d.rectangle([x1 * sx, y1 * sy, x2 * sx, y2 * sy], outline=(0, 230, 255), width=3)
+            d.text((x1 * sx + 3, y1 * sy + 2), f"{score:.2f}", fill=(0, 230, 255))
         if gt.get(t):
             x, y = gt[t][0] * sx, gt[t][1] * sy
             d.line([x - 7, y, x + 7, y], fill=(40, 255, 80), width=3)
             d.line([x, y - 7, x, y + 7], fill=(40, 255, 80), width=3)
         label = "label: none" if t in gt and gt[t] is None else ""
         d.rectangle([0, 0, TILE_W, 22], fill=(0, 0, 0))
-        d.text((6, 5), f"t={t} ms  candidates={len(cands)}  {label}", fill=(255, 255, 255))
+        info = f"persons={len(boxes[t])}" if persons is not None else f"candidates={len(cands)}"
+        d.text((6, 5), f"t={t} ms  {info}  {label}", fill=(255, 255, 255))
         tiles.append(img)
     rows_n = (len(tiles) + COLS - 1) // COLS
     out = Image.new("RGB", (COLS * TILE_W, rows_n * TILE_H), (20, 20, 20))
@@ -59,11 +73,14 @@ def main() -> None:
     p.add_argument("out")
     p.add_argument("--times", required=True, help="comma-separated t_ms values")
     p.add_argument("--labels")
+    p.add_argument("--persons", help="detect_clip result JSON (draws person boxes)")
     a = p.parse_args()
     labels = json.loads(Path(a.labels).read_text()) if a.labels else None
-    rows = json.loads(Path(a.result).read_text())["ball"]
+    result = json.loads(Path(a.result).read_text())
+    rows = result.get("ball", [])
+    persons = json.loads(Path(a.persons).read_text())["rows"] if a.persons else None
     times = [int(t) for t in a.times.split(",")]
-    sheet(a.clip, rows, times, labels).save(a.out, quality=88)
+    sheet(a.clip, rows, times, labels, persons).save(a.out, quality=88)
 
 
 if __name__ == "__main__":
