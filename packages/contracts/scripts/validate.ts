@@ -88,10 +88,11 @@ const expectedFixtures = [
   "fixture_trail.json",
   "fixture_match.json",
   "fixture_events.jsonl",
-  "fixture_window_0003.json",
+  "fixture_window_*.json",
 ];
 for (const name of expectedFixtures) {
-  if (!fixtureFiles.some((file) => file.endsWith(`/${name}`) || file.endsWith(`\\${name}`))) {
+  const pattern = new RegExp(`[\\\\/]${name.replace(".", "\\.").replace("*", "[0-9]+")}$`);
+  if (!fixtureFiles.some((file) => pattern.test(file))) {
     console.log(`OWED by Person 4 (contracts.md §11): fixtures/${name} does not exist yet.`);
   }
 }

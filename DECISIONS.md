@@ -668,3 +668,21 @@ Template (copy to the end of the file):
 - **Proof / evidence:** `pnpm --filter @elevate/contracts run check`; shared BWF rule vectors in
   `packages/rules/vectors/bwf_3x21.json`.
 - **PRs:** this PR.
+
+## D-261011-HW10 · Tonight's order: the live loop on the A55 first, polish tracks in parallel
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the context of the 8:00 submission, facing a loop whose parts all exist but are
+  not wired, we decided Stage 1 (live loop) then parallel tracks S, T, M, C per `docs/plan/15-tonight.md`,
+  and rejected cutting scope or switching anyone's current branch.
+- **Decision:** as `15-tonight.md`. Court completion uses the tapped-corner homography (geometry,
+  not invention); estimated parts are dashed and labelled.
+- **Blast radius:** all four lanes, additive only; Person 3 adds `GET /v1/artifacts/{id}` (contracts §4).
+- **Exit:** n/a (ordering only).
+
+## D-261011-HW11 · Window fixtures are named by their real window_seq
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** the `fixture_window_0003.json` name in contracts §11
+- **In one line:** The first real engine window is window 1 (#37), so the fixture is
+  `fixture_window_0001.json`; the validator accepts any `fixture_window_<n>.json` instead of
+  inventing a window 3.
+- **Blast radius:** Person 2 and Person 3 load window fixtures by pattern; contracts unchanged.
+- **PRs:** this PR.
