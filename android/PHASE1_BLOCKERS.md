@@ -11,4 +11,4 @@ Each item names what Android needs, why, the owner, and what the app does until 
 | 5 | ~~Any deployed API route~~ **Resolved (PR #11):** `GET /v1/health` is deployed; the app calls it | Person 3 @nikhilpravinpise | Sessions, analyses and the event cursor are not deployed yet (Phase 2); `analysisFor` stays `NotConnected`. |
 | 8 | ~~Contract schemas~~ **Resolved (PR #10/#12):** `@elevate/contracts` 1.1.0 | Person 4 | The Kotlin readers are checked against `schemas/`. Still missing: fixture files, which `pnpm … check` would validate. |
 | 6 | True VFR / slow-motion recording | Person 2 (team phones) | Record about 5 s of slow motion on the A55 and the S23 FE; probe it into `proof/video-manifest.md`. |
-| 7 | S23 FE on adb | Person 2 | Every S23 FE row in `PHASE1_STATUS.md` is NOT RUN. |
+| 7 | ~~S23 FE on adb~~ not required (D-261011-DV2) | Person 2 | A55 is the proof device. |

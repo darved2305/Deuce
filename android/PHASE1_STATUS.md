@@ -2,7 +2,7 @@
 
 PASS means it was run on the phone or the machine in this session and the output was seen.
 Updated 2026-10-11 00:30, rebased on main 80c5b0a (contracts 1.1.0, API skeleton). Device: Galaxy A55 SM-A556E, Android 16 (API 36), Exynos 1480.
-**S23 FE: never connected, so every S23 FE row is NOT RUN and Phase 1 is not device-complete.**
+**S23 FE: not required for Phase 1 (owner decision D-261011-DV2); every S23 FE row is NOT RUN.**
 
 ## What works (A55)
 - The Gradle project builds from the command line (Kotlin 2.4.20, AGP 9.3.3 built-in Kotlin, Gradle
@@ -28,13 +28,17 @@ Updated 2026-10-11 00:30, rebased on main 80c5b0a (contracts 1.1.0, API skeleton
   required ⇒ non-null) and decodes the fenced examples in `contracts.md`. It already caught one
   drift: `engine_version` is required on every event.
 - Debug builds stamp each frame's own PTS into the frame (proof aid).
+- Event handling for contracts §3 (`EventLog`): seq order, dedupe, stop at gaps, `after_seq`, state,
+  coverage from `emit_range_us`. `EventReplay` replays a recorded `fixture_events.jsonl` with its
+  recorded `created_at` spacing. Unit-tested on test vectors only: **no real event file exists yet**
+  (Person 4), so the app replays nothing today. Any `*.jsonl` in `assets/fixtures` is picked up.
 
 ## Checks run (final code)
 | Command | Result |
 |---|---|
 | `./gradlew --version` | Gradle 9.5.0, launcher JVM 17.0.20.1 |
 | `./gradlew clean assembleDebug` | PASS |
-| `./gradlew testDebugUnitTest` | PASS 36/36 (TimeMapping 8, TrailLabelsParser 10, repository 6, annotation text 2, ContractSchema 5, ApiSource 5) |
+| `./gradlew testDebugUnitTest` | PASS 43/43 (TimeMapping 8, TrailLabelsParser 10, repository 6, annotation text 2, ContractSchema 5, ApiSource 5, EventLog/replay 7) |
 | `./gradlew lintDebug` | PASS: 0 errors; 2 warnings kept on purpose (below) |
 | instrumented, `am instrument` on the A55 | PASS 8/8: ImportScreen ×3, OverlayTimingTest ×5 (real clip, real decoder) |
 
@@ -122,7 +126,7 @@ Every point was checked visually on 2–4× crops: 107 points kept, 34 removed (
   `DataExtractionRules` (the rules apply to API 31+; `allowBackup=false` covers older versions).
 
 ## Not done / gates still open
-- S23 FE: every row NOT RUN.
+- S23 FE: not required (D-261011-DV2); unverified.
 - True VFR/slow-motion clip; portrait *badminton* clip (the Mendeley dataset is downloading).
 - Person 4's `fixture_trail.json`, `fixture_match.json` and `fixture_events.jsonl` (see `PHASE1_BLOCKERS.md`).
 - 51 label re-clicks; the trail then covers more frames.

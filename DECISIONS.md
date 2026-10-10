@@ -495,3 +495,22 @@ Template (copy to the end of the file):
   Compose BOM pin. No point of no return.
 - **Proof / evidence:** `android/PHASE1_STATUS.md` (A55 screenshots, recording, OverlayTimingTest 8/8).
 - **PRs:** this PR
+
+## D-261011-DV2 · Phase 1 Android device proof runs on the Galaxy A55 only
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @darved2305 (Person 2) · **Supersedes:** none
+- **In one line:** In the context of closing Phase 1 on Android, facing no S23 FE available to the
+  Android lane, we decided device proof on the Galaxy A55 alone and rejected blocking Phase 1 on a
+  second phone, accepting that S23 FE behaviour (Exynos 2200 decoder/GPU) is unverified.
+- **Context:** `docs/lanes/person-2.md` Phase 1 says verify on both phones; the S23 FE was never
+  connected. The A55 (Exynos 1480, Android 16) is the weaker device the plan says to test on.
+- **Decision:** Phase 1 Android proof = A55 screen recordings, screenshots and instrumented tests.
+  Any S23 FE claim stays UNVERIFIED until it is run.
+- **Alternatives:** (a) wait for the S23 FE: rejected by the owner; (b) emulator: rejected, no real
+  decoder or GPU path.
+- **Blast radius:**
+  - Contracts: none
+  - People and folders: Person 2 `android/` only; Person 4 notes it for the phase check
+  - Containment: the same tests run unchanged on any phone later
+- **Exit:** run the A55 sweep and `OverlayTimingTest` on an S23 FE when one is connected.
+- **Proof / evidence:** `android/PHASE1_STATUS.md`.
+- **PRs:** this PR
