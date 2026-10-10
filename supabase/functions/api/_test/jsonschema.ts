@@ -19,9 +19,27 @@ export function check(s: Schema, v: unknown, path = "$"): string[] {
       `${path}: no anyOf branch matched (${branches[0].join("; ")})`,
     ];
   }
+  if (Array.isArray(s.oneOf)) {
+    const matches = s.oneOf.filter((b) =>
+      check(b as Schema, v, path).length === 0
+    ).length;
+    return matches === 1
+      ? []
+      : [`${path}: expected one oneOf branch, got ${matches}`];
+  }
   if ("const" in s && s.const !== v) errs.push(`${path}: const`);
   if (Array.isArray(s.enum) && !s.enum.includes(v)) errs.push(`${path}: enum`);
-  const t = s.type as string | undefined;
+  const schemaType = s.type;
+  if (Array.isArray(schemaType)) {
+    if (v === null && schemaType.includes("null")) return errs;
+    const nonNullTypes = schemaType.filter((type) => type !== "null");
+    if (nonNullTypes.length !== 1) return [`${path}: unsupported type union`];
+    return [
+      ...errs,
+      ...check({ ...s, type: nonNullTypes[0] } as Schema, v, path),
+    ];
+  }
+  const t = schemaType as string | undefined;
   if (t === "string") {
     if (typeof v !== "string") return [`${path}: not string`];
     if (typeof s.pattern === "string" && !new RegExp(s.pattern).test(v)) {
@@ -34,10 +52,19 @@ export function check(s: Schema, v: unknown, path = "$"): string[] {
     if (typeof s.minimum === "number" && v < s.minimum) {
       errs.push(`${path}: min`);
     }
+    if (typeof s.maximum === "number" && v > s.maximum) {
+      errs.push(`${path}: max`);
+    }
   } else if (t === "boolean") {
     if (typeof v !== "boolean") errs.push(`${path}: not boolean`);
   } else if (t === "array") {
     if (!Array.isArray(v)) return [`${path}: not array`];
+    if (typeof s.minItems === "number" && v.length < s.minItems) {
+      errs.push(`${path}: minItems`);
+    }
+    if (typeof s.maxItems === "number" && v.length > s.maxItems) {
+      errs.push(`${path}: maxItems`);
+    }
     if (Array.isArray(s.prefixItems)) {
       if (v.length !== s.prefixItems.length) errs.push(`${path}: length`);
       s.prefixItems.forEach((p, i) =>

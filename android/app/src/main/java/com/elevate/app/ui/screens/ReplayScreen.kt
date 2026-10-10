@@ -1,5 +1,11 @@
 package com.elevate.app.ui.screens
 
+import com.elevate.app.domain.media.PreflightState
+import com.elevate.app.domain.media.Severity
+import com.elevate.app.domain.media.SourceFacts
+import com.elevate.app.domain.media.codecLabel
+import java.util.Locale
+import androidx.compose.runtime.saveable.rememberSaveable
 import android.content.pm.ApplicationInfo
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -223,6 +229,8 @@ private fun ControlsSheet(
         }
         Spacer(Modifier.height(16.dp))
         AnnotationRow(screen, onOverlayVisible)
+        Spacer(Modifier.height(8.dp))
+        PreflightRow(screen.preflight)
     }
 }
 
@@ -308,6 +316,55 @@ private fun AnnotationRow(screen: Screen.Replay, onOverlayVisible: (Boolean) -> 
             )
         }
     }
+}
+
+/** What the file itself says: measured facts, then any finding. Nothing here is a model output. */
+@Composable
+private fun PreflightRow(p: PreflightState) {
+    val c = Elevate.colors
+    var open by rememberSaveable { mutableStateOf(false) }
+    val (title, detail) = when (p) {
+        PreflightState.Checking -> "Checking the clip…" to "Reading its tracks and frame timing"
+        is PreflightState.Failed -> "Clip check failed" to p.reason
+        is PreflightState.Done -> {
+            val n = p.findings.size
+            (if (p.blocked) "Can't be analysed" else if (n == 0) "Clip check · no issues" else "Clip check · $n to note") to
+                preflightSummary(p.facts)
+        }
+    }
+    val findings = (p as? PreflightState.Done)?.findings.orEmpty()
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (p is PreflightState.Done && p.blocked || p is PreflightState.Failed) c.errorSurface else c.cream)
+            .then(if (findings.isNotEmpty()) Modifier.toggleable(value = open, role = Role.Button, onValueChange = { open = it }) else Modifier)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .semantics(mergeDescendants = true) {},
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
+        Text(detail, style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+        if (open) findings.forEach { f ->
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                val dot = when (f.severity) { Severity.Block -> c.error; Severity.Warn -> c.orange; Severity.Info -> c.lavenderInk }
+                Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+                Spacer(Modifier.size(10.dp))
+                Text(f.text, style = MaterialTheme.typography.labelMedium, color = c.ink)
+            }
+        }
+    }
+}
+
+/** Display size, codec, measured frame spacing, audio: e.g. "1920×1080 · H.264 · 20.0 ms frames (50 fps) · audio 44.1 kHz". */
+internal fun preflightSummary(f: SourceFacts): String {
+    if (f.mime == null) return "No video track in this file"
+    // Measured from the timestamps, never the container's stated rate.
+    val timing = f.pts?.let { p ->
+        val fps = p.fpsMeasured?.let { if (it % 1.0 == 0.0) "${it.toInt()} fps" else String.format(Locale.ROOT, "%.2f fps", it) }
+        String.format(Locale.ROOT, "%.1f ms frames", p.meanIntervalUs / 1000.0) + (fps?.let { " ($it measured)" } ?: "")
+    }
+    val audio = if (f.hasAudio) f.audioRateHz?.let { String.format(Locale.ROOT, "audio %.1f kHz", it / 1000.0) } ?: "audio" else "no audio"
+    return listOfNotNull("${f.displayWidth}×${f.displayHeight}", codecLabel(f.codec), timing, audio).joinToString(" · ")
 }
 
 /** Every count shows its real denominator (D-007): labelled frames, then what was never labelled. */

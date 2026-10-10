@@ -31,7 +31,7 @@ export type EventWire = {
   emit_range_us?: [number, number];
   artifact_id?: string;
   reason?: string;
-  engine_version?: string;
+  engine_version?: string | null;
   created_at: string;
 };
 
@@ -108,7 +108,7 @@ export async function appendEvent(
     if (error.code === "P0001" || error.message === "invalid_transition") {
       throw new ApiFailure(
         409,
-        "invalid_transition",
+        "conflict",
         "event not allowed in the current state",
         { detail: error.details },
       );

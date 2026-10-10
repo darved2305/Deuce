@@ -8,11 +8,13 @@ function build(
   o: { append?: Res; existing?: unknown; insert?: Res[] } = {},
 ) {
   const log: Call[] = [];
+  let storedEvent: Record<string, unknown> | null = null;
   let existingCalls = 0;
   const inserts = o.insert ?? [ok({ id: "art_new", analysis_id: "a_1" })];
   const admin: Handler = (c) => {
     if (c.kind === "rpc" && c.name === "append_event") {
-      return o.append ?? ok({
+      const fields = c.args.p_fields as Record<string, unknown>;
+      const result = o.append ?? ok({
         event_id: "e_1",
         analysis_id: "a_1",
         match_id: "m_1",
@@ -26,9 +28,13 @@ function build(
         emit_end_us: null,
         artifact_id: null,
         reason: null,
-        engine_version: null,
+        engine_version: fields.engine_version ?? null,
         created_at: "2026-01-01T00:00:00Z",
       });
+      if (result.error === null) {
+        storedEvent = result.data as Record<string, unknown>;
+      }
+      return result;
     }
     if (c.kind === "from" && c.table === "analysis_runs") return ok(RUN);
     if (c.kind === "from" && c.table === "artifacts") {
@@ -41,7 +47,15 @@ function build(
     }
     return ok(null);
   };
-  const user: Handler = () => ok(null);
+  const user: Handler = (c) => {
+    if (c.kind === "from" && c.table === "analysis_runs") {
+      return ok({ id: "a_1", state: "processing" });
+    }
+    if (c.kind === "from" && c.table === "analysis_events") {
+      return ok(storedEvent ? [storedEvent] : []);
+    }
+    return ok(null);
+  };
   return { app: makeApp(user, admin, undefined, [], log), log };
 }
 
@@ -127,6 +141,29 @@ Deno.test("event arrays map to 4 columns and back", async () => {
   assert.ok(!("owner_id" in body));
 });
 
+Deno.test("engine_version is stored by append_event and returned by the cursor", async () => {
+  const t = build();
+  const res = await call(t.app, "events", {
+    type: "analysis.started",
+    engine_version: "0.3.0",
+  });
+  assert.equal(res.status, 200);
+  const rpc = t.log[0] as Call & {
+    args: { p_fields: Record<string, unknown> };
+  };
+  assert.deepEqual(rpc.args.p_fields, { engine_version: "0.3.0" });
+  assert.equal((await res.json()).engine_version, "0.3.0");
+
+  const cursor = await t.app.fetch(
+    new Request("http://localhost/api/v1/analyses/a_1/events", {
+      headers: { Authorization: "Bearer jwt" },
+    }),
+  );
+  assert.equal(cursor.status, 200);
+  const page = await cursor.json();
+  assert.equal(page.events[0].engine_version, "0.3.0");
+});
+
 Deno.test("fieldsToRpc/rowToWire helpers", () => {
   assert.deepEqual(fieldsToRpc({ type: "analysis.started" }), {});
   const w = rowToWire({
@@ -150,7 +187,7 @@ Deno.test("fieldsToRpc/rowToWire helpers", () => {
   assert.deepEqual(w.emit_range_us, [1, 2]);
 });
 
-Deno.test("append P0001 -> 409 invalid_transition, P0002 -> 404", async () => {
+Deno.test("append P0001 -> 409 conflict, P0002 -> 404", async () => {
   const bad = build({
     append: {
       data: null,
@@ -163,7 +200,7 @@ Deno.test("append P0001 -> 409 invalid_transition, P0002 -> 404", async () => {
   });
   const r1 = await call(bad.app, "events", { type: "analysis.started" });
   assert.equal(r1.status, 409);
-  assert.equal((await r1.json()).error.code, "invalid_transition");
+  assert.equal((await r1.json()).error.code, "conflict");
   const gone = build({
     append: {
       data: null,

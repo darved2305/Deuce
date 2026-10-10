@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+      "type": "string"
+    },
+    "match_id": {
+      "pattern": "^m_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "match",
+        "practice",
+        "free_play"
+      ],
+      "type": "string"
+    },
+    "session_id": {
+      "pattern": "^s_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "source": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_rate_hz": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "codec": {
+          "type": "string"
+        },
+        "device": {
+          "type": "string"
+        },
+        "duration_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fps_nominal": {
+          "type": "number"
+        },
+        "has_audio": {
+          "type": "boolean"
+        },
+        "height": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pts": {
+          "additionalProperties": false,
+          "properties": {
+            "gaps": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "max_us": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "median_interval_us": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "min_us": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "vfr": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "median_interval_us",
+            "min_us",
+            "max_us",
+            "gaps",
+            "vfr"
+          ],
+          "type": "object"
+        },
+        "rotation": {
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[A-Fa-f0-9]{64}$",
+          "type": "string"
+        },
+        "width": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "width",
+        "height",
+        "rotation",
+        "fps_nominal",
+        "duration_ms",
+        "pts",
+        "codec",
+        "has_audio",
+        "audio_rate_hz",
+        "device",
+        "bytes",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "upload": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "completed_at": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "part_count": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "part_size": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "status": {
+              "enum": [
+                "initiated",
+                "completed",
+                "aborted"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "part_size",
+            "bytes",
+            "part_count",
+            "completed_at"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "upload_mode": {
+      "enum": [
+        "multipart",
+        "segments"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "session_id",
+    "match_id",
+    "mode",
+    "upload_mode",
+    "source",
+    "created_at",
+    "upload"
+  ],
+  "type": "object"
+}
