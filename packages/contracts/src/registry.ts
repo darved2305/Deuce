@@ -54,7 +54,7 @@ function entry(
 ): SchemaRegistryEntry {
   return {
     schema,
-    version: "1.7.0",
+    version: "1.8.0",
     file: `${name}.schema.json`,
     description,
   };
