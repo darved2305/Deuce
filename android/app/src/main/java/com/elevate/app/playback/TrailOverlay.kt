@@ -53,9 +53,14 @@ class TrailOverlay(private val trailWindowUs: Long = 400_000) : CanvasOverlay(/*
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ORANGE; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
     private val currentFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ORANGE; style = Paint.Style.FILL }
     private val currentRing = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; style = Paint.Style.STROKE }
+    // Engine candidates (not confirmed): hollow rings, dashed joins, a colour hand labels never use.
+    private val candRing = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = CYAN; style = Paint.Style.STROKE }
+    private val candLine = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = CYAN; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
     private val stampText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; typeface = android.graphics.Typeface.MONOSPACE }
     private val stampBack = Paint().apply { color = 0xB0000000.toInt() }
     private var overlaySettings: OverlaySettings = StaticOverlaySettings.Builder().build()
+
+    private var dashUnit = -1f
 
     fun setTrack(track: TrailTrack?) {
         prepared = track?.let {
@@ -102,6 +107,16 @@ class TrailOverlay(private val trailWindowUs: Long = 400_000) : CanvasOverlay(/*
         val unit = canvas.height / 1080f
         linePaint.strokeWidth = 2.5f * unit
         currentRing.strokeWidth = 3f * unit
+        val candidate = track.provenance.state == "candidate"
+        if (candidate) {
+            candRing.strokeWidth = 2.5f * unit
+            candLine.strokeWidth = 2f * unit
+            if (dashUnit != unit) {
+                candLine.pathEffect = android.graphics.DashPathEffect(floatArrayOf(6f * unit, 6f * unit), 0f)
+                dashUnit = unit
+            }
+        }
+        val line = if (candidate) candLine else linePaint
 
         val window = TimeMapping.trailWindow(track, sourceUs, trailWindowUs, p.toleranceUs)
         val current = TimeMapping.labelIndexAt(track, sourceUs, p.toleranceUs)
@@ -111,20 +126,31 @@ class TrailOverlay(private val trailWindowUs: Long = 400_000) : CanvasOverlay(/*
             val alpha = (255 * (1f - age.toFloat() / trailWindowUs)).toInt().coerceIn(60, 230)
             val prev = i - 1
             if (prev >= window.first && track.isObserved(prev) && track.tUs[i] - track.tUs[prev] <= p.frameStepUs + p.toleranceUs) {
-                linePaint.alpha = alpha / 2
-                canvas.drawLine(track.x[prev] * sx, track.y[prev] * sy, track.x[i] * sx, track.y[i] * sy, linePaint)
+                line.alpha = alpha / 2
+                canvas.drawLine(track.x[prev] * sx, track.y[prev] * sy, track.x[i] * sx, track.y[i] * sy, line)
             }
-            trailPaint.alpha = alpha
-            canvas.drawCircle(track.x[i] * sx, track.y[i] * sy, 4.5f * unit, trailPaint)
+            if (candidate) {
+                candRing.alpha = alpha
+                canvas.drawCircle(track.x[i] * sx, track.y[i] * sy, 5f * unit, candRing)
+            } else {
+                trailPaint.alpha = alpha
+                canvas.drawCircle(track.x[i] * sx, track.y[i] * sy, 4.5f * unit, trailPaint)
+            }
         }
         if (current >= 0 && track.isObserved(current)) {
             val prev = current - 1
             if (prev >= 0 && track.isObserved(prev) && track.tUs[current] - track.tUs[prev] <= p.frameStepUs + p.toleranceUs) {
-                linePaint.alpha = 140
-                canvas.drawLine(track.x[prev] * sx, track.y[prev] * sy, track.x[current] * sx, track.y[current] * sy, linePaint)
+                line.alpha = 140
+                canvas.drawLine(track.x[prev] * sx, track.y[prev] * sy, track.x[current] * sx, track.y[current] * sy, line)
             }
-            canvas.drawCircle(track.x[current] * sx, track.y[current] * sy, 9f * unit, currentFill)
-            canvas.drawCircle(track.x[current] * sx, track.y[current] * sy, 9f * unit, currentRing)
+            if (candidate) {
+                candRing.alpha = 255
+                canvas.drawCircle(track.x[current] * sx, track.y[current] * sy, 10f * unit, candRing)
+                canvas.drawCircle(track.x[current] * sx, track.y[current] * sy, 13f * unit, currentRing)
+            } else {
+                canvas.drawCircle(track.x[current] * sx, track.y[current] * sy, 9f * unit, currentFill)
+                canvas.drawCircle(track.x[current] * sx, track.y[current] * sy, 9f * unit, currentRing)
+            }
         }
         canvasDirty = true
     }
@@ -145,5 +171,6 @@ class TrailOverlay(private val trailWindowUs: Long = 400_000) : CanvasOverlay(/*
     companion object {
         const val MAX_CANVAS_LONG_SIDE = 1920
         private const val ORANGE = 0xFFE8622A.toInt()
+        private const val CYAN = 0xFF2EE6E6.toInt()
     }
 }

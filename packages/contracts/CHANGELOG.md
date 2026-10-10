@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.0
+
+- `rules.state.v1` optionally records `doubles_right_player`, the player occupying each side's
+  right service court, so the rules engine can preserve doubles partner positions across service
+  changes (D-261011-HW7).
+
 ## 1.5.0
 
 Chunked real-time upload contract (D-261011-HW3, D-261011-HW8): `segment.manifest.v1` gains `final`
