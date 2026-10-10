@@ -123,7 +123,7 @@ Deno.test("event arrays map to 4 columns and back", async () => {
   });
   const body = await res.json();
   assert.deepEqual(body.decode_window_us, [10, 20]);
-  assert.equal(body.emit_range_us, null);
+  assert.ok(!("emit_range_us" in body));
   assert.ok(!("owner_id" in body));
 });
 
@@ -146,7 +146,7 @@ Deno.test("fieldsToRpc/rowToWire helpers", () => {
     engine_version: null,
     created_at: "x",
   });
-  assert.equal(w.decode_window_us, null);
+  assert.equal(w.decode_window_us, undefined);
   assert.deepEqual(w.emit_range_us, [1, 2]);
 });
 
@@ -205,11 +205,19 @@ Deno.test("artifact rejects other prefixes and bad sha", async () => {
 
 Deno.test("artifact repeated r2_key returns the same id; foreign owner -> 422", async () => {
   const same = build({ existing: { id: "art_old", analysis_id: "a_1" } });
-  const r = await call(same.app, "artifacts", art("analysis/a_1/x.json"));
+  const r = await call(
+    same.app,
+    "artifacts",
+    art("analysis/a_1/0.3.0/windows/0.json"),
+  );
   assert.deepEqual(await r.json(), { artifact_id: "art_old" });
   const foreign = build({ existing: { id: "art_x", analysis_id: "a_2" } });
   assert.equal(
-    (await call(foreign.app, "artifacts", art("analysis/a_1/x.json"))).status,
+    (await call(
+      foreign.app,
+      "artifacts",
+      art("analysis/a_1/0.3.0/windows/0.json"),
+    )).status,
     422,
   );
 });
@@ -219,6 +227,10 @@ Deno.test("artifact insert race (23505) re-selects the winner", async () => {
     existing: [null, { id: "art_win", analysis_id: "a_1" }],
     insert: [{ data: null, error: { code: "23505", message: "dup" } }],
   });
-  const res = await call(t.app, "artifacts", art("analysis/a_1/x.json"));
+  const res = await call(
+    t.app,
+    "artifacts",
+    art("analysis/a_1/0.3.0/windows/0.json"),
+  );
   assert.deepEqual(await res.json(), { artifact_id: "art_win" });
 });

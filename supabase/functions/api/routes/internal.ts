@@ -1,29 +1,17 @@
-import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { AppEnv } from "../lib/auth.ts";
-import { ApiFailure } from "../lib/errors.ts";
 import {
-  appendEvent,
-  fieldsToRpc,
-  type InternalEventBody,
-  rowToWire,
-} from "../lib/events.ts";
-import { MODAL_EVENT_TYPES } from "../lib/state.ts";
+  internalArtifactRequestSchema,
+  internalArtifactResponseSchema,
+  internalEventRequestSchema,
+} from "../lib/contracts_vendor/index.ts";
+import { ApiFailure, defaultHook } from "../lib/errors.ts";
+import { appendEvent, fieldsToRpc, rowToWire } from "../lib/events.ts";
 import { EventWireSchema } from "./analyses.ts";
 
-const Range = z.tuple([
-  z.number().int().nonnegative(),
-  z.number().int().nonnegative(),
-]).refine(([a, b]) => b >= a);
-
-const EventBody = z.object({
-  type: z.enum(MODAL_EVENT_TYPES),
-  window_seq: z.number().int().nonnegative().optional(),
-  decode_window_us: Range.optional(),
-  emit_range_us: Range.optional(),
-  artifact_id: z.string().optional(),
-  reason: z.string().max(500).optional(),
-  engine_version: z.string().max(64).optional(),
-}).superRefine((b, ctx) => {
+// Contract shape plus the review rule: window events must carry a window_seq,
+// otherwise append_event would dedupe every windowless event together.
+const EventBody = internalEventRequestSchema.superRefine((b, ctx) => {
   if (
     (b.type === "window.completed" || b.type === "window.failed") &&
     b.window_seq === undefined
@@ -36,21 +24,17 @@ const EventBody = z.object({
   }
 });
 
-const ArtifactBody = z.object({
-  kind: z.enum([
-    "window_result",
-    "ball_track",
-    "player_tracks",
-    "match_vision",
-    "clip",
-    "poster",
-  ]),
-  r2_key: z.string().min(1),
-  bytes: z.number().int().nonnegative(),
-  sha256: z.string().regex(/^[0-9a-f]{64}$/),
-});
+// artifacts.kind is a DB check constraint; the contract types it as a plain string.
+const ARTIFACT_KINDS = new Set([
+  "window_result",
+  "ball_track",
+  "player_tracks",
+  "match_vision",
+  "clip",
+  "poster",
+]);
 
-const Params = z.object({ id: z.string().regex(/^a_[A-Za-z0-9_-]{1,64}$/) });
+const Params = z.object({ id: z.string().regex(/^a_[A-Za-z0-9_-]+$/) });
 
 const postEvent = createRoute({
   method: "post",
@@ -72,13 +56,17 @@ const postArtifact = createRoute({
   path: "/internal/analyses/{id}/artifacts",
   request: {
     params: Params,
-    body: { content: { "application/json": { schema: ArtifactBody } } },
+    body: {
+      content: {
+        "application/json": { schema: internalArtifactRequestSchema },
+      },
+    },
   },
   responses: {
     200: {
       description: "artifact registered",
       content: {
-        "application/json": { schema: z.object({ artifact_id: z.string() }) },
+        "application/json": { schema: internalArtifactResponseSchema },
       },
     },
   },
@@ -86,22 +74,29 @@ const postArtifact = createRoute({
 
 type ArtifactRow = { id: string; analysis_id: string | null };
 
+// Internal routes live on their own OpenAPIHono so they stay out of the public
+// /v1/openapi.json document.
 export function registerInternal(api: OpenAPIHono<AppEnv>): void {
-  api.openapi(postEvent, async (c) => {
+  const internal = new OpenAPIHono<AppEnv>({ defaultHook });
+
+  internal.openapi(postEvent, async (c) => {
     const { id } = c.req.valid("param");
     const body = c.req.valid("json");
     const row = await appendEvent(
       c.var.deps.admin(),
       id,
       body.type,
-      fieldsToRpc(body as InternalEventBody),
+      fieldsToRpc(body),
     );
     return c.json(EventWireSchema.parse(rowToWire(row)), 200);
   });
 
-  api.openapi(postArtifact, async (c) => {
+  internal.openapi(postArtifact, async (c) => {
     const { id } = c.req.valid("param");
     const body = c.req.valid("json");
+    if (!ARTIFACT_KINDS.has(body.kind)) {
+      throw new ApiFailure(422, "validation_failed", "unknown artifact kind");
+    }
     const admin = c.var.deps.admin();
     const run = await admin.from("analysis_runs").select("id,match_id,owner_id")
       .eq("id", id).maybeSingle();
@@ -143,7 +138,7 @@ export function registerInternal(api: OpenAPIHono<AppEnv>): void {
       kind: body.kind,
       r2_key: body.r2_key,
       bytes: body.bytes,
-      sha256: body.sha256,
+      sha256: body.sha256.toLowerCase(),
     }).select("id,analysis_id").single();
     if (ins.error) {
       if (ins.error.code !== "23505") throw ins.error;
@@ -153,4 +148,6 @@ export function registerInternal(api: OpenAPIHono<AppEnv>): void {
     }
     return c.json({ artifact_id: (ins.data as ArtifactRow).id }, 200);
   });
+
+  api.route("/", internal);
 }

@@ -26,12 +26,12 @@ export type EventWire = {
   seq: number;
   schema_version: number;
   type: string;
-  window_seq: number | null;
-  decode_window_us: [number, number] | null;
-  emit_range_us: [number, number] | null;
-  artifact_id: string | null;
-  reason: string | null;
-  engine_version: string | null;
+  window_seq?: number;
+  decode_window_us?: [number, number];
+  emit_range_us?: [number, number];
+  artifact_id?: string;
+  reason?: string;
+  engine_version?: string;
   created_at: string;
 };
 
@@ -52,7 +52,10 @@ function pair(
   return a === null || b === null ? null : [Number(a), Number(b)];
 }
 
+// analysis.event.v1 omits absent optional fields instead of sending null.
 export function rowToWire(r: EventRow): EventWire {
+  const decode = pair(r.decode_start_us, r.decode_end_us);
+  const emit = pair(r.emit_start_us, r.emit_end_us);
   return {
     event_id: r.event_id,
     analysis_id: r.analysis_id,
@@ -60,12 +63,12 @@ export function rowToWire(r: EventRow): EventWire {
     seq: r.seq,
     schema_version: r.schema_version,
     type: r.type,
-    window_seq: r.window_seq,
-    decode_window_us: pair(r.decode_start_us, r.decode_end_us),
-    emit_range_us: pair(r.emit_start_us, r.emit_end_us),
-    artifact_id: r.artifact_id,
-    reason: r.reason,
-    engine_version: r.engine_version,
+    ...(r.window_seq !== null ? { window_seq: r.window_seq } : {}),
+    ...(decode ? { decode_window_us: decode } : {}),
+    ...(emit ? { emit_range_us: emit } : {}),
+    ...(r.artifact_id !== null ? { artifact_id: r.artifact_id } : {}),
+    ...(r.reason !== null ? { reason: r.reason } : {}),
+    ...(r.engine_version !== null ? { engine_version: r.engine_version } : {}),
     created_at: r.created_at,
   };
 }

@@ -1,27 +1,29 @@
 import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppEnv } from "../lib/auth.ts";
+import {
+  analysisCreateRequestSchema,
+  analysisCreateResponseSchema,
+  analysisStateSchema,
+} from "../lib/contracts_vendor/index.ts";
 import { ApiFailure } from "../lib/errors.ts";
 import { appendEvent, listEvents } from "../lib/events.ts";
 import { canonicalHash, idemBegin, idemStore } from "../lib/idempotency.ts";
 import { ModalUnavailable, submitToModal } from "../lib/modal.ts";
-import { ANALYSIS_STATES, isTerminal } from "../lib/state.ts";
+import { isTerminal } from "../lib/state.ts";
 
-const Id = (p: string) =>
-  z.string().regex(new RegExp(`^${p}_[A-Za-z0-9_-]{1,64}$`));
-const Range = z.tuple([z.number(), z.number()]);
 const ENDPOINT = "POST /v1/analyses";
+const Range = z.tuple([z.number(), z.number()]);
+const CreateBody = analysisCreateRequestSchema;
+const CreateResponse = analysisCreateResponseSchema;
+const AnalysisId = z.string().regex(/^a_[A-Za-z0-9_-]+$/);
 
-const CreateBody = z.object({ session_id: Id("s") });
-const CreateResponse = z.object({
-  analysis_id: Id("a"),
-  state: z.enum(ANALYSIS_STATES),
-});
+// Response shape proposed, pending Person 4 (not in contracts yet).
 const GetResponse = z.object({
-  analysis_id: Id("a"),
+  analysis_id: AnalysisId,
   session_id: z.string(),
   match_id: z.string(),
-  state: z.enum(ANALYSIS_STATES),
+  state: analysisStateSchema,
   engine_version: z.string().nullable(),
   last_seq: z.number().int(),
   failure_reason: z.string().nullable(),
@@ -29,26 +31,30 @@ const GetResponse = z.object({
   updated_at: z.string(),
   finalized_at: z.string().nullable(),
 });
+
+// analysis.event.v1 omits absent optionals. It currently lists only the four engine event
+// types and requires engine_version, but this cursor also serves analysis.queued and later
+// events, so the wire schema is the contract shape loosened on type and engine_version.
 export const EventWireSchema = z.object({
   event_id: z.string(),
   analysis_id: z.string(),
   match_id: z.string(),
   seq: z.number().int(),
-  schema_version: z.number().int(),
+  schema_version: z.literal(1),
   type: z.string(),
-  window_seq: z.number().int().nullable(),
-  decode_window_us: Range.nullable(),
-  emit_range_us: Range.nullable(),
-  artifact_id: z.string().nullable(),
-  reason: z.string().nullable(),
-  engine_version: z.string().nullable(),
+  window_seq: z.number().int().optional(),
+  decode_window_us: Range.optional(),
+  emit_range_us: Range.optional(),
+  artifact_id: z.string().optional(),
+  reason: z.string().optional(),
+  engine_version: z.string().optional(),
   created_at: z.string(),
 });
 const EventsResponse = z.object({
   events: z.array(EventWireSchema),
-  next_after_seq: z.number().int(),
+  next_after_seq: z.number().int().min(0),
   has_more: z.boolean(),
-  state: z.enum(ANALYSIS_STATES),
+  state: analysisStateSchema,
 });
 
 const createRun = createRoute({
@@ -74,7 +80,7 @@ const getRun = createRoute({
   method: "get",
   path: "/v1/analyses/{id}",
   description: "Response shape is proposed, pending Person 4 (contracts).",
-  request: { params: z.object({ id: Id("a") }) },
+  request: { params: z.object({ id: AnalysisId }) },
   responses: {
     200: {
       description: "analysis",
@@ -87,7 +93,7 @@ const getEvents = createRoute({
   method: "get",
   path: "/v1/analyses/{id}/events",
   request: {
-    params: z.object({ id: Id("a") }),
+    params: z.object({ id: AnalysisId }),
     query: z.object({
       after_seq: z.coerce.number().int().min(0).default(0),
       limit: z.coerce.number().int().min(1).max(500).default(100),
