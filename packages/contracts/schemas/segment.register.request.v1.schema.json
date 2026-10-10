@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "final": {
+      "type": "boolean"
+    },
+    "pts_end_us": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "pts_start_us": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "seq": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sha256": {
+      "pattern": "^[A-Fa-f0-9]{64}$",
+      "type": "string"
+    },
+    "starts_on_sync_sample": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "seq",
+    "pts_start_us",
+    "pts_end_us",
+    "starts_on_sync_sample",
+    "bytes",
+    "sha256",
+    "final"
+  ],
+  "type": "object"
+}

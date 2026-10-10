@@ -12,6 +12,8 @@ import com.elevate.app.ui.ReplayViewModel
 import com.elevate.app.ui.Screen
 import com.elevate.app.ui.screens.ImportScreen
 import com.elevate.app.ui.screens.ReplayScreen
+import com.elevate.app.ui.setup.SetupFlowScreen
+import com.elevate.app.domain.media.PreflightState
 
 /** App root: Import → Replay. One ViewModel owns the player, so it survives recomposition and rotation. */
 @UnstableApi
@@ -28,13 +30,21 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
 
     when (val s = screen) {
         is Screen.Import -> ImportScreen(opening = s.opening, error = s.error, onChoose = pickVideo, backend = backend)
-        is Screen.Replay -> ReplayScreen(
+        is Screen.Replay -> {
+            val facts = (s.preflight as? PreflightState.Done)?.facts
+            if (s.setupAtUs != null && facts != null) {
+                SetupFlowScreen(uri = s.uri, facts = facts, frameUs = s.setupAtUs, onCancel = vm::cancelSetup, onDone = vm::finishSetup)
+                return
+            }
+            ReplayScreen(
             screen = s,
             state = playback,
             controller = vm.controller,
             onBack = vm::back,
             onChooseAnother = pickVideo,
             onOverlayVisible = vm::setOverlayVisible,
+            onSetUp = vm::startSetup,
         )
+        }
     }
 }

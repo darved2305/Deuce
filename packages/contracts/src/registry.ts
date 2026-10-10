@@ -13,12 +13,16 @@ import {
   internalArtifactRequestSchema,
   internalArtifactResponseSchema,
   internalEventRequestSchema,
+  internalSegmentsPageSchema,
   matchV1Schema,
   modalSubmitRequestSchema,
   opponentScoutResponseSchema,
   realtimeHintSchema,
   reviewConfirmRequestSchema,
+  segmentCompleteResponseSchema,
   segmentManifestSchema,
+  segmentRegisterRequestSchema,
+  segmentRegisterResponseSchema,
   sessionCreateRequestSchema,
   sessionCreateResponseSchema,
   sessionGetResponseSchema,
@@ -50,7 +54,7 @@ function entry(
 ): SchemaRegistryEntry {
   return {
     schema,
-    version: "1.4.0",
+    version: "1.6.0",
     file: `${name}.schema.json`,
     description,
   };
@@ -231,6 +235,26 @@ export const schemaRegistry = {
     "analysis.get.response.v1",
     analysisGetResponseSchema,
     "GET /v1/analyses/{id} response.",
+  ),
+  "segment.register.request.v1": entry(
+    "segment.register.request.v1",
+    segmentRegisterRequestSchema,
+    "POST /v1/sessions/{id}/segments request (chunked upload).",
+  ),
+  "segment.register.response.v1": entry(
+    "segment.register.response.v1",
+    segmentRegisterResponseSchema,
+    "POST /v1/sessions/{id}/segments response: the segment's PUT URL.",
+  ),
+  "segment.complete.response.v1": entry(
+    "segment.complete.response.v1",
+    segmentCompleteResponseSchema,
+    "POST /v1/sessions/{id}/segments/{seq}/complete response.",
+  ),
+  "internal.segments.page.v1": entry(
+    "internal.segments.page.v1",
+    internalSegmentsPageSchema,
+    "GET /internal/analyses/{id}/segments?after_seq= response for the engine.",
   ),
   "elevate.trail_labels.v1": entry(
     "elevate.trail_labels.v1",
