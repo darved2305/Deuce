@@ -40,7 +40,7 @@ Template (copy to the end of the file):
 
 ## Open (decide, then record as entries)
 1. Product name (shortlist: CourtMemory, RallyMirror, MatchEcho); code uses `elevate` until then.
-2. Modal spend ceiling (card on Person 1's operator account).
+2. Modal spend ceiling: decided in D-261010-VV1 ($30 total).
 3. The demo clip (working and eval clips are decided in D-261010-HW1).
 4. Default badminton ruleset (proposed `bwf_3x21`).
 5. Retention default (proposed: server copy of an original deleted after analysis unless kept).
@@ -280,3 +280,33 @@ Template (copy to the end of the file):
 - **Proof / evidence:** `fixtures/clips.md` "First look" (local TrackNetV3 probe: candidates in
   501/600 frames on the working segment, eye-checked on 20 frames; not accuracy).
 - **PRs:** this PR.
+
+## D-261010-VV1 · Modal spend ceiling is $30 for the project
+- **Status:** accepted
+- **Date:** 2026-10-10 · **Owner:** @VrajVed (Person 1) · **Supersedes:** none
+- **In one line:** In the context of running the vision engine on Modal (D-002), facing GPU spend
+  on a card with no automatic cap, we decided a $30 total ceiling for the project and rejected
+  having no ceiling or a higher one, so that a runaway job or retry loop cannot run up a bill,
+  accepting that GPU minutes on real clips are now limited.
+- **Context:** Resolves Open item 2. Modal Starter gives a $30 monthly credit, but that credit is
+  not a spending cap and GPU needs a card (`docs/plan/03-architecture-and-streaming.md` §7,
+  `docs/plan/10-build-plan.md`). Person 1 operates the workspace `voidinvariant`.
+- **Decision:** Total Modal spend for the project stays at or under $30. Person 1 sets a workspace
+  budget limit in the Modal dashboard if Modal offers one (UNVERIFIED), scales to zero outside demo
+  windows, and checks usage on each `/engine-health` run. Person 3's spend guard stops GPU
+  submissions before the $30 ceiling is reached.
+- **Alternatives:** (a) no ceiling, rejected because the credit does not stop charges to the card;
+  (b) a higher ceiling, rejected because $30 matches the Starter monthly credit.
+- **Blast radius:**
+  - Contracts: none; version bump none
+  - People and folders: Person 1 `engine/` keeps jobs scaled to zero and watches usage; Person 3
+    `supabase/` configures the spend guard threshold below $30 (Phase 4)
+  - Data/infra: Modal workspace billing settings; no new env names or secrets
+  - Containment: config only; signed off by all four (Person 3 for the spend guard)
+- **Exit:** a new entry raising or lowering the ceiling; no point of no return (money already spent
+  is spent).
+- **Proof / evidence:** Ceiling set by Person 1 on 2026-10-10; all four people agreed the
+  same day (confirmed to Person 1 outside GitHub), including Person 3 for the spend guard. Modal Starter credit
+  figures as cited in `docs/plan/03-architecture-and-streaming.md` §7 (UNVERIFIED against
+  modal.com/pricing today).
+- **PRs:** #6
