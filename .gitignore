@@ -29,3 +29,11 @@ android/local.properties
 *.npy
 *.onnx
 *.mlpackage
+
+# Third-party agent skills (e.g. `modal skills install`) land here; only ours are committed (audit #15)
+.claude/skills/*
+!.claude/skills/decision/
+!.claude/skills/engine-health/
+!.claude/skills/ship/
+!.claude/skills/slice-plan/
+!.claude/skills/sync-main/

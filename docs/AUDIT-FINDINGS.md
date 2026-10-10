@@ -31,7 +31,7 @@ entry where noted. Severity: **B** = blocks first PRs/CI or makes an agent build
 | 32 | I | `.agents/skills` | Codex doesn't read `.claude/skills` → commit symlink `.agents/skills -> ../.claude/skills`; add `.agents/` to the P4 lane. |
 | 33 | M | lane-guard.sh | Symlinked paths fail open → canonicalise root and file with `pwd -P`. |
 | 26 | I | `.env.example` | Missing `EMBED_SIGNING_KEY`, `API_BASE_URL` (for Modal → /internal), `INSIGHTS_*` if insights stays on Modal; add a table: name, who generates, where stored, who consumes. |
-| 34 | B | DECISIONS.md | No named real clip yet (blocks P1 CLI run, P2 overlay spike, P4 fixtures) → decide a Phase 1 stand-in (e.g. Wikimedia `badminton_eurogames`, CC BY-SA 4.0, see docs/research/footage-sources.md), upload to R2, record licence/attribution. Also fill the Modal spend ceiling. |
+| 34 | done | DECISIONS.md | **Done:** clips in D-261010-HW1 (`fixtures/clips.md`); spend ceiling in D-261010-VV1 (Person 1). Was: no named real clip yet (blocks P1 CLI run, P2 overlay spike, P4 fixtures) → decide a Phase 1 stand-in (e.g. Wikimedia `badminton_eurogames`, CC BY-SA 4.0, see docs/research/footage-sources.md), upload to R2, record licence/attribution. Also fill the Modal spend ceiling. |
 | 35 | I | build plan / .env.example | Owners of Supabase project, Cloudflare/R2 account and token hand-offs (INTERNAL_API_TOKEN, MODAL_SUBMIT_TOKEN, R2 keys) are unnamed → add the table. |
 | 37 | M | docs/ui | `*.dc.html` need the canvas runtime (`support.js` absent) → export PNG previews into docs/ui. |
 | 38 | M | docs/research | Contains superseded material (hour markers, old stack, absolute paths) → add a banner README: evidence only, superseded by DECISIONS.md; agents don't load it unless a decision cites it. |

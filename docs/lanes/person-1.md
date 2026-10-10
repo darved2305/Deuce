@@ -15,7 +15,9 @@ real footage.
 this repo). For weight loading and pre/post-processing, read the official inference code in the
 TrackNetV3 (github.com/qaz812345/TrackNetV3) and WASB-SBDT (github.com/nttcom/WASB-SBDT) repos,
 then write it properly in `engine/`.
-Footage sources: `docs/research/footage-sources.md`.
+Clips: `fixtures/clips.md` (D-261010-HW1): the working clip, the held-out clip and the labelled
+TrackNetV3 test split, with fetch commands. Reproduce the published TrackNetV3 numbers on that test
+split before tuning anything.
 
 ## You own
 `engine/`, the Modal app, its `submit` endpoint and secret, clip cutting.
