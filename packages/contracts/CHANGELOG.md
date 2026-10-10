@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+- `upload_mode` accepts `segments` as well as `multipart` (chunked real-time analysis, D-261011-HW3).
+  The database already accepts both. Segment routes and the `final` flag land in the contracts
+  amendment.
+
 ## 1.1.0
 
 - Match the database (Person 3's `supabase/migrations` checks) exactly, and test it: sessions,

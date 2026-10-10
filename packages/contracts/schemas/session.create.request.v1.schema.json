@@ -419,7 +419,10 @@
       "type": "string"
     },
     "upload_mode": {
-      "const": "multipart",
+      "enum": [
+        "multipart",
+        "segments"
+      ],
       "type": "string"
     },
     "who_is_me": {

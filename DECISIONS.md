@@ -514,3 +514,29 @@ Template (copy to the end of the file):
 - **Exit:** run the A55 sweep and `OverlayTimingTest` on an S23 FE when one is connected.
 - **Proof / evidence:** `android/PHASE1_STATUS.md`.
 - **PRs:** this PR
+
+## D-261011-HW3 · Chunked real-time analysis is core: analysis starts on the first segment
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** the "Phase 4, behind a flag" placement of segment upload in `03`, `10` and debate D1
+- **In one line:** In the context of the judges asking for a chunking strategy and real-time
+  analysis, facing analysis that only starts after the whole video uploads, we decided to make
+  segment upload core in Phase 3, and rejected keeping it as a later flag.
+- **Context:** Judges' feedback in the mentor round. Today results already stream per 6 s window,
+  but only after the full upload; a 5-minute 1080p video can take minutes to upload.
+- **Decision:** as `docs/plan/03-architecture-and-streaming.md` §2 now describes: the phone
+  remuxes into ~6 s keyframe-aligned segments (no re-encode) and uploads them in order; the API
+  registers each segment and starts the analysis on segment 0; the engine processes segments as
+  their manifests arrive and posts windows as today; whole-file multipart stays as the fallback.
+  Contracts 1.2.0 accept `upload_mode: "segments"`; segment routes and a `final` flag go through
+  the contracts amendment (D-012).
+- **Alternatives:** (a) keep it in Phase 4, rejected: the judges asked for it; (b) live in-app
+  recording with chunked capture (`MediaRecorder.setNextOutputFile`), deferred: new scope, can
+  build on the same segment pipeline later.
+- **Blast radius:**
+  - People and folders: Person 2 segmenter and uploader; Person 3 segment routes and engine
+    notification; Person 1 segment-by-segment processing with overlap; Person 4 contracts
+    amendment and the Cloudflare rule (`seg/` deleted after 1 day; segments count against G1/G4).
+  - Contracts: 1.2.0 (`upload_mode` enum); routes and `final` in the amendment PR.
+- **Exit:** set `upload_mode` back to `multipart` in the app; the server keeps both.
+- **Proof / evidence:** judges' feedback; latency to be measured on S23 FE, A55 and Modal at the
+  Phase 3 check.
+- **PRs:** this PR.

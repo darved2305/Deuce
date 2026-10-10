@@ -47,6 +47,10 @@ exclusive); `GET /v1/matches/{id}`; `GET /v1/artifacts/{id}` signed URLs; OpenAP
 every change.
 
 ## Phase 3 · Full loop
+- **Chunked real-time analysis (D-261011-HW3):** segment registration and PUT URLs
+  (`seg/{session_id}/{seq}.mp4`), create and dispatch the analysis when segment 0 completes, and
+  an internal route that lists new segment manifests for the engine (never an R2 listing). Final
+  route shapes go through the contracts amendment. Count segments against the Cloudflare caps.
 - Remaining tables: `rallies, shots, events, reviews, confirmed_points, metrics, insights,
   moments, clips, corrections, share_grants, consents, reference_examples, claims, developer_keys`.
 - Persist the vision result from `finalize`; insights job: shot records with canonical orientation
