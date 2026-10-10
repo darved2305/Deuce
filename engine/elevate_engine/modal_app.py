@@ -65,73 +65,95 @@ ENGINE_VERSION = "0.1.0"
 WINDOW_MS = 6000
 
 
+UPLOADS = "uploads"  # per-analysis copy of the original in elevate-clips, deleted after
+
+
 @app.function(
-    gpu="T4",
     region="ap",
     image=gpu_image,
     secrets=[internal_secret, r2_secret],
-    volumes={MODELS_PATH: models},
-    timeout=1800,
-    cpu=4,
+    volumes={MODELS_PATH: models, CLIPS_PATH: clips},
+    timeout=3600,
 )
 def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
-    """Thin path (Phase 2): window 0 of the original, end to end.
+    """Whole analysis on CPU, with the windows on parallel T4s (Models.candidates).
 
-    analysis.started -> read the original from R2 once -> window_result.v1 for window 0 ->
-    PUT to its contract key -> register the artifact -> window.completed. Any failure posts
-    analysis.failed with a reason. Later windows come with p1/full-windows.
+    analysis.started -> read the original from R2 once (copy into the clips volume so the window
+    containers can decode their own ranges) -> one shared background -> ~6 s windows with 0.75 s
+    overlap, in parallel -> A3 static filter + tracking layer in time order -> per window, in
+    order: validate, PUT analysis/{id}/{version}/windows/{n}.json, register the artifact, post
+    window.completed. A window is posted once the next one's candidates are in, so tracks that
+    cross the boundary are complete. Any failure posts analysis.failed with a reason.
     """
-    import tempfile
+    import shutil
     import time
 
+    from elevate_engine import pipeline
     from elevate_engine import window as win
     from elevate_engine.api import InternalApi
     from elevate_engine.log import log
     from elevate_engine.r2 import R2, window_key
-    from elevate_engine.tracknet.model import from_checkpoint
-    from elevate_engine.weights import load_checkpoints, load_manifest
+    from elevate_engine.sports import BADMINTON
+    from elevate_engine.video import duration_ms
 
     started = time.perf_counter()
     api = InternalApi.from_env()
     log("analyze.start", analysis_id=analysis_id, r2_key=r2_key, sport=session_spec.get("sport"))
     api.event(analysis_id, {"type": "analysis.started", "engine_version": ENGINE_VERSION})
+    rel = f"{UPLOADS}/{analysis_id}/source.mp4"
+    local = Path(CLIPS_PATH) / rel
+    posted = []
     try:
         r2 = R2.from_env()
-        with tempfile.TemporaryDirectory() as tmp:
-            src = Path(tmp) / "source.mp4"
-            size = r2.download_original(r2_key, src)
-            log("analyze.original", analysis_id=analysis_id, bytes=size)
-            ckpt, _ = load_checkpoints(Path(MODELS_PATH), "tracknet_v3", load_manifest())[
-                "tracknet"
-            ]
-            model, seq_len = from_checkpoint(ckpt)
-            window, summary = win.from_file(
-                model.cuda(), seq_len, src, analysis_id, 0, (0, WINDOW_MS)
+        local.parent.mkdir(parents=True, exist_ok=True)
+        size = r2.download_original(r2_key, local)
+        clips.commit()  # make the copy visible to the window containers
+        end = duration_ms(local)
+        plans = pipeline.plan_windows(0, end)
+        log("analyze.original", analysis_id=analysis_id, bytes=size, duration_ms=end,
+            windows=len(plans))  # fmt: skip
+        models_ = Models()
+        bg = models_.background.remote(rel, 0, end)
+        args = [(rel, list(p.decode), list(p.emit), bg) for p in plans]
+        results: list[dict] = []
+
+        def post(k: int, rows: list) -> None:
+            w = pipeline.window_result(analysis_id, plans[k], results[k], rows, ["tracknet_v3"])
+            win.validate(w)
+            stored = r2.put_json(
+                window_key(analysis_id, ENGINE_VERSION, k), (json.dumps(w) + "\n").encode()
             )
-        win.validate(window)
-        data = (json.dumps(window) + "\n").encode()
-        stored = r2.put_json(window_key(analysis_id, ENGINE_VERSION, 0), data)
-        artifact_id = api.artifact(
-            analysis_id, "window_result", stored["r2_key"], stored["bytes"], stored["sha256"]
-        )
-        api.event(analysis_id, {
-            "type": "window.completed",
-            "window_seq": 0,
-            "decode_window_us": window["decode_window_us"],
-            "emit_range_us": window["emit_range_us"],
-            "artifact_id": artifact_id,
-        })  # fmt: skip
+            art = api.artifact(analysis_id, "window_result", stored["r2_key"], stored["bytes"],
+                               stored["sha256"])  # fmt: skip
+            api.event(analysis_id, {
+                "type": "window.completed", "window_seq": k,
+                "decode_window_us": w["decode_window_us"], "emit_range_us": w["emit_range_us"],
+                "artifact_id": art,
+            })  # fmt: skip
+            posted.append({"window_seq": k, "artifact_id": art, "ball_rows": len(w["ball"])})
+
+        for res in models_.candidates.starmap(args):  # results arrive in window order
+            results.append(res)
+            if len(results) >= 2:  # window k-1 is final once window k is known
+                rows, _ = pipeline.track_windows(results, BADMINTON)
+                post(len(results) - 2, rows)
+        rows, stats = pipeline.track_windows(results, BADMINTON)
+        post(len(results) - 1, rows)
     except Exception as exc:
         reason = f"{type(exc).__name__}: {exc}"[:200]
-        log("analyze.failed", analysis_id=analysis_id, reason=reason)
+        log("analyze.failed", analysis_id=analysis_id, reason=reason, windows_posted=len(posted))
         try:
             api.event(analysis_id, {"type": "analysis.failed", "reason": reason})
         except Exception as report_exc:  # keep the original error as the one that surfaces
             log("analyze.report_failed", analysis_id=analysis_id, error=repr(report_exc)[:200])
         raise
-    result = {"analysis_id": analysis_id, "artifact_id": artifact_id, **stored, **summary,
-              "total_s": round(time.perf_counter() - started, 1)}  # fmt: skip
-    log("analyze.done", **result)
+    finally:
+        shutil.rmtree(local.parent, ignore_errors=True)
+        clips.commit()
+    result = {"analysis_id": analysis_id, "duration_ms": end, "windows": posted,
+              "tracker": stats, "total_s": round(time.perf_counter() - started, 1)}  # fmt: skip
+    log("analyze.done", **{k: v for k, v in result.items() if k != "windows"},
+        windows_posted=len(posted))  # fmt: skip
     return result
 
 
@@ -436,6 +458,7 @@ class Models:
         """Shared background for a whole range (pipeline step 2), float32 (3, 288, 512)."""
         from elevate_engine.tracknet import run as tracknet_run
 
+        clips.reload()  # see originals that analyze copied in after this container started
         return tracknet_run.sample_background(Path(CLIPS_PATH) / clip, start_ms, end_ms)
 
     @modal.method()
@@ -449,6 +472,7 @@ class Models:
         from elevate_engine.video import frames_in_range, source_size
 
         model, seq_len = self._tracknet()
+        clips.reload()
         path = Path(CLIPS_PATH) / clip
         decoded = list(frames_in_range(path, *decode_ms, infer.resize_chw_uint8))
         frames = [f.image for f in decoded]
