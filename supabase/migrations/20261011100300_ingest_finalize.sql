@@ -40,7 +40,10 @@ begin
     end case;
     v_h := p_result#>'{calibration,H}';
     if v_width is not null and v_length is not null
-       and v_who_is_me#>'{image_xy}' is not null and jsonb_array_length(v_h) = 9 then
+       and jsonb_array_length(case when jsonb_typeof(v_who_is_me->'image_xy') = 'array'
+         then v_who_is_me->'image_xy' else '[]'::jsonb end) = 2
+       and jsonb_array_length(case when jsonb_typeof(v_h) = 'array'
+         then v_h else '[]'::jsonb end) = 9 then
       v_den := (v_h->>6)::numeric * (v_who_is_me#>>'{image_xy,0}')::numeric
         + (v_h->>7)::numeric * (v_who_is_me#>>'{image_xy,1}')::numeric
         + (v_h->>8)::numeric;
@@ -70,16 +73,45 @@ begin
   for v_row in select value from jsonb_array_elements(coalesce(p_result->'shots', '[]'::jsonb))
   loop
     v_shot := v_row;
-    if v_rotate then
-      v_shot := jsonb_set(v_shot, '{roles,focal,xy_m}', jsonb_build_array(
-        v_width - (v_shot#>>'{roles,focal,xy_m,0}')::numeric,
-        v_length - (v_shot#>>'{roles,focal,xy_m,1}')::numeric));
-      v_shot := jsonb_set(v_shot, '{roles,opponent,xy_m}', jsonb_build_array(
-        v_width - (v_shot#>>'{roles,opponent,xy_m,0}')::numeric,
-        v_length - (v_shot#>>'{roles,opponent,xy_m,1}')::numeric));
-      v_shot := jsonb_set(v_shot, '{chosen,landing_xy_m}', jsonb_build_array(
-        v_width - (v_shot#>>'{chosen,landing_xy_m,0}')::numeric,
-        v_length - (v_shot#>>'{chosen,landing_xy_m,1}')::numeric));
+    if v_rotate and v_shot->>'reference_plane' = 'court' then
+      if jsonb_array_length(case
+        when jsonb_typeof(v_shot#>'{roles,focal,xy_m}') = 'array'
+        then v_shot#>'{roles,focal,xy_m}' else '[]'::jsonb end) = 2 then
+        v_shot := jsonb_set(v_shot, '{roles,focal,xy_m}', jsonb_build_array(
+          v_width - (v_shot#>>'{roles,focal,xy_m,0}')::numeric,
+          v_length - (v_shot#>>'{roles,focal,xy_m,1}')::numeric));
+      end if;
+      if jsonb_array_length(case
+        when jsonb_typeof(v_shot#>'{roles,opponent,xy_m}') = 'array'
+        then v_shot#>'{roles,opponent,xy_m}' else '[]'::jsonb end) = 2 then
+        v_shot := jsonb_set(v_shot, '{roles,opponent,xy_m}', jsonb_build_array(
+          v_width - (v_shot#>>'{roles,opponent,xy_m,0}')::numeric,
+          v_length - (v_shot#>>'{roles,opponent,xy_m,1}')::numeric));
+      end if;
+      if jsonb_array_length(case
+        when jsonb_typeof(v_shot#>'{chosen,landing_xy_m}') = 'array'
+        then v_shot#>'{chosen,landing_xy_m}' else '[]'::jsonb end) = 2 then
+        v_shot := jsonb_set(v_shot, '{chosen,landing_xy_m}', jsonb_build_array(
+          v_width - (v_shot#>>'{chosen,landing_xy_m,0}')::numeric,
+          v_length - (v_shot#>>'{chosen,landing_xy_m,1}')::numeric));
+      end if;
+      v_shot := jsonb_set(v_shot, '{incoming}', (v_shot->'incoming') || jsonb_build_object(
+        'source_zone', case v_shot#>>'{incoming,source_zone}'
+          when 'F1' then 'B3' when 'F2' then 'B2' when 'F3' then 'B1'
+          when 'M1' then 'M3' when 'M3' then 'M1'
+          when 'B1' then 'F3' when 'B2' then 'F2' when 'B3' then 'F1'
+          else v_shot#>>'{incoming,source_zone}' end,
+        'landing_zone', case v_shot#>>'{incoming,landing_zone}'
+          when 'F1' then 'B3' when 'F2' then 'B2' when 'F3' then 'B1'
+          when 'M1' then 'M3' when 'M3' then 'M1'
+          when 'B1' then 'F3' when 'B2' then 'F2' when 'B3' then 'F1'
+          else v_shot#>>'{incoming,landing_zone}' end));
+      v_shot := jsonb_set(v_shot, '{chosen}', (v_shot->'chosen') || jsonb_build_object(
+        'target_zone', case v_shot#>>'{chosen,target_zone}'
+          when 'F1' then 'B3' when 'F2' then 'B2' when 'F3' then 'B1'
+          when 'M1' then 'M3' when 'M3' then 'M1'
+          when 'B1' then 'F3' when 'B2' then 'F2' when 'B3' then 'F1'
+          else v_shot#>>'{chosen,target_zone}' end));
     end if;
     insert into public.shots (
       match_id, id, owner_id, analysis_id, rally_id, index, player_id,
@@ -100,7 +132,9 @@ begin
 
   for v_row in select value from jsonb_array_elements(coalesce(p_result->'events', '[]'::jsonb))
   loop
-    if v_rotate and v_row->'contact_xy_m' is not null then
+    if v_rotate and v_row->>'plane' = 'court'
+       and jsonb_array_length(case when jsonb_typeof(v_row->'contact_xy_m') = 'array'
+         then v_row->'contact_xy_m' else '[]'::jsonb end) = 2 then
       v_row := jsonb_set(v_row, '{contact_xy_m}', jsonb_build_array(
         v_width - (v_row#>>'{contact_xy_m,0}')::numeric,
         v_length - (v_row#>>'{contact_xy_m,1}')::numeric));
@@ -117,7 +151,31 @@ begin
     );
   end loop;
 
-  -- review rows deferred pending contract amendment
+  -- Contract issue #20 requires confirmed fields; skip estimate-only reviews without inventing them.
+  for v_row in select value from jsonb_array_elements(coalesce(p_result->'reviews', '[]'::jsonb))
+  loop
+    if nullif(v_row->>'confirmed_point_winner', '') is null
+       or nullif(v_row->>'confirmed_by', '') is null
+       or nullif(v_row->>'confirmed_at', '') is null then
+      continue;
+    end if;
+    insert into public.reviews (
+      match_id, id, owner_id, analysis_id, rally_id, event_id, t_ms,
+      evidence_frames, contact_xy_m, cov_m2, line_id, margin_m, sigma_m,
+      estimate, visibility, model_ids, calibration_id,
+      confirmed_point_winner, confirmed_by, confirmed_at
+    ) values (
+      v_run.match_id, v_row->>'review_id', v_run.owner_id, p_analysis_id,
+      v_row->>'rally_id', v_row->>'event_id', (v_row->>'t_ms')::integer,
+      coalesce(v_row->'evidence_frames', '[]'::jsonb), v_row->'contact_xy_m',
+      v_row->'cov_m2', v_row->>'line_id', (v_row->>'margin_m')::real,
+      (v_row->>'sigma_m')::real, v_row->>'estimate', v_row->>'visibility',
+      coalesce(v_row->'model_ids', '[]'::jsonb), v_row->>'calibration_id',
+      v_row->>'confirmed_point_winner', v_row->>'confirmed_by',
+      (v_row->>'confirmed_at')::timestamptz
+    );
+  end loop;
+
   for v_row in select value from jsonb_array_elements(coalesce(p_result->'metrics', '[]'::jsonb))
   loop
     insert into public.metrics (
@@ -173,103 +231,5 @@ begin
   end;
 end $$;
 
-create or replace function public.run_insights(p_analysis_id text)
-returns void language plpgsql set search_path = '' security definer as $$
-declare
-  v_run public.analysis_runs;
-  v_metric public.metrics;
-  v_clip record;
-  v_moment text;
-  v_clip_count integer;
-begin
-  select * into v_run
-    from public.analysis_runs where id = p_analysis_id for update;
-  if not found then
-    raise exception 'analysis_not_found' using errcode = 'P0002';
-  end if;
-  if exists (select 1 from public.analysis_events
-      where analysis_id = p_analysis_id and type = 'analysis.completed') then
-    update public.analysis_runs set finalized_at = coalesce(finalized_at, now())
-      where id = p_analysis_id;
-    return;
-  end if;
-
-  select * into v_metric from public.metrics
-    where analysis_id = p_analysis_id and tier <> 'unsupported' and denominator >= 5
-    order by abs(numerator::numeric / denominator - 0.5) desc,
-      denominator desc, key asc, player_id asc
-    limit 1;
-  if found then
-    select m.id into v_moment from public.moments m
-      where m.match_id = v_run.match_id and m.rally_id in (
-        select r.id from public.rallies r
-          where r.match_id = v_run.match_id and r.analysis_id = p_analysis_id
-      )
-      order by case when exists (
-        select 1 from public.shots s
-          where s.match_id = m.match_id and s.id = m.shot_id
-            and s.analysis_id = p_analysis_id and s.player_id = v_metric.player_id
-      ) then 0 else 1 end, m.start_ms, m.id
-      limit 1;
-    if v_moment is null then
-      raise exception 'no_evidence_moment';
-    end if;
-    insert into public.insights (
-      match_id, owner_id, kind, caption, count, visual, evidence_moment_ids, gate
-    ) values (
-      v_run.match_id, v_run.owner_id, 'hero',
-      v_metric.numerator || ' of ' || v_metric.denominator || ' ' || replace(v_metric.key, '_', ' '),
-      jsonb_build_object('num', v_metric.numerator, 'den', v_metric.denominator),
-      jsonb_build_object('type', v_metric.key,
-        'filter', jsonb_build_object('player', v_metric.player_id)),
-      jsonb_build_array(v_moment), 'descriptive'
-    );
-  else
-    select r.id as rally_id, r.end_ms - r.start_ms as duration_ms,
-        c.id as clip_id, c.owner_label
-      into v_clip
-      from public.rallies r join public.clips c
-        on c.match_id = r.match_id and (c.id = r.clip_id or c.rally_id = r.id)
-      join public.artifacts a on a.id = c.artifact_id and a.match_id = c.match_id
-      where r.match_id = v_run.match_id and r.analysis_id = p_analysis_id
-        and r.state = 'observed' and c.artifact_id is not null
-        and a.r2_key like 'clips/' || v_run.match_id || '/%'
-      order by c.end_ms - c.start_ms desc, r.index asc, r.id asc, c.id asc
-      limit 1;
-    if found then
-      select count(*)::integer into v_clip_count
-        from public.rallies r join public.clips c
-          on c.match_id = r.match_id and (c.id = r.clip_id or c.rally_id = r.id)
-        join public.artifacts a on a.id = c.artifact_id and a.match_id = c.match_id
-        where r.match_id = v_run.match_id and r.analysis_id = p_analysis_id
-          and r.state = 'observed' and c.artifact_id is not null
-          and a.r2_key like 'clips/' || v_run.match_id || '/%';
-      select m.id into v_moment from public.moments m
-        where m.match_id = v_run.match_id and m.rally_id = v_clip.rally_id
-        order by m.start_ms, m.id limit 1;
-      if v_moment is null then
-        raise exception 'no_evidence_moment';
-      end if;
-      insert into public.insights (
-        match_id, owner_id, kind, caption, count, visual, evidence_moment_ids, gate
-      ) values (
-        v_run.match_id, v_run.owner_id, 'hero',
-        'Longest of ' || v_clip_count || ' observed rally clips',
-        jsonb_build_object('num', 1, 'den', v_clip_count),
-        jsonb_build_object('type', 'clip',
-          'filter', jsonb_build_object('player', v_clip.owner_label)),
-        jsonb_build_array(v_moment), 'descriptive'
-      );
-    end if;
-  end if;
-
-  perform public.append_event(p_analysis_id, 'analysis.completed', '{}'::jsonb);
-  update public.analysis_runs set state = 'completed', finalized_at = coalesce(finalized_at, now()),
-      updated_at = now()
-    where id = p_analysis_id;
-end $$;
-
 revoke all on function public.ingest_vision_result(text,jsonb) from public, anon, authenticated;
-revoke all on function public.run_insights(text) from public, anon, authenticated;
 grant execute on function public.ingest_vision_result(text,jsonb) to service_role;
-grant execute on function public.run_insights(text) to service_role;

@@ -1,5 +1,5 @@
 begin;
-select plan(21);
+select plan(30);
 
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values ('00000000-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111',
@@ -33,6 +33,14 @@ create function pg_temp.finalize_payload(
     'rallies', p_rallies,
     'shots', p_shots,
     'events', p_events,
+    'reviews', jsonb_build_array(jsonb_build_object(
+      'review_id', 'rv_engine_13', 'match_id', p_match, 'rally_id', 'r_engine_07',
+      'event_id', 'e_engine_11', 't_ms', 1100, 'evidence_frames', '[1100]'::jsonb,
+      'contact_xy_m', '[1,2]'::jsonb, 'cov_m2', '[[0,0],[0,0]]'::jsonb,
+      'line_id', 'left_sideline_singles', 'margin_m', 0.1, 'sigma_m', 0.02,
+      'estimate', 'IN', 'visibility', 'visible', 'model_ids', '[]'::jsonb,
+      'calibration_id', 'cal_1'
+    )),
     'metrics', p_metrics,
     'moments', p_moments,
     'clips', p_clips
@@ -56,17 +64,44 @@ select is((select id from public.shots where match_id = 'm_ingest' and id = 'sh_
   'sh_engine_09', 'shot id is retained verbatim');
 select is((select id from public.vision_events where match_id = 'm_ingest' and id = 'e_engine_11'),
   'e_engine_11', 'events are stored in vision_events with their verbatim ids');
-select is((select count(*)::integer from public.analysis_events where analysis_id = 'a_ingest'),
-  2, 'vision events are not inserted as analysis events');
+select is((select count(*)::integer from public.analysis_events
+  where analysis_id = 'a_ingest' and event_id = 'e_engine_11'),
+  0, 'vision events are not inserted as analysis events');
+select is((select count(*)::integer from public.reviews where match_id = 'm_ingest'),
+  0, 'review estimates without required contract confirmations are skipped');
 select is((select (roles#>>'{focal,xy_m,0}')::numeric from public.shots
   where match_id = 'm_ingest' and id = 'sh_engine_09'), 4.18::numeric,
   'far-side focal x is rotated by court width');
 select is((select (roles#>>'{focal,xy_m,1}')::numeric from public.shots
   where match_id = 'm_ingest' and id = 'sh_engine_09'), 11.4::numeric,
   'far-side focal y is rotated by court length');
+select is((select (roles#>>'{opponent,xy_m,0}')::numeric from public.shots
+  where match_id = 'm_ingest' and id = 'sh_engine_09'), 3.18::numeric,
+  'far-side opponent x is rotated by court width');
+select is((select (roles#>>'{opponent,xy_m,1}')::numeric from public.shots
+  where match_id = 'm_ingest' and id = 'sh_engine_09'), 10.4::numeric,
+  'far-side opponent y is rotated by court length');
+select is((select (chosen#>>'{landing_xy_m,0}')::numeric from public.shots
+  where match_id = 'm_ingest' and id = 'sh_engine_09'), 1.18::numeric,
+  'far-side landing x is rotated by court width');
+select is((select (chosen#>>'{landing_xy_m,1}')::numeric from public.shots
+  where match_id = 'm_ingest' and id = 'sh_engine_09'), 8.4::numeric,
+  'far-side landing y is rotated by court length');
 select is((select (contact_xy_m->>0)::numeric from public.vision_events
   where match_id = 'm_ingest' and id = 'e_engine_11'), 4.18::numeric,
   'far-side event coordinate is rotated');
+select is((select (contact_xy_m->>1)::numeric from public.vision_events
+  where match_id = 'm_ingest' and id = 'e_engine_11'), 11.4::numeric,
+  'far-side event y is rotated by court length');
+select is((select incoming->>'source_zone' from public.shots
+  where match_id = 'm_ingest' and id = 'sh_engine_09'), 'B3',
+  'far-side incoming source zone follows the rotated §9 grid');
+select is((select incoming->>'landing_zone' from public.shots
+  where match_id = 'm_ingest' and id = 'sh_engine_09'), 'F3',
+  'far-side incoming landing zone follows the rotated §9 grid');
+select is((select chosen->>'target_zone' from public.shots
+  where match_id = 'm_ingest' and id = 'sh_engine_09'), 'F2',
+  'far-side chosen target zone follows the rotated §9 grid');
 select is((select caption from public.insights where match_id = 'm_ingest' and kind = 'hero'),
   '1 of 10 a tie', 'hero ranks by distance from one half, denominator, then key');
 select is((select evidence_moment_ids->>0 from public.insights

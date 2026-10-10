@@ -194,6 +194,41 @@ Deno.test("finalize persists summary; a retry -> 409 conflict", async () => {
   assert.equal((await second.json()).error.code, "conflict");
 });
 
+Deno.test("finalize skips review estimates without contract confirmations", async () => {
+  const t = build();
+  const body = {
+    ...finalizeBody,
+    vision_result: {
+      ...finalizeBody.vision_result,
+      reviews: [{
+        review_id: "rv_estimate",
+        match_id: "m_1",
+        rally_id: "r_1",
+        event_id: "e_1",
+        t_ms: 100,
+        evidence_frames: [90, 100, 110],
+        contact_xy_m: [1, 2],
+        cov_m2: [[0, 0], [0, 0]],
+        line_id: "left_sideline_singles",
+        margin_m: 0.1,
+        sigma_m: 0.02,
+        estimate: "IN",
+        visibility: "visible",
+        model_ids: [],
+        calibration_id: "cal_1",
+      }],
+    },
+  };
+  const res = await call(t.app, "finalize", body);
+  assert.equal(res.status, 200);
+  const ingest = t.log.find((entry) =>
+    entry.kind === "rpc" && entry.name === "ingest_vision_result"
+  );
+  assert.ok(ingest && ingest.kind === "rpc");
+  const result = ingest.args.p_result as { reviews: unknown[] };
+  assert.deepEqual(result.reviews, []);
+});
+
 Deno.test("internal event type whitelist -> 422", async () => {
   const t = build();
   for (

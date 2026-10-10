@@ -9,7 +9,7 @@ import {
   internalArtifactResponseSchema,
   internalEventRequestSchema,
 } from "../lib/contracts_vendor/index.ts";
-import { ApiFailure, defaultHook, fail } from "../lib/errors.ts";
+import { ApiFailure, defaultHook } from "../lib/errors.ts";
 import {
   appendEvent,
   fieldsToRpc,
@@ -28,6 +28,24 @@ const ARTIFACT_KINDS = new Set([
 ]);
 
 const Params = z.object({ id: z.string().regex(/^a_[A-Za-z0-9_-]+$/) });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// Issue #20: engine estimates lack required confirmation fields, so omit those rows.
+function omitUnconfirmedReviewEstimates(input: unknown): unknown {
+  if (!isRecord(input) || !isRecord(input.vision_result)) return input;
+  const vision = input.vision_result;
+  if (!Array.isArray(vision.reviews)) return input;
+  const reviews = vision.reviews.filter((value) => {
+    if (!isRecord(value)) return true;
+    return value.confirmed_point_winner != null && value.confirmed_by != null &&
+      value.confirmed_at != null;
+  });
+  if (reviews.length === vision.reviews.length) return input;
+  return { ...input, vision_result: { ...vision, reviews } };
+}
 
 const postEvent = createRoute({
   method: "post",
@@ -80,7 +98,7 @@ const postFinalize = createRoute({
     params: Params,
     body: {
       content: {
-        "application/json": { schema: analysisFinalizeRequestSchema },
+        "application/json": { schema: z.unknown() },
       },
     },
   },
@@ -105,34 +123,6 @@ type ClipArtifactRow = {
 // /v1/openapi.json document.
 export function registerInternal(api: OpenAPIHono<AppEnv>): void {
   const internal = new OpenAPIHono<AppEnv>({ defaultHook });
-
-  internal.use("/internal/analyses/:id/finalize", async (c, next) => {
-    let raw: unknown;
-    try {
-      raw = await c.req.raw.clone().json();
-    } catch {
-      raw = null;
-    }
-    const parsed = analysisFinalizeRequestSchema.safeParse(raw);
-    if (!parsed.success) {
-      const { id } = c.req.param();
-      if (id) {
-        await c.var.deps.admin().rpc("append_event", {
-          p_analysis_id: id,
-          p_type: "analysis.failed",
-          p_fields: { reason: "invalid_vision_result" },
-        });
-      }
-      return fail(
-        c,
-        422,
-        "validation_failed",
-        "request validation failed",
-        parsed.error.issues,
-      );
-    }
-    return await next();
-  });
 
   internal.openapi(postEvent, async (c) => {
     const { id } = c.req.valid("param");
@@ -206,7 +196,23 @@ export function registerInternal(api: OpenAPIHono<AppEnv>): void {
 
   internal.openapi(postFinalize, async (c) => {
     const { id } = c.req.valid("param");
-    const body = c.req.valid("json");
+    const parsed = analysisFinalizeRequestSchema.safeParse(
+      omitUnconfirmedReviewEstimates(c.req.valid("json")),
+    );
+    if (!parsed.success) {
+      await c.var.deps.admin().rpc("append_event", {
+        p_analysis_id: id,
+        p_type: "analysis.failed",
+        p_fields: { reason: "invalid_vision_result" },
+      });
+      throw new ApiFailure(
+        422,
+        "validation_failed",
+        "request validation failed",
+        parsed.error.issues,
+      );
+    }
+    const body = parsed.data;
     const admin = c.var.deps.admin();
     const run = await admin.from("analysis_runs").select("id,match_id")
       .eq("id", id).maybeSingle();
