@@ -1,0 +1,495 @@
+import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
+import type { Context } from "hono";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AppEnv } from "../lib/auth.ts";
+import {
+  sessionCreateRequestSchema,
+  sessionCreateResponseSchema,
+  uploadCompleteRequestSchema,
+  uploadPartsRequestSchema,
+  uploadPartsResponseSchema,
+} from "../lib/contracts_vendor/index.ts";
+import { ApiFailure, defaultHook, fail } from "../lib/errors.ts";
+import { canonicalHash, idemBegin, idemStore } from "../lib/idempotency.ts";
+import { type R2, R2Error } from "../lib/r2.ts";
+
+const ENDPOINT = "POST /v1/sessions";
+export const PART_SIZE = 8 * 1024 * 1024;
+export const MAX_BYTES = 2 * 1024 * 1024 * 1024;
+export const MAX_PARTS_PER_CALL = 50;
+const MAX_CONCURRENCY = 2;
+
+const SessionId = z.string().regex(/^s_[A-Za-z0-9_-]+$/);
+const IdemHeader = z.object({
+  "idempotency-key": z.string().min(1).max(255),
+});
+
+// Response shape proposed, pending Person 4 (not in contracts yet).
+const CompleteResponse = z.object({
+  status: z.literal("completed"),
+  bytes: z.number().int(),
+});
+const AbortResponse = z.object({ status: z.literal("aborted") });
+const GetResponse = z.object({
+  session_id: z.string(),
+  match_id: z.string(),
+  mode: z.string(),
+  upload_mode: z.string(),
+  source: z.unknown(),
+  created_at: z.string(),
+  upload: z.object({
+    status: z.enum(["initiated", "completed", "aborted"]),
+    part_size: z.number().int(),
+    bytes: z.number().int(),
+    part_count: z.number().int(),
+    completed_at: z.string().nullable(),
+  }).nullable(),
+});
+
+const createSession = createRoute({
+  method: "post",
+  path: "/v1/sessions",
+  request: {
+    headers: IdemHeader,
+    body: {
+      content: { "application/json": { schema: sessionCreateRequestSchema } },
+    },
+  },
+  responses: {
+    201: {
+      description: "session, match and R2 multipart upload created",
+      content: {
+        "application/json": { schema: sessionCreateResponseSchema },
+      },
+    },
+  },
+});
+
+const getSession = createRoute({
+  method: "get",
+  path: "/v1/sessions/{id}",
+  description: "Response shape is proposed, pending Person 4 (contracts).",
+  request: { params: z.object({ id: SessionId }) },
+  responses: {
+    200: {
+      description: "session",
+      content: { "application/json": { schema: GetResponse } },
+    },
+  },
+});
+
+const uploadParts = createRoute({
+  method: "post",
+  path: "/v1/sessions/{id}/upload/parts",
+  request: {
+    params: z.object({ id: SessionId }),
+    body: {
+      content: { "application/json": { schema: uploadPartsRequestSchema } },
+    },
+  },
+  responses: {
+    200: {
+      description: "presigned PUT URLs (900 s), in the order requested",
+      content: {
+        "application/json": { schema: uploadPartsResponseSchema },
+      },
+    },
+  },
+});
+
+const uploadComplete = createRoute({
+  method: "post",
+  path: "/v1/sessions/{id}/upload/complete",
+  request: {
+    params: z.object({ id: SessionId }),
+    body: {
+      content: { "application/json": { schema: uploadCompleteRequestSchema } },
+    },
+  },
+  responses: {
+    200: {
+      description: "upload completed (idempotent)",
+      content: { "application/json": { schema: CompleteResponse } },
+    },
+  },
+});
+
+const uploadAbort = createRoute({
+  method: "post",
+  path: "/v1/sessions/{id}/upload/abort",
+  request: { params: z.object({ id: SessionId }) },
+  responses: {
+    200: {
+      description: "upload aborted (idempotent)",
+      content: { "application/json": { schema: AbortResponse } },
+    },
+  },
+});
+
+type UploadRow = {
+  session_id: string;
+  r2_key: string;
+  r2_upload_id: string;
+  part_size: number;
+  bytes: number;
+  status: "initiated" | "completed" | "aborted";
+  completed_at: string | null;
+};
+
+const UPLOAD_COLS =
+  "session_id,r2_key,r2_upload_id,part_size,bytes,status,completed_at";
+
+function jwtOf(c: Context): string {
+  return (c.req.header("Authorization") ?? "").slice("Bearer ".length);
+}
+
+// Loads the caller's upload through the user client, so RLS (owner_id = auth.uid()) decides
+// visibility. Another user's session and a missing one are both 404.
+async function loadUpload(
+  user: SupabaseClient,
+  sessionId: string,
+): Promise<UploadRow> {
+  const res = await user.from("uploads").select(UPLOAD_COLS)
+    .eq("session_id", sessionId).maybeSingle();
+  if (res.error) throw res.error;
+  if (!res.data) throw new ApiFailure(404, "not_found", "session not found");
+  return res.data as UploadRow;
+}
+
+const partCount = (bytes: number) => Math.ceil(bytes / PART_SIZE);
+
+// Best-effort undo of a half-created session: the match delete cascades to sessions and
+// uploads. Admin writes always filter on owner_id so a bug cannot touch another user's rows.
+async function rollback(
+  admin: SupabaseClient,
+  matchId: string,
+  ownerId: string,
+): Promise<void> {
+  const res = await admin.from("matches").delete()
+    .eq("id", matchId).eq("owner_id", ownerId);
+  if (res.error) console.error("session rollback failed", res.error.code);
+}
+
+function templateMismatch(result: unknown, c: Context): Response | undefined {
+  const r = result as {
+    success: boolean;
+    target?: string;
+    error?: { issues?: Array<{ code: string; path: PropertyKey[] }> };
+  };
+  if (
+    !r.success && r.target === "json" &&
+    r.error?.issues?.some((i) =>
+      i.code === "custom" && i.path.join(".") === "calibration_input.template"
+    )
+  ) {
+    return fail(
+      c,
+      422,
+      "calibration_template_mismatch",
+      "court template does not match format",
+      r.error.issues,
+    );
+  }
+  return defaultHook(result, c);
+}
+
+async function createUploadRecords(
+  deps: { user: SupabaseClient; admin: SupabaseClient; r2: R2 },
+  ownerId: string,
+  body: z.infer<typeof sessionCreateRequestSchema>,
+): Promise<z.infer<typeof sessionCreateResponseSchema>> {
+  const { user, admin, r2 } = deps;
+  const match = await user.from("matches").insert({
+    owner_id: ownerId,
+    sport: body.sport,
+    format: body.format,
+    ruleset_id: body.ruleset.id,
+    ruleset_version: body.ruleset.version,
+  }).select("id").single();
+  if (match.error) throw match.error;
+  const matchId = (match.data as { id: string }).id;
+  try {
+    const session = await user.from("sessions").insert({
+      match_id: matchId,
+      owner_id: ownerId,
+      mode: body.mode,
+      source: body.source,
+      calibration_input: body.calibration_input,
+      who_is_me: body.who_is_me,
+      free_play_seed: body.free_play_seed,
+      rally_candidates: body.rally_candidates,
+      upload_mode: body.upload_mode,
+    }).select("id").single();
+    if (session.error) throw session.error;
+    const sessionId = (session.data as { id: string }).id;
+    // Person 1's Modal submit rejects any other key.
+    const r2Key = `orig/${sessionId}/source.mp4`;
+    const uploadId = await r2.createMultipart(r2Key);
+    const ins = await admin.from("uploads").insert({
+      session_id: sessionId,
+      owner_id: ownerId,
+      r2_key: r2Key,
+      r2_upload_id: uploadId,
+      part_size: PART_SIZE,
+      bytes: body.source.bytes,
+      sha256: body.source.sha256,
+      status: "initiated",
+    });
+    if (ins.error) {
+      await r2.abortMultipart(r2Key, uploadId).catch(() => {});
+      throw ins.error;
+    }
+    return {
+      session_id: sessionId,
+      match_id: matchId,
+      upload: {
+        upload_id: uploadId,
+        r2_key: r2Key,
+        part_size: PART_SIZE,
+        max_concurrency: MAX_CONCURRENCY,
+      },
+    } as z.infer<typeof sessionCreateResponseSchema>;
+  } catch (err) {
+    await rollback(admin, matchId, ownerId);
+    throw err;
+  }
+}
+
+export function registerSessions(api: OpenAPIHono<AppEnv>): void {
+  api.openapi(createSession, async (c) => {
+    const deps = c.var.deps;
+    const body = c.req.valid("json");
+    const key = c.req.valid("header")["idempotency-key"];
+    const ownerId = c.var.userId;
+
+    if (body.source.bytes > MAX_BYTES) {
+      throw new ApiFailure(
+        413,
+        "upload_too_large",
+        `video exceeds ${MAX_BYTES} bytes`,
+      );
+    }
+    if (body.source.bytes < 1) {
+      throw new ApiFailure(
+        422,
+        "validation_failed",
+        "source.bytes must be at least 1",
+      );
+    }
+
+    const admin = deps.admin();
+    const hash = await canonicalHash(body);
+    const idem = await idemBegin(admin, key, ownerId, ENDPOINT, hash);
+    if (idem.kind === "conflict") {
+      throw new ApiFailure(
+        409,
+        "idempotency_conflict",
+        "Idempotency-Key was used with a different request",
+      );
+    }
+    if (idem.kind === "replay") {
+      return c.json(
+        idem.response as z.infer<typeof sessionCreateResponseSchema>,
+        201,
+      );
+    }
+
+    const out = await createUploadRecords(
+      { user: deps.user(jwtOf(c)), admin, r2: deps.r2() },
+      ownerId,
+      body,
+    );
+    try {
+      await idemStore(admin, key, ownerId, ENDPOINT, hash, 201, out);
+    } catch (err) {
+      console.error("idempotency store failed", (err as Error).message);
+    }
+    return c.json(out, 201);
+    // The hook may answer with an error Response; its declared type only allows the 201 body.
+  }, templateMismatch as never);
+
+  api.openapi(getSession, async (c) => {
+    const { id } = c.req.valid("param");
+    const user = c.var.deps.user(jwtOf(c));
+    const s = await user.from("sessions")
+      .select("id,match_id,mode,upload_mode,source,created_at")
+      .eq("id", id).maybeSingle();
+    if (s.error) throw s.error;
+    if (!s.data) throw new ApiFailure(404, "not_found", "session not found");
+    const u = await user.from("uploads").select(UPLOAD_COLS)
+      .eq("session_id", id).maybeSingle();
+    if (u.error) throw u.error;
+    const row = s.data as Record<string, unknown> & { id: string };
+    const up = u.data as UploadRow | null;
+    return c.json(
+      GetResponse.parse({
+        session_id: row.id,
+        match_id: row.match_id,
+        mode: row.mode,
+        upload_mode: row.upload_mode,
+        source: row.source,
+        created_at: row.created_at,
+        upload: up && {
+          status: up.status,
+          part_size: up.part_size,
+          bytes: Number(up.bytes),
+          part_count: partCount(Number(up.bytes)),
+          completed_at: up.completed_at,
+        },
+      }),
+      200,
+    );
+  });
+
+  api.openapi(uploadParts, async (c) => {
+    const { id } = c.req.valid("param");
+    const { part_numbers } = c.req.valid("json");
+    if (part_numbers.length < 1 || part_numbers.length > MAX_PARTS_PER_CALL) {
+      throw new ApiFailure(
+        422,
+        "validation_failed",
+        `part_numbers must hold 1 to ${MAX_PARTS_PER_CALL} entries`,
+      );
+    }
+    const up = await loadUpload(c.var.deps.user(jwtOf(c)), id);
+    if (up.status !== "initiated") {
+      throw new ApiFailure(409, "invalid_transition", `upload is ${up.status}`);
+    }
+    const count = partCount(Number(up.bytes));
+    for (const n of part_numbers) {
+      if (n < 1 || n > count) {
+        throw new ApiFailure(
+          400,
+          "invalid_part_number",
+          `part numbers must be in 1..${count}`,
+        );
+      }
+    }
+    const r2 = c.var.deps.r2();
+    const urls = await Promise.all(
+      part_numbers.map((n) => r2.presignPart(up.r2_key, up.r2_upload_id, n)),
+    );
+    return c.json(urls, 200);
+  });
+
+  api.openapi(uploadComplete, async (c) => {
+    const { id } = c.req.valid("param");
+    const { parts } = c.req.valid("json");
+    const deps = c.var.deps;
+    const user = deps.user(jwtOf(c));
+    const up = await loadUpload(user, id);
+    if (up.status === "completed") {
+      return c.json(
+        { status: "completed" as const, bytes: Number(up.bytes) },
+        200,
+      );
+    }
+    if (up.status === "aborted") {
+      throw new ApiFailure(409, "invalid_transition", "upload was aborted");
+    }
+
+    const count = partCount(Number(up.bytes));
+    const sorted = [...parts].sort((a, b) => a.n - b.n);
+    for (const p of sorted) {
+      if (p.n < 1 || p.n > count) {
+        throw new ApiFailure(
+          400,
+          "invalid_part_number",
+          `part numbers must be in 1..${count}`,
+        );
+      }
+    }
+    const missing: number[] = [];
+    for (let n = 1; n <= count; n++) {
+      if (!sorted.some((p) => p.n === n)) missing.push(n);
+    }
+    const dup = sorted.some((p, i) => i > 0 && sorted[i - 1].n === p.n);
+    if (missing.length > 0 || dup) {
+      throw new ApiFailure(
+        409,
+        "upload_parts_invalid",
+        "parts must list every part 1..N exactly once",
+        { expected_parts: count, missing },
+      );
+    }
+
+    const r2 = deps.r2();
+    try {
+      await r2.completeMultipart(up.r2_key, up.r2_upload_id, sorted);
+    } catch (err) {
+      if (!(err instanceof R2Error)) throw err;
+      if (err.code === "NoSuchUpload") {
+        // A concurrent complete may have won; return its outcome.
+        const cur = await loadUpload(user, id);
+        if (cur.status === "completed") {
+          return c.json(
+            { status: "completed" as const, bytes: Number(cur.bytes) },
+            200,
+          );
+        }
+        throw new ApiFailure(
+          409,
+          "upload_parts_invalid",
+          "the multipart upload no longer exists",
+        );
+      }
+      if (
+        err.code === "InvalidPart" || err.code === "InvalidPartOrder" ||
+        err.code === "EntityTooSmall"
+      ) {
+        throw new ApiFailure(409, "upload_parts_invalid", err.message);
+      }
+      throw err;
+    }
+
+    // The stored object size is what Modal will read, so it wins over the declared size.
+    const head = await r2.head(up.r2_key);
+    const bytes = head?.bytes ?? Number(up.bytes);
+    const admin = deps.admin();
+    const upd = await admin.from("uploads").update({
+      status: "completed",
+      parts: sorted,
+      bytes,
+      completed_at: new Date().toISOString(),
+    }).eq("session_id", id).eq("owner_id", c.var.userId)
+      .eq("status", "initiated").select("bytes").maybeSingle();
+    if (upd.error) throw upd.error;
+    if (!upd.data) {
+      const cur = await loadUpload(user, id);
+      if (cur.status !== "completed") {
+        throw new ApiFailure(
+          409,
+          "invalid_transition",
+          `upload is ${cur.status}`,
+        );
+      }
+      return c.json(
+        { status: "completed" as const, bytes: Number(cur.bytes) },
+        200,
+      );
+    }
+    return c.json({ status: "completed" as const, bytes }, 200);
+  });
+
+  api.openapi(uploadAbort, async (c) => {
+    const { id } = c.req.valid("param");
+    const deps = c.var.deps;
+    const up = await loadUpload(deps.user(jwtOf(c)), id);
+    if (up.status === "aborted") {
+      return c.json({ status: "aborted" as const }, 200);
+    }
+    if (up.status === "completed") {
+      throw new ApiFailure(409, "invalid_transition", "upload is completed");
+    }
+    try {
+      await deps.r2().abortMultipart(up.r2_key, up.r2_upload_id);
+    } catch (err) {
+      if (!(err instanceof R2Error) || err.code !== "NoSuchUpload") throw err;
+    }
+    const upd = await deps.admin().from("uploads").update({ status: "aborted" })
+      .eq("session_id", id).eq("owner_id", c.var.userId)
+      .eq("status", "initiated");
+    if (upd.error) throw upd.error;
+    return c.json({ status: "aborted" as const }, 200);
+  });
+}
