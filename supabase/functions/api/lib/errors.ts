@@ -13,11 +13,12 @@ function assertErrorContract(
   if (knownErrorCodes[code] !== status) {
     throw new TypeError(`error code ${code} does not use HTTP ${status}`);
   }
-  if (
-    status === 429 && code !== "too_many_part_requests" &&
-    (retryAfterS === undefined || !Number.isFinite(retryAfterS) ||
-      retryAfterS < 0)
-  ) {
+  if (status === 429 && code !== "too_many_part_requests" &&
+    code !== "storage_budget_reached" && retryAfterS === undefined) {
+    throw new TypeError("429 errors require a non-negative retry_after_s");
+  }
+  if (status === 429 && retryAfterS !== undefined &&
+    (!Number.isFinite(retryAfterS) || retryAfterS < 0)) {
     throw new TypeError("429 errors require a non-negative retry_after_s");
   }
   if (status !== 429 && retryAfterS !== undefined) {

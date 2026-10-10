@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   assertCanCreateUpload,
+  addUsage,
   BUDGET,
   secondsToNextUtcDay,
   secondsToNextUtcMonth,
@@ -53,6 +54,10 @@ Deno.test("G2: originals of the last day + artifacts + this upload must stay wit
       ),
     "storage_budget_reached",
     429,
+  );
+  assert.throws(
+    () => assertCanCreateUpload(snap({ storage_bytes: 2 * GIB }), 1),
+    (e) => e instanceof ApiFailure && e.retryAfterS === undefined,
   );
 });
 
@@ -107,5 +112,16 @@ Deno.test("G6: 200 download URLs per user per day (helper; wired when artifact r
     (e) =>
       e instanceof ApiFailure && e.code === "daily_download_limit" &&
       e.status === 429 && (e.retryAfterS ?? 0) > 0,
+  );
+});
+
+Deno.test("R2 usage counter failures fail closed", async () => {
+  const admin = fakeClient(() => ({
+    data: null,
+    error: { code: "XX000", message: "counter unavailable" },
+  }));
+  await assert.rejects(
+    addUsage(admin, 0, 1),
+    (e) => e instanceof ApiFailure && e.status === 500,
   );
 });

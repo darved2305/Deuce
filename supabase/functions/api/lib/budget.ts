@@ -27,8 +27,6 @@ export type Snapshot = {
   class_b: number;
 };
 
-const ONE_DAY_S = 86400;
-
 export function secondsToNextUtcDay(now = new Date()): number {
   const next = Date.UTC(
     now.getUTCFullYear(),
@@ -125,8 +123,73 @@ export function assertCanCreateUpload(snap: Snapshot, bytes: number): void {
       "storage_budget_reached",
       "storage budget reached",
       undefined,
-      ONE_DAY_S, // originals are deleted a day after upload
     );
+  }
+}
+
+// Atomically reserves today's session/upload slots, storage bytes and one Class A op.
+export async function reserveSessionUpload(
+  admin: SupabaseClient,
+  ownerId: string,
+  bytes: number,
+): Promise<string> {
+  const res = await admin.rpc("r2_reserve_session_upload", {
+    p_owner: ownerId,
+    p_bytes: bytes,
+    p_sessions_limit: BUDGET.sessionsPerUserPerDay,
+    p_uploads_limit: BUDGET.uploadsPerDay,
+    p_storage_limit: BUDGET.storageBudgetBytes,
+    p_storage_pause: BUDGET.storagePauseBytes,
+    p_class_a_pause: BUDGET.classAPause,
+    p_class_a_limit: BUDGET.classABudget,
+  });
+  if (res.error) {
+    throw new ApiFailure(500, "internal", "upload budget could not be reserved");
+  }
+  const result = res.data as { reservation_id?: unknown; reason?: unknown } | null;
+  if (typeof result?.reservation_id === "string") return result.reservation_id;
+  switch (result?.reason) {
+    case "daily_upload_limit":
+      throw new ApiFailure(
+        429,
+        "daily_upload_limit",
+        "daily upload limit reached",
+        undefined,
+        secondsToNextUtcDay(),
+      );
+    case "storage_budget_reached":
+      throw new ApiFailure(
+        429,
+        "storage_budget_reached",
+        "storage budget reached",
+      );
+    case "class_a_budget_reached":
+      throw new ApiFailure(
+        429,
+        "storage_budget_reached",
+        "monthly storage operation budget reached",
+        undefined,
+        secondsToNextUtcMonth(),
+      );
+    case "storage_paused":
+    case "class_a_paused":
+      throw new ApiFailure(503, "uploads_paused", "uploads are paused");
+    default:
+      throw new ApiFailure(500, "internal", "upload budget reservation failed");
+  }
+}
+
+export async function finishSessionUploadReservation(
+  admin: SupabaseClient,
+  reservationId: string,
+  committed: boolean,
+): Promise<void> {
+  const res = await admin.rpc("r2_finish_session_upload", {
+    p_reservation_id: reservationId,
+    p_committed: committed,
+  });
+  if (res.error || res.data !== true) {
+    throw new ApiFailure(500, "internal", "upload budget reservation could not be released");
   }
 }
 
@@ -154,8 +217,8 @@ export async function takePartUrls(
   }
 }
 
-// Best-effort Class A / Class B counting for operations the API itself performs. A failed
-// counter write never fails the request; it is logged.
+// Class A / Class B counting for operations the API itself performs. A failed counter write
+// stops the request so later R2 operations cannot continue without accounting.
 export async function addUsage(
   admin: SupabaseClient,
   classA: number,
@@ -166,9 +229,12 @@ export async function addUsage(
       p_class_a: classA,
       p_class_b: classB,
     });
-    if (res.error) console.error("r2 usage count failed", res.error.code);
+    if (res.error) {
+      throw new ApiFailure(500, "internal", "R2 usage could not be recorded");
+    }
   } catch (err) {
-    console.error("r2 usage count failed", (err as Error).message);
+    if (err instanceof ApiFailure) throw err;
+    throw new ApiFailure(500, "internal", "R2 usage could not be recorded");
   }
 }
 

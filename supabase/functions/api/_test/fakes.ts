@@ -14,6 +14,7 @@ export type Call =
     op: string;
     filters: Record<string, unknown>;
     payload?: unknown;
+    options?: Record<string, unknown>;
   };
 
 export type Res = {
@@ -37,6 +38,7 @@ export function fakeClient(handler: Handler, log: Call[] = []): SupabaseClient {
       op: "select",
       filters: {} as Record<string, unknown>,
       payload: undefined as unknown,
+      options: undefined as Record<string, unknown> | undefined,
     };
     const chain: Record<string, unknown> = {
       select: () => chain,
@@ -46,6 +48,14 @@ export function fakeClient(handler: Handler, log: Call[] = []): SupabaseClient {
       },
       gt: (k: string, v: unknown) => {
         state.filters[`${k}>`] = v;
+        return chain;
+      },
+      lt: (k: string, v: unknown) => {
+        state.filters[`${k}<`] = v;
+        return chain;
+      },
+      is: (k: string, v: unknown) => {
+        state.filters[`${k} is`] = v;
         return chain;
       },
       order: () => chain,
@@ -67,9 +77,10 @@ export function fakeClient(handler: Handler, log: Call[] = []): SupabaseClient {
         state.op = "delete";
         return chain;
       },
-      upsert: (p: unknown) => {
+      upsert: (p: unknown, options?: Record<string, unknown>) => {
         state.op = "upsert";
         state.payload = p;
+        state.options = options;
         return chain;
       },
       maybeSingle: () => run({ ...state }),

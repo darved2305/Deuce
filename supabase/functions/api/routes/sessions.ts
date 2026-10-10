@@ -13,13 +13,19 @@ import {
   uploadPartsResponseSchema,
 } from "../lib/contracts_vendor/index.ts";
 import { ApiFailure, defaultHook, fail } from "../lib/errors.ts";
-import { canonicalHash, idemBegin, idemStore } from "../lib/idempotency.ts";
+import {
+  canonicalHash,
+  idemCompleteReservation,
+  idemReleaseReservation,
+  idemWaitForReservation,
+} from "../lib/idempotency.ts";
 import { PART_URL_TTL_S, type R2, R2Error } from "../lib/r2.ts";
 import {
   addUsage,
-  assertCanCreateUpload,
   assertWritesAllowed,
   BUDGET,
+  finishSessionUploadReservation,
+  reserveSessionUpload,
   takePartUrls,
 } from "../lib/budget.ts";
 
@@ -226,6 +232,7 @@ async function createUploadRecords(
   }).select("id").single();
   if (match.error) throw match.error;
   const matchId = (match.data as { id: string }).id;
+  let multipart: { r2Key: string; uploadId: string } | null = null;
   try {
     const session = await user.from("sessions").insert({
       match_id: matchId,
@@ -243,7 +250,7 @@ async function createUploadRecords(
     // Person 1's Modal submit rejects any other key.
     const r2Key = `orig/${sessionId}/source.mp4`;
     const uploadId = await r2.createMultipart(r2Key);
-    await addUsage(admin, 1, 0); // CreateMultipartUpload is Class A
+    multipart = { r2Key, uploadId };
     const ins = await admin.from("uploads").insert({
       session_id: sessionId,
       owner_id: ownerId,
@@ -254,12 +261,7 @@ async function createUploadRecords(
       sha256: body.source.sha256,
       status: "initiated",
     });
-    if (ins.error) {
-      await r2.abortMultipart(r2Key, uploadId).catch((e) =>
-        console.error("r2 abort after failed insert", (e as Error).message)
-      );
-      throw ins.error;
-    }
+    if (ins.error) throw ins.error;
     return {
       session_id: sessionId,
       match_id: matchId,
@@ -271,9 +273,26 @@ async function createUploadRecords(
       },
     } as z.infer<typeof sessionCreateResponseSchema>;
   } catch (err) {
+    if (multipart) {
+      await r2.abortMultipart(multipart.r2Key, multipart.uploadId).catch((e) =>
+        console.error("r2 abort after failed create", (e as Error).message)
+      );
+    }
     await rollback(admin, matchId, ownerId);
     throw err;
   }
+}
+
+async function cleanupCreatedUpload(
+  admin: SupabaseClient,
+  r2: R2,
+  ownerId: string,
+  out: z.infer<typeof sessionCreateResponseSchema>,
+): Promise<void> {
+  await r2.abortMultipart(out.upload.r2_key, out.upload.upload_id).catch((e) =>
+    console.error("r2 abort after idempotency failure", (e as Error).message)
+  );
+  await rollback(admin, out.match_id, ownerId);
 }
 
 export function registerSessions(api: OpenAPIHono<AppEnv>): void {
@@ -282,6 +301,15 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     const body = c.req.valid("json");
     const key = c.req.valid("header")["idempotency-key"];
     const ownerId = c.var.userId;
+
+    if (body.upload_mode === "segments") {
+      throw new ApiFailure(
+        422,
+        "validation_failed",
+        "segments upload not available yet",
+        { detail: "segments upload not available yet" },
+      );
+    }
 
     if (body.source.bytes > BUDGET.maxVideoBytes) {
       throw new ApiFailure(
@@ -300,7 +328,13 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
 
     const admin = deps.admin();
     const hash = await canonicalHash(body);
-    const idem = await idemBegin(admin, key, ownerId, ENDPOINT, hash);
+    const idem = await idemWaitForReservation(
+      admin,
+      key,
+      ownerId,
+      ENDPOINT,
+      hash,
+    );
     if (idem.kind === "conflict") {
       throw new ApiFailure(
         409,
@@ -314,21 +348,67 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
         201,
       );
     }
-
-    // G9/G10 pause, then G3/G5/G2 budgets. A replay above never reaches here.
-    const snap = await assertWritesAllowed(admin, ownerId);
-    assertCanCreateUpload(snap, body.source.bytes);
-    const out = await createUploadRecords(
-      { user: deps.user(jwtOf(c)), admin, r2: deps.r2() },
-      ownerId,
-      body,
-    );
-    try {
-      await idemStore(admin, key, ownerId, ENDPOINT, hash, 201, out);
-    } catch (err) {
-      console.error("idempotency store failed", (err as Error).message);
+    if (idem.kind === "pending") {
+      throw new ApiFailure(
+        409,
+        "conflict",
+        "session creation is still in progress",
+      );
     }
-    return c.json(out, 201);
+
+    let budgetReservation: string | null = null;
+    let out: z.infer<typeof sessionCreateResponseSchema> | null = null;
+    let responseStored = false;
+    try {
+      // G9/G10 are a fast preflight; G2/G3 and the create Class A op are reserved atomically.
+      await assertWritesAllowed(admin, ownerId);
+      budgetReservation = await reserveSessionUpload(
+        admin,
+        ownerId,
+        body.source.bytes,
+      );
+      const r2 = deps.r2();
+      out = await createUploadRecords(
+        { user: deps.user(jwtOf(c)), admin, r2 },
+        ownerId,
+        body,
+      );
+      await idemCompleteReservation(
+        admin,
+        key,
+        ownerId,
+        ENDPOINT,
+        hash,
+        201,
+        out,
+      );
+      responseStored = true;
+      await finishSessionUploadReservation(admin, budgetReservation, true);
+      return c.json(out, 201);
+    } catch (err) {
+      if (!responseStored && out) {
+        await cleanupCreatedUpload(admin, deps.r2(), ownerId, out);
+      }
+      if (budgetReservation) {
+        await finishSessionUploadReservation(admin, budgetReservation, false)
+          .catch((cleanupErr) =>
+            console.error(
+              "upload budget rollback failed",
+              (cleanupErr as Error).message,
+            )
+          );
+      }
+      if (!responseStored) {
+        await idemReleaseReservation(admin, key, ownerId, ENDPOINT, hash)
+          .catch((cleanupErr) =>
+            console.error(
+              "idempotency reservation rollback failed",
+              (cleanupErr as Error).message,
+            )
+          );
+      }
+      throw err;
+    }
     // The hook may answer with an error Response; its declared type only allows the 201 body.
   }, templateMismatch as never);
 

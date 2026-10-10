@@ -80,17 +80,20 @@ const errXml = (status: number, code: string, msg = "m") =>
 type Opts = {
   upload?: unknown; // result of the user client's uploads select
   idem?: Res;
-  r2?: (req: Request) => Response;
+  r2?: (req: Request) => Response | Promise<Response>;
   adminUploadUpdate?: unknown; // result of the admin update ... returning
   insertSessionError?: boolean;
   snap?: Partial<Record<string, number>>;
   takeParts?: unknown; // r2_take_part_urls result (null refuses)
+  reserveResult?: unknown;
+  finishResult?: Res;
 };
 
 function build(o: Opts = {}) {
   const r2Seen: Array<{ method: string; url: string; body: string }> = [];
   const adminLog: Call[] = [];
   const userLog: Call[] = [];
+  let idemRow: unknown = o.idem?.data ?? null;
   const user: Handler = (c) => {
     userLog.push(c);
     if (c.kind === "from" && c.table === "matches") return ok({ id: "m_1" });
@@ -119,7 +122,22 @@ function build(o: Opts = {}) {
   };
   const admin: Handler = (c) => {
     if (c.kind === "from" && c.table === "idempotency") {
-      return c.op === "select" ? (o.idem ?? ok(null)) : ok(null);
+      if (c.op === "upsert") {
+        if (c.options?.ignoreDuplicates && idemRow) return ok(null);
+        idemRow = c.payload;
+        return ok({ key: "k1" });
+      }
+      if (c.op === "select") return o.idem ?? ok(idemRow);
+      if (c.op === "update") {
+        if (!idemRow) return ok(null);
+        idemRow = { ...(idemRow as object), ...(c.payload as object) };
+        return ok({ key: "k1" });
+      }
+      if (c.op === "delete") {
+        if ((c.filters.status_code ?? -1) === 0) idemRow = null;
+        return ok(null);
+      }
+      return ok(null);
     }
     if (c.kind === "from" && c.table === "uploads" && c.op === "update") {
       return ok("adminUploadUpdate" in o ? o.adminUploadUpdate : { bytes: 1 });
@@ -133,6 +151,21 @@ function build(o: Opts = {}) {
         class_b: 0,
         ...o.snap,
       });
+    }
+    if (c.kind === "rpc" && c.name === "r2_reserve_session_upload") {
+      if ("reserveResult" in o) return ok(o.reserveResult);
+      const s = { sessions_today: 0, uploads_today: 0, storage_bytes: 0, class_a: 0, ...o.snap };
+      if (s.sessions_today >= 5 || s.uploads_today >= 30) {
+        return ok({ reason: "daily_upload_limit" });
+      }
+      if (s.storage_bytes + Number(c.args.p_bytes) > 2 * 1024 * MIB) {
+        return ok({ reason: "storage_budget_reached" });
+      }
+      if (s.class_a >= 100_000) return ok({ reason: "class_a_paused" });
+      return ok({ reservation_id: "reserve_1" });
+    }
+    if (c.kind === "rpc" && c.name === "r2_finish_session_upload") {
+      return o.finishResult ?? ok(true);
     }
     if (c.kind === "rpc" && c.name === "r2_take_part_urls") {
       return ok("takeParts" in o ? o.takeParts : 3);
@@ -239,12 +272,53 @@ Deno.test("POST /v1/sessions creates match, session, R2 upload and uploads row",
     status: "initiated",
   });
   const stored = adminLog.find((c) =>
-    c.kind === "from" && c.table === "idempotency" && c.op === "upsert"
+    c.kind === "from" && c.table === "idempotency" && c.op === "update"
   );
   assert.equal(
     (stored as { payload: { status_code: number } }).payload.status_code,
     201,
   );
+});
+
+Deno.test("segments upload mode is rejected before any provisioning", async () => {
+  const { app, adminLog, userLog, r2Seen } = build();
+  const res = await create(app, { ...BODY, upload_mode: "segments" });
+  assert.equal(res.status, 422);
+  const body = await res.json();
+  assert.equal(body.error.code, "validation_failed");
+  assert.equal(body.error.details.detail, "segments upload not available yet");
+  assert.equal(adminLog.length, 0);
+  assert.equal(userLog.length, 0);
+  assert.equal(r2Seen.length, 0);
+});
+
+Deno.test("concurrent same-key creates wait and replay one provisioned response", async () => {
+  let startR2!: () => void;
+  let finishR2!: () => void;
+  const r2Started = new Promise<void>((resolve) => startR2 = resolve);
+  const r2Gate = new Promise<void>((resolve) => finishR2 = resolve);
+  const t = build({
+    r2: async (req) => {
+      if (req.method === "POST" && req.url.includes("?uploads")) {
+        startR2();
+        await r2Gate;
+        return xml(200, "<R><UploadId>UP1</UploadId></R>");
+      }
+      return xml(200, "<Ok/>");
+    },
+  });
+  const first = create(t.app);
+  await r2Started;
+  const second = create(t.app);
+  setTimeout(finishR2, 50);
+  const [one, two] = await Promise.all([first, second]);
+  assert.equal(one.status, 201);
+  assert.equal(two.status, 201);
+  assert.deepEqual(await two.json(), await one.clone().json());
+  assert.equal(t.r2Seen.length, 1);
+  assert.equal(t.userLog.filter((c) =>
+    c.kind === "from" && c.table === "matches" && c.op === "insert"
+  ).length, 1);
 });
 
 Deno.test("POST /v1/sessions without Idempotency-Key is 422 validation_failed", async () => {
