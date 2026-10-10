@@ -620,3 +620,12 @@ def run_clip(
     }  # fmt: skip
     (Path(out_dir) / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary, indent=2))
+
+
+@app.local_entrypoint()
+def analyze_once(analysis_id: str, r2_key: str, sport: str = "badminton") -> None:
+    """Run analyze for one real, already-dispatched analysis (used for the live proof before
+    this code is deployed; after deploy, Person 3's dispatch spawns analyze through submit)."""
+    result = analyze.remote(analysis_id, r2_key, {"sport": sport})
+    print(json.dumps({k: v for k, v in result.items() if k != "windows"}, indent=2))
+    print(json.dumps(result["windows"][:3] + result["windows"][-2:]))
