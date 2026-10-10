@@ -71,6 +71,8 @@ sealed interface Screen {
         val setup: SetupResult? = null,
         /** Recorded engine output for this exact file, if Person 1 recorded a run on it. */
         val engine: EngineOffer? = null,
+        /** Live engine output for THIS file from its own analysis, as windows arrive. */
+        val live: LiveOffer? = null,
         /** sha256 of the file's bytes (also `source.sha256` in the session request), once measured. */
         val sha256: String? = null,
     ) : Screen
@@ -87,6 +89,14 @@ sealed interface Screen {
     }
 
     /** A recorded engine run offered on the open file; [shown] = drawn instead of the hand labels. */
+    /** [track]: observed rows when the engine sends any, else its candidates (drawn as candidates). */
+    data class LiveOffer(
+        val track: com.elevate.app.domain.model.TrailTrack,
+        val framesWithBall: Int,
+        val engineVersion: String,
+        val shown: Boolean = true,
+    )
+
     data class EngineOffer(
         val run: com.elevate.app.data.engine.RecordedEngineRun,
         val trail: com.elevate.app.data.engine.RecordedEngineRun.CandidateTrail,
@@ -185,7 +195,9 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             val current = _screen.value
             if (current is Screen.Replay && current.uri == uri) {
                 val hand = (annotations as? AnnotationState.Available)?.track
-                controller.setTrack(hand)
+                // A live engine trail that already arrived for this file stays on screen.
+                val live = (_screen.value as? Screen.Replay)?.live?.takeIf { it.shown }
+                controller.setTrack(live?.track ?: hand)
                 // A recorded engine run is offered only on a file whose bytes matched the fixture
                 // for the same clip id (the run's manifest has no file hash of its own).
                 val offer = hand?.let { h ->
@@ -218,13 +230,63 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Draws the recorded engine candidates instead of the hand labels, or back. One trail at a time. */
+    /**
+     * A new live window arrived. Drawn only on the very file that was analysed (sha256 of the open
+     * file = `source.sha256` of the upload). The first arrival switches the video to the live trail.
+     */
+    fun onLiveTrail(trail: com.elevate.app.playback.WindowTrailAdapter.EngineTrail?, engineVersion: String?) {
+        val s = _screen.value as? Screen.Replay ?: return
+        if (trail == null || engineVersion == null) return
+        val sha = s.sha256 ?: return
+        if (pipelineSha256() != sha) return
+        val useObserved = trail.observedRows > 0
+        val raw = if (useObserved) trail.observed else trail.candidate
+        // Denominator = real frames of this file inside the analysed range (the adapter alone only
+        // knows frames that have rows, which read "101/101").
+        val times = (s.preflight as? PreflightState.Done)?.facts?.frameTimesUs
+        val framesInRange = times?.count { it in raw.rangeStartUs..raw.rangeEndUs }?.takeIf { it >= raw.labelledFrames }
+        val track = if (framesInRange == null) raw else com.elevate.app.domain.model.TrailTrack(
+            raw.clip, raw.provenance, raw.rangeStartUs, raw.rangeEndUs, framesInRange, raw.tUs, raw.x, raw.y,
+        )
+        val rows = if (useObserved) trail.observedRows else trail.candidateRows
+        if (rows == 0) return
+        val first = s.live == null
+        val shown = first || s.live?.shown == true
+        val offer = Screen.LiveOffer(track, rows, engineVersion, shown)
+        if (shown) {
+            controller.setTrack(track)
+            controller.setOverlayVisible(true)
+        }
+        _screen.value = s.copy(
+            live = offer,
+            engine = if (shown) s.engine?.copy(shown = false) else s.engine,
+            overlayVisible = if (shown) true else s.overlayVisible,
+        )
+    }
+
+    fun showLive(show: Boolean) {
+        val s = _screen.value as? Screen.Replay ?: return
+        val live = s.live ?: return
+        val hand = (s.annotations as? AnnotationState.Available)?.track
+        controller.setTrack(if (show) live.track else hand)
+        controller.setOverlayVisible(true)
+        _screen.value = s.copy(live = live.copy(shown = show), engine = s.engine?.copy(shown = false), overlayVisible = true)
+    }
+
+    /** sha256 of the uploaded source (from the saved session request), to match live output to a file. */
+    fun pipelineSha256(): String? = runCatching {
+        val st = uploadRuntime.coordinator.current() ?: return null
+        val src = kotlinx.serialization.json.Json.parseToJsonElement(st.createRequestJson).jsonObject.getValue("source").jsonObject
+        (src["sha256"] as? JsonPrimitive)?.content
+    }.getOrNull()
+
     fun showEngine(show: Boolean) {
         val s = _screen.value as? Screen.Replay ?: return
         val offer = s.engine ?: return
         val hand = (s.annotations as? AnnotationState.Available)?.track
         controller.setTrack(if (show) offer.trail.track else hand)
         controller.setOverlayVisible(true)
-        _screen.value = s.copy(engine = offer.copy(shown = show), overlayVisible = true)
+        _screen.value = s.copy(engine = offer.copy(shown = show), live = s.live?.copy(shown = false), overlayVisible = true)
     }
 
     val uploadRuntime: UploadRuntime by lazy { UploadRuntime.get(getApplication()) }

@@ -97,6 +97,7 @@ fun ReplayScreen(
     onOverlayVisible: (Boolean) -> Unit,
     onSetUp: () -> Unit = {},
     onShowEngine: (Boolean) -> Unit = {},
+    onShowLive: (Boolean) -> Unit = {},
     pipeline: PipelineUi = PipelineUi(),
 ) {
     val c = Elevate.colors
@@ -132,7 +133,7 @@ fun ReplayScreen(
             VideoArea(title, state, controller, onChooseAnother, m)
         }
         val controls: @Composable (Modifier) -> Unit = { m ->
-            ControlsSheet(screen, state, controller, positionMs, onOverlayVisible, onSetUp, onShowEngine, pipeline, m)
+            ControlsSheet(screen, state, controller, positionMs, onOverlayVisible, onSetUp, onShowEngine, onShowLive, pipeline, m)
         }
         if (landscape) {
             Row(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -188,6 +189,7 @@ private fun ControlsSheet(
     onOverlayVisible: (Boolean) -> Unit,
     onSetUp: () -> Unit,
     onShowEngine: (Boolean) -> Unit,
+    onShowLive: (Boolean) -> Unit,
     pipeline: PipelineUi,
     modifier: Modifier,
 ) {
@@ -235,11 +237,12 @@ private fun ControlsSheet(
         }
         Spacer(Modifier.height(4.dp))
         AnnotationRow(screen, onOverlayVisible)
+        LiveRow(screen.live, onShowLive)
         EngineRow(screen.engine, onShowEngine)
         PreflightRow(screen.preflight)
         SetupRow(screen, onSetUp)
         PipelineRow(screen, pipeline)
-        AnalyseButton(screen, onSetUp)
+        if (!pipeline.analysedHere) AnalyseButton(screen, onSetUp)
     }
 }
 
@@ -428,6 +431,29 @@ private fun EngineRow(offer: Screen.EngineOffer?, onShowEngine: (Boolean) -> Uni
     }
 }
 
+/** This file's own analysis, drawn as its windows arrive from the server. */
+@Composable
+private fun LiveRow(live: Screen.LiveOffer?, onShowLive: (Boolean) -> Unit) {
+    live ?: return
+    val c = Elevate.colors
+    val t = live.track
+    val range = "${"%.1f".format(Locale.ROOT, t.rangeStartUs / 1e6)}–${"%.1f".format(Locale.ROOT, t.rangeEndUs / 1e6)} s"
+    val kind = if (t.provenance.state == "candidate") "shuttle candidates" else "shuttle"
+    CompactRow(
+        icon = ElevateIcons.Bolt,
+        title = "Live engine · $kind",
+        bg = c.mint,
+        iconTint = c.mintInk,
+        value = "${live.framesWithBall}/${t.framesInRange}",
+        valueDescription = "shuttle on ${live.framesWithBall} of ${t.framesInRange} frames",
+        toggle = live.shown to onShowLive,
+        toggleLabel = "Live engine trail",
+    ) {
+        DetailText("Your upload, analysed by the engine ${live.engineVersion} · $range so far")
+        DetailText("Shuttle on ${live.framesWithBall} of ${t.framesInRange} frames · more appear as windows finish")
+    }
+}
+
 /** What the file itself says: measured facts, then any finding. Nothing here is a model output. */
 @Composable
 private fun PreflightRow(p: PreflightState) {
@@ -464,6 +490,8 @@ class PipelineUi(
     val onOpenAnalysis: () -> Unit = {},
     /** One-line live status ("Sending · 12.0/60.7 MiB", "Analysing · 18/485 s"); null when idle. */
     val pill: String? = null,
+    /** The running/finished analysis is of the open file: no second "Analyse" offer. */
+    val analysedHere: Boolean = false,
 )
 
 /** After setup: start the real upload + analysis, then show real progress and the server's answers. */

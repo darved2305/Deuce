@@ -71,6 +71,10 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
     }
 
     val pill by vm.pipelinePill.collectAsStateWithLifecycle()
+    // The analysis on record is of the open file (same sha256): don't offer to analyse it again.
+    val openShaForCta = (screen as? Screen.Replay)?.sha256
+    val analysedHere = pipeline != Screen.Pipeline.Idle && openShaForCta != null &&
+        remember(pipeline, openShaForCta) { vm.pipelineSha256() } == openShaForCta
     val pipelineUi = PipelineUi(
         state = pipeline,
         upload = upload,
@@ -79,12 +83,26 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
         onCancelUpload = vm::cancelUpload,
         onOpenAnalysis = { vm.showPanel(Screen.Panel.Analysing) },
         pill = pill,
+        analysedHere = analysedHere,
     )
     val openFacts = ((screen as? Screen.Replay)?.preflight as? PreflightState.Done)?.facts
     val started = pipeline as? Screen.Pipeline.Started
     // One OverviewViewModel per analysis, alive while the app is in the foreground, so the
     // Analysing screen and the video screen's pill (vm.pipelinePill) both show the latest server state.
     val ovm = if (started != null) rememberAnalysis(vm, started, hero, openFacts) else null
+
+    // Each downloaded window redraws the live trail on the open video (when it is the analysed file).
+    val openSha = (screen as? Screen.Replay)?.sha256
+    val openW = openFacts?.displayWidth
+    val openH = openFacts?.displayHeight
+    if (ovm != null && openSha != null && openW != null && openH != null) {
+        LaunchedEffect(ovm, openSha, openW, openH) {
+            ovm.sync.ballTrack.collect {
+                val clip = com.elevate.app.domain.model.ClipIdentity("live", setOf(openSha), openW, openH)
+                vm.onLiveTrail(ovm.engineTrail(clip), ovm.sync.engineVersion)
+            }
+        }
+    }
 
     if (panel != Screen.Panel.None && pipeline != Screen.Pipeline.Idle) {
         AnalysisPanels(vm, panel, pipeline, step, upload, ovm, hero)
@@ -113,6 +131,7 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
                 onOverlayVisible = vm::setOverlayVisible,
                 onSetUp = vm::startSetup,
                 onShowEngine = vm::showEngine,
+                onShowLive = vm::showLive,
                 pipeline = pipelineUi,
             )
         }
@@ -143,6 +162,8 @@ private fun rememberAnalysis(vm: ReplayViewModel, started: Screen.Pipeline.Start
                 sourceDurationUs = saved?.first ?: hero.durationMs?.let { it * 1000 } ?: openFacts?.durationMs?.takeIf { it > 0 }?.let { it * 1000 },
                 sourceWidth = saved?.second ?: openFacts?.displayWidth,
                 sourceHeight = saved?.third ?: openFacts?.displayHeight,
+                // Real frame times of the open file: rows snap to frames and counts get a frame denominator.
+                sourceFrameTimesUs = openFacts?.frameTimesUs,
                 thumbnailLoader = uri?.let { u -> { atMs -> withContext(Dispatchers.IO) { FrameThumbnail.load(resolver, u, atMs) } } },
             )
         },

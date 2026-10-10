@@ -176,13 +176,15 @@ private fun Flow(
             val heroMax = maxHeight * 0.46f
             Column(Modifier.fillMaxSize()) {
                 header()
+                // The frame stays pinned: taps and drags land on it while only the controls scroll
+                // (a scrolling frame slid under the header mid-tap on the A55).
+                Box(Modifier.fillMaxWidth().padding(horizontal = ScreenGutter, vertical = 4.dp), contentAlignment = Alignment.TopCenter) {
+                    Hero(f, s, dispatch, dragging, Modifier.heightIn(max = heroMax).aspectRatio(ratio))
+                }
                 Column(
-                    Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = ScreenGutter),
+                    Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = ScreenGutter).padding(top = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Box(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp), contentAlignment = Alignment.TopCenter) {
-                        Hero(f, s, dispatch, dragging, Modifier.heightIn(max = heroMax).aspectRatio(ratio))
-                    }
                     Controls(s, dispatch, dragging.value)
                 }
                 Bottom(s, dispatch, onDone, Modifier.padding(horizontal = ScreenGutter, vertical = 12.dp))
