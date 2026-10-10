@@ -62,7 +62,6 @@ class SetupResultJsonTest {
     @Test fun reducerOutputMatchesTheSchema() {
         val corners = listOf(300 to 1000, 1620 to 1000, 1250 to 300, 670 to 300)
         var s = reduce(SetupState(1920.0, 1080.0, frameMs = 4321), SetupAction.SelectFormat(Format.Doubles))
-        s = reduce(s, SetupAction.Next)
         for ((x, y) in corners) s = reduce(s, SetupAction.Tap(com.elevate.app.domain.calibration.ImagePoint(x.toDouble(), y.toDouble())))
         s = reduce(reduce(s, SetupAction.Next), SetupAction.Tap(com.elevate.app.domain.calibration.ImagePoint(10.0, 20.0)))
         val json = s.result()!!.toJson()
