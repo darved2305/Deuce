@@ -23,6 +23,9 @@ import com.elevate.app.ui.components.ElevateIcons
 import com.elevate.app.ui.components.ElevateRadius
 import com.elevate.app.ui.components.rememberHaptics
 import com.elevate.app.ui.components.rememberReduceMotion
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -161,14 +164,28 @@ fun ZonePicker(
                 val (u, v) = ZoneView.point(landingXyM.first, landingXyM.second, side, widthM)
                 if (u in 0f..1f && v in 0f..1f) {
                     val p = Offset(u * size.width, v * size.height)
-                    val r = 9.dp.toPx()
+                    val r = 14.dp.toPx()
+                    // A wide soft halo so the mark is found at a glance.
+                    drawCircle(c.orange.copy(alpha = 0.28f), r * 2.2f, p)
                     if (landingTrusted) {
-                        drawCircle(Color.White, r + 2.dp.toPx(), p)
+                        drawCircle(Color.White, r + 3.dp.toPx(), p)
                         drawCircle(c.orange, r, p)
                     } else {
                         // Candidates are a ring, never a filled mark: not shown as certain.
-                        drawCircle(Color.White, r, p, style = Stroke(3.dp.toPx()))
+                        drawCircle(Color.White, r + 2.dp.toPx(), p, style = Stroke(2.dp.toPx()))
+                        drawCircle(c.orange, r, p, style = Stroke(5.dp.toPx()))
                     }
+                    val label = if (landingTrusted) "Landed here" else "Landed here?"
+                    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        color = android.graphics.Color.WHITE
+                        textSize = 13.sp.toPx()
+                        typeface = android.graphics.Typeface.DEFAULT_BOLD
+                        setShadowLayer(4f, 0f, 1f, android.graphics.Color.BLACK)
+                    }
+                    val tw = paint.measureText(label)
+                    val tx = (p.x - tw / 2).coerceIn(4f, size.width - tw - 4f)
+                    val ty = if (p.y + r * 2.6f < size.height) p.y + r + 18.dp.toPx() else p.y - r - 8.dp.toPx()
+                    drawContext.canvas.nativeCanvas.drawText(label, tx, ty, paint)
                 }
             }
         }

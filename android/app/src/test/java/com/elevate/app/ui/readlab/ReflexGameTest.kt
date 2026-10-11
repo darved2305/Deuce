@@ -163,7 +163,7 @@ class ReflexGameTest {
         assertThat(ReflexText.verdictLine(s.results[0])).isEqualTo("Exact in 300 ms")
         assertThat(ReflexText.verdictLine(s.results[3])).isEqualTo("Exact in 640 ms (vs engine estimate)")
         assertThat(ReflexText.verdictLine(session().answer(null, null).results.single())).isEqualTo("Too slow")
-        assertThat(ReflexText.entry(5)).isEqualTo("Reflex challenge (5 shots)")
+        assertThat(ReflexText.entry(5)).isEqualTo("Reflex")
         assertThat(ReflexText.BEST_LABEL).isEqualTo("Your best on this match")
     }
 

@@ -26,6 +26,8 @@ data class Drill(
     val viewSide: CourtSide,
     /** The hit's own timing uncertainty (ms), kept so a challenge can name the exact freeze set. */
     val contactSigmaMs: Long = 0L,
+    /** Source time of the landing event (ms); the reveal plays the real shot up to here. */
+    val landingMs: Long = challenge.contactMs,
 )
 
 object ReadLabDrills {
@@ -80,7 +82,7 @@ object ReadLabDrills {
             )
             val ok = ReadLab.challenge(shot, template, frameTimesUs) as? Eligibility.Ok ?: return@mapNotNull null
             val side = y?.let { CourtSide.of(it) } ?: CourtSide.of(xy.second)?.other ?: CourtSide.NEAR
-            Drill(hit.eventId, landing.eventId, ok.challenge, template, xy, landing.state, side, hit.tSigmaMs)
+            Drill(hit.eventId, landing.eventId, ok.challenge, template, xy, landing.state, side, contactSigmaMs = hit.tSigmaMs, landingMs = landing.tMs)
         }
     }
 

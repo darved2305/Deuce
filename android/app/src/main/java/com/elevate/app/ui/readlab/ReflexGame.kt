@@ -215,7 +215,7 @@ object ReflexText {
     const val BEST_LABEL = "Your best on this match"
     const val RELAXED_LABEL = "Relaxed (3 s)"
 
-    fun entry(n: Int) = "Reflex challenge ($n shot${if (n == 1) "" else "s"})"
+    fun entry(n: Int) = "Reflex"
 
     fun verdictLine(r: ReflexRoundResult): String {
         val base = when (r.verdict) {

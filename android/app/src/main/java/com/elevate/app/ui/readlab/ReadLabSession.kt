@@ -132,7 +132,7 @@ object ReadLabText {
     const val HEADER = "ReadLab · train your read on your own match"
     const val EMPTY = "No landings with court positions yet. Analyse a match with the court set up."
 
-    fun entry(n: Int) = "Train your read ($n drill${if (n == 1) "" else "s"})"
+    fun entry(n: Int) = "Read"
 
     private val ROW = mapOf(ZoneRow.FRONT to "front", ZoneRow.MIDDLE to "middle", ZoneRow.BACK to "back")
     private val COL = mapOf(1 to "left", 2 to "centre", 3 to "right")
