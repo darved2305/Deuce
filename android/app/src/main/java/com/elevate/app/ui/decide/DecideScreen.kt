@@ -108,8 +108,10 @@ class DecideState {
 /** Overview button; only with at least [Decide.MIN_FREEZES] usable moments. */
 @Composable
 fun DecideEntryButton(freezes: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    if (freezes < Decide.MIN_FREEZES) return
-    ExplainBox(Explanations.Decide, modifier.fillMaxWidth()) { SecondaryButton("Decide", onClick, Modifier.fillMaxWidth()) }
+    // Locked rather than hidden: it needs 3 real moments before your own shots.
+    val ready = freezes >= Decide.MIN_FREEZES
+    val label = if (ready) "Decide" else "Decide · needs ${Decide.MIN_FREEZES} moments ($freezes)"
+    ExplainBox(Explanations.Decide, modifier.fillMaxWidth()) { SecondaryButton(label, onClick, Modifier.fillMaxWidth(), enabled = ready) }
 }
 
 /** How long the real continuation plays after a commit. */
