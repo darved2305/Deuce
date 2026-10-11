@@ -18,7 +18,7 @@ import {
   Configuration,
   DefaultApi,
 } from '@elevate/sdk';
-import type { V1AnalysesIdEventsGetRequest } from '@elevate/sdk';
+import type { AbortUploadRequest } from '@elevate/sdk';
 
 async function example() {
   console.log("🚀 Testing @elevate/sdk SDK...");
@@ -27,14 +27,10 @@ async function example() {
   const body = {
     // string
     id: id_example,
-    // number (optional)
-    afterSeq: 56,
-    // number (optional)
-    limit: 56,
-  } satisfies V1AnalysesIdEventsGetRequest;
+  } satisfies AbortUploadRequest;
 
   try {
-    const data = await api.v1AnalysesIdEventsGet(body);
+    const data = await api.abortUpload(body);
     console.log(data);
   } catch (error) {
     console.error(error);
@@ -54,100 +50,144 @@ All URIs are relative to *https://zpwxjjsugujmihhkmfjx.supabase.co/functions/v1/
 
 | Class | Method | HTTP request | Description
 | ----- | ------ | ------------ | -------------
-*DefaultApi* | [**v1AnalysesIdEventsGet**](docs/DefaultApi.md#v1analysesideventsget) | **GET** /v1/analyses/{id}/events | 
-*DefaultApi* | [**v1AnalysesIdGet**](docs/DefaultApi.md#v1analysesidget) | **GET** /v1/analyses/{id} | 
-*DefaultApi* | [**v1AnalysesPost**](docs/DefaultApi.md#v1analysespostoperation) | **POST** /v1/analyses | 
-*DefaultApi* | [**v1ArtifactsIdGet**](docs/DefaultApi.md#v1artifactsidget) | **GET** /v1/artifacts/{id} | 
-*DefaultApi* | [**v1HealthGet**](docs/DefaultApi.md#v1healthget) | **GET** /v1/health | 
-*DefaultApi* | [**v1MatchesIdGet**](docs/DefaultApi.md#v1matchesidget) | **GET** /v1/matches/{id} | 
-*DefaultApi* | [**v1MatchesIdReviewsRvidConfirmPost**](docs/DefaultApi.md#v1matchesidreviewsrvidconfirmpostoperation) | **POST** /v1/matches/{id}/reviews/{rvid}/confirm | 
-*DefaultApi* | [**v1SessionsIdGet**](docs/DefaultApi.md#v1sessionsidget) | **GET** /v1/sessions/{id} | 
-*DefaultApi* | [**v1SessionsIdUploadAbortPost**](docs/DefaultApi.md#v1sessionsiduploadabortpost) | **POST** /v1/sessions/{id}/upload/abort | 
-*DefaultApi* | [**v1SessionsIdUploadCompletePost**](docs/DefaultApi.md#v1sessionsiduploadcompletepostoperation) | **POST** /v1/sessions/{id}/upload/complete | 
-*DefaultApi* | [**v1SessionsIdUploadPartsPost**](docs/DefaultApi.md#v1sessionsiduploadpartspostoperation) | **POST** /v1/sessions/{id}/upload/parts | 
-*DefaultApi* | [**v1SessionsPost**](docs/DefaultApi.md#v1sessionspostoperation) | **POST** /v1/sessions | 
+*DefaultApi* | [**abortUpload**](docs/DefaultApi.md#abortupload) | **POST** /v1/sessions/{id}/upload/abort | 
+*DefaultApi* | [**acceptChallenge**](docs/DefaultApi.md#acceptchallengeoperation) | **POST** /v1/challenges/{id}/accept | 
+*DefaultApi* | [**completeSegment**](docs/DefaultApi.md#completesegment) | **POST** /v1/sessions/{id}/segments/{seq}/complete | 
+*DefaultApi* | [**completeUpload**](docs/DefaultApi.md#completeuploadoperation) | **POST** /v1/sessions/{id}/upload/complete | 
+*DefaultApi* | [**confirmReview**](docs/DefaultApi.md#confirmreviewoperation) | **POST** /v1/matches/{id}/reviews/{rvid}/confirm | 
+*DefaultApi* | [**createAnalysis**](docs/DefaultApi.md#createanalysisoperation) | **POST** /v1/analyses | 
+*DefaultApi* | [**createChallenge**](docs/DefaultApi.md#createchallengeoperation) | **POST** /v1/challenges | 
+*DefaultApi* | [**createChallengeEntry**](docs/DefaultApi.md#createchallengeentryoperation) | **POST** /v1/challenges/{id}/entries | 
+*DefaultApi* | [**createCorrection**](docs/DefaultApi.md#createcorrectionoperation) | **POST** /v1/matches/{id}/corrections | 
+*DefaultApi* | [**createDeveloperKey**](docs/DefaultApi.md#createdeveloperkey) | **POST** /v1/developer-keys | 
+*DefaultApi* | [**createSession**](docs/DefaultApi.md#createsessionoperation) | **POST** /v1/sessions | 
+*DefaultApi* | [**createUploadParts**](docs/DefaultApi.md#createuploadpartsoperation) | **POST** /v1/sessions/{id}/upload/parts | 
+*DefaultApi* | [**deleteMatch**](docs/DefaultApi.md#deletematch) | **DELETE** /v1/matches/{id} | 
+*DefaultApi* | [**getAnalysis**](docs/DefaultApi.md#getanalysis) | **GET** /v1/analyses/{id} | 
+*DefaultApi* | [**getArtifact**](docs/DefaultApi.md#getartifact) | **GET** /v1/artifacts/{id} | 
+*DefaultApi* | [**getCapabilities**](docs/DefaultApi.md#getcapabilities) | **GET** /v1/capabilities | 
+*DefaultApi* | [**getChallenge**](docs/DefaultApi.md#getchallenge) | **GET** /v1/challenges/{id} | 
+*DefaultApi* | [**getHealth**](docs/DefaultApi.md#gethealth) | **GET** /v1/health | 
+*DefaultApi* | [**getMatch**](docs/DefaultApi.md#getmatch) | **GET** /v1/matches/{id} | 
+*DefaultApi* | [**getRally**](docs/DefaultApi.md#getrally) | **GET** /v1/matches/{id}/rallies/{rid} | 
+*DefaultApi* | [**getSession**](docs/DefaultApi.md#getsession) | **GET** /v1/sessions/{id} | 
+*DefaultApi* | [**getShotComparisons**](docs/DefaultApi.md#getshotcomparisons) | **GET** /v1/matches/{mid}/shots/{shot_id}/comparisons | 
+*DefaultApi* | [**listAnalysisEvents**](docs/DefaultApi.md#listanalysisevents) | **GET** /v1/analyses/{id}/events | 
+*DefaultApi* | [**listFriends**](docs/DefaultApi.md#listfriends) | **GET** /v1/friends | 
+*DefaultApi* | [**listMatchMoments**](docs/DefaultApi.md#listmatchmoments) | **GET** /v1/matches/{id}/moments | 
+*DefaultApi* | [**listMatches**](docs/DefaultApi.md#listmatches) | **GET** /v1/matches | 
+*DefaultApi* | [**listMoments**](docs/DefaultApi.md#listmoments) | **GET** /v1/moments | 
+*DefaultApi* | [**listRallies**](docs/DefaultApi.md#listrallies) | **GET** /v1/matches/{id}/rallies | 
+*DefaultApi* | [**registerSegment**](docs/DefaultApi.md#registersegmentoperation) | **POST** /v1/sessions/{id}/segments | 
+*DefaultApi* | [**revokeDeveloperKey**](docs/DefaultApi.md#revokedeveloperkey) | **DELETE** /v1/developer-keys/{id} | 
 
 
 ### Models
 
-- [V1AnalysesIdEventsGet200Response](docs/V1AnalysesIdEventsGet200Response.md)
-- [V1AnalysesIdEventsGet200ResponseEventsInner](docs/V1AnalysesIdEventsGet200ResponseEventsInner.md)
-- [V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf](docs/V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf.md)
-- [V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf1](docs/V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf1.md)
-- [V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf2](docs/V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf2.md)
-- [V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf3](docs/V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf3.md)
-- [V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf4](docs/V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf4.md)
-- [V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf5](docs/V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf5.md)
-- [V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf6](docs/V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf6.md)
-- [V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf7](docs/V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf7.md)
-- [V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf8](docs/V1AnalysesIdEventsGet200ResponseEventsInnerAnyOf8.md)
-- [V1AnalysesIdGet200Response](docs/V1AnalysesIdGet200Response.md)
-- [V1AnalysesPost200Response](docs/V1AnalysesPost200Response.md)
-- [V1AnalysesPost429Response](docs/V1AnalysesPost429Response.md)
-- [V1AnalysesPost429ResponseError](docs/V1AnalysesPost429ResponseError.md)
-- [V1AnalysesPostRequest](docs/V1AnalysesPostRequest.md)
-- [V1ArtifactsIdGet200Response](docs/V1ArtifactsIdGet200Response.md)
-- [V1HealthGet200Response](docs/V1HealthGet200Response.md)
-- [V1MatchesIdGet200Response](docs/V1MatchesIdGet200Response.md)
-- [V1MatchesIdGet200ResponseAnalysis](docs/V1MatchesIdGet200ResponseAnalysis.md)
-- [V1MatchesIdGet200ResponseAnalysisArtifacts](docs/V1MatchesIdGet200ResponseAnalysisArtifacts.md)
-- [V1MatchesIdGet200ResponseCalibration](docs/V1MatchesIdGet200ResponseCalibration.md)
-- [V1MatchesIdGet200ResponseCapabilities](docs/V1MatchesIdGet200ResponseCapabilities.md)
-- [V1MatchesIdGet200ResponseCapabilitiesCourt](docs/V1MatchesIdGet200ResponseCapabilitiesCourt.md)
-- [V1MatchesIdGet200ResponseClipsInner](docs/V1MatchesIdGet200ResponseClipsInner.md)
-- [V1MatchesIdGet200ResponseClipsInnerLocal](docs/V1MatchesIdGet200ResponseClipsInnerLocal.md)
-- [V1MatchesIdGet200ResponseClipsInnerRemote](docs/V1MatchesIdGet200ResponseClipsInnerRemote.md)
-- [V1MatchesIdGet200ResponseConfirmedPointsInner](docs/V1MatchesIdGet200ResponseConfirmedPointsInner.md)
-- [V1MatchesIdGet200ResponseCorrectionsInner](docs/V1MatchesIdGet200ResponseCorrectionsInner.md)
-- [V1MatchesIdGet200ResponseCorrectionsInnerTarget](docs/V1MatchesIdGet200ResponseCorrectionsInnerTarget.md)
-- [V1MatchesIdGet200ResponseEventsInner](docs/V1MatchesIdGet200ResponseEventsInner.md)
-- [V1MatchesIdGet200ResponseEventsInnerEvidenceInner](docs/V1MatchesIdGet200ResponseEventsInnerEvidenceInner.md)
-- [V1MatchesIdGet200ResponseInsightsInner](docs/V1MatchesIdGet200ResponseInsightsInner.md)
-- [V1MatchesIdGet200ResponseInsightsInnerCount](docs/V1MatchesIdGet200ResponseInsightsInnerCount.md)
-- [V1MatchesIdGet200ResponseInsightsInnerVisual](docs/V1MatchesIdGet200ResponseInsightsInnerVisual.md)
-- [V1MatchesIdGet200ResponseInsightsInnerVisualFilter](docs/V1MatchesIdGet200ResponseInsightsInnerVisualFilter.md)
-- [V1MatchesIdGet200ResponseMetricsInner](docs/V1MatchesIdGet200ResponseMetricsInner.md)
-- [V1MatchesIdGet200ResponseMomentsInner](docs/V1MatchesIdGet200ResponseMomentsInner.md)
-- [V1MatchesIdGet200ResponsePlayersInner](docs/V1MatchesIdGet200ResponsePlayersInner.md)
-- [V1MatchesIdGet200ResponseRalliesInner](docs/V1MatchesIdGet200ResponseRalliesInner.md)
-- [V1MatchesIdGet200ResponseRalliesInnerClipId](docs/V1MatchesIdGet200ResponseRalliesInnerClipId.md)
-- [V1MatchesIdGet200ResponseReviewsInner](docs/V1MatchesIdGet200ResponseReviewsInner.md)
-- [V1MatchesIdGet200ResponseRuleset](docs/V1MatchesIdGet200ResponseRuleset.md)
-- [V1MatchesIdGet200ResponseScore](docs/V1MatchesIdGet200ResponseScore.md)
-- [V1MatchesIdGet200ResponseScoreTimelineInner](docs/V1MatchesIdGet200ResponseScoreTimelineInner.md)
-- [V1MatchesIdGet200ResponseShotsInner](docs/V1MatchesIdGet200ResponseShotsInner.md)
-- [V1MatchesIdGet200ResponseShotsInnerChosen](docs/V1MatchesIdGet200ResponseShotsInnerChosen.md)
-- [V1MatchesIdGet200ResponseShotsInnerContext](docs/V1MatchesIdGet200ResponseShotsInnerContext.md)
-- [V1MatchesIdGet200ResponseShotsInnerIncoming](docs/V1MatchesIdGet200ResponseShotsInnerIncoming.md)
-- [V1MatchesIdGet200ResponseShotsInnerOutcome](docs/V1MatchesIdGet200ResponseShotsInnerOutcome.md)
-- [V1MatchesIdGet200ResponseShotsInnerQuality](docs/V1MatchesIdGet200ResponseShotsInnerQuality.md)
-- [V1MatchesIdGet200ResponseShotsInnerRoles](docs/V1MatchesIdGet200ResponseShotsInnerRoles.md)
-- [V1MatchesIdGet200ResponseShotsInnerRolesFocal](docs/V1MatchesIdGet200ResponseShotsInnerRolesFocal.md)
-- [V1MatchesIdReviewsRvidConfirmPostRequest](docs/V1MatchesIdReviewsRvidConfirmPostRequest.md)
-- [V1SessionsIdGet200Response](docs/V1SessionsIdGet200Response.md)
-- [V1SessionsIdGet200ResponseUpload](docs/V1SessionsIdGet200ResponseUpload.md)
-- [V1SessionsIdUploadAbortPost200Response](docs/V1SessionsIdUploadAbortPost200Response.md)
-- [V1SessionsIdUploadCompletePost200Response](docs/V1SessionsIdUploadCompletePost200Response.md)
-- [V1SessionsIdUploadCompletePostRequest](docs/V1SessionsIdUploadCompletePostRequest.md)
-- [V1SessionsIdUploadCompletePostRequestPartsInner](docs/V1SessionsIdUploadCompletePostRequestPartsInner.md)
-- [V1SessionsIdUploadPartsPost200Response](docs/V1SessionsIdUploadPartsPost200Response.md)
-- [V1SessionsIdUploadPartsPost200ResponsePartsInner](docs/V1SessionsIdUploadPartsPost200ResponsePartsInner.md)
-- [V1SessionsIdUploadPartsPostRequest](docs/V1SessionsIdUploadPartsPostRequest.md)
-- [V1SessionsPost201Response](docs/V1SessionsPost201Response.md)
-- [V1SessionsPost201ResponseAnyOf](docs/V1SessionsPost201ResponseAnyOf.md)
-- [V1SessionsPost201ResponseAnyOf1](docs/V1SessionsPost201ResponseAnyOf1.md)
-- [V1SessionsPost201ResponseAnyOf1Segments](docs/V1SessionsPost201ResponseAnyOf1Segments.md)
-- [V1SessionsPost201ResponseAnyOfUpload](docs/V1SessionsPost201ResponseAnyOfUpload.md)
-- [V1SessionsPostRequest](docs/V1SessionsPostRequest.md)
-- [V1SessionsPostRequestCalibrationInput](docs/V1SessionsPostRequestCalibrationInput.md)
-- [V1SessionsPostRequestCalibrationInputAnyOf](docs/V1SessionsPostRequestCalibrationInputAnyOf.md)
-- [V1SessionsPostRequestCalibrationInputAnyOf1](docs/V1SessionsPostRequestCalibrationInputAnyOf1.md)
-- [V1SessionsPostRequestCalibrationInputAnyOfPointsPx](docs/V1SessionsPostRequestCalibrationInputAnyOfPointsPx.md)
-- [V1SessionsPostRequestFreePlaySeed](docs/V1SessionsPostRequestFreePlaySeed.md)
-- [V1SessionsPostRequestRallyCandidatesInner](docs/V1SessionsPostRequestRallyCandidatesInner.md)
-- [V1SessionsPostRequestSource](docs/V1SessionsPostRequestSource.md)
-- [V1SessionsPostRequestSourcePts](docs/V1SessionsPostRequestSourcePts.md)
-- [V1SessionsPostRequestWhoIsMe](docs/V1SessionsPostRequestWhoIsMe.md)
+- [AbortUpload200Response](docs/AbortUpload200Response.md)
+- [AcceptChallengeRequest](docs/AcceptChallengeRequest.md)
+- [CompleteSegment200Response](docs/CompleteSegment200Response.md)
+- [CompleteUpload200Response](docs/CompleteUpload200Response.md)
+- [CompleteUploadRequest](docs/CompleteUploadRequest.md)
+- [CompleteUploadRequestPartsInner](docs/CompleteUploadRequestPartsInner.md)
+- [ConfirmReviewRequest](docs/ConfirmReviewRequest.md)
+- [CreateAnalysis200Response](docs/CreateAnalysis200Response.md)
+- [CreateAnalysis403Response](docs/CreateAnalysis403Response.md)
+- [CreateAnalysis403ResponseError](docs/CreateAnalysis403ResponseError.md)
+- [CreateAnalysisRequest](docs/CreateAnalysisRequest.md)
+- [CreateChallenge201Response](docs/CreateChallenge201Response.md)
+- [CreateChallenge201ResponseCreator](docs/CreateChallenge201ResponseCreator.md)
+- [CreateChallenge201ResponseEntriesInner](docs/CreateChallenge201ResponseEntriesInner.md)
+- [CreateChallenge201ResponseViewer](docs/CreateChallenge201ResponseViewer.md)
+- [CreateChallengeEntryRequest](docs/CreateChallengeEntryRequest.md)
+- [CreateChallengeRequest](docs/CreateChallengeRequest.md)
+- [CreateChallengeRequestRoundResultsInner](docs/CreateChallengeRequestRoundResultsInner.md)
+- [CreateChallengeRequestRoundsInner](docs/CreateChallengeRequestRoundsInner.md)
+- [CreateCorrectionRequest](docs/CreateCorrectionRequest.md)
+- [CreateSession201Response](docs/CreateSession201Response.md)
+- [CreateSession201ResponseAnyOf](docs/CreateSession201ResponseAnyOf.md)
+- [CreateSession201ResponseAnyOf1](docs/CreateSession201ResponseAnyOf1.md)
+- [CreateSession201ResponseAnyOf1Segments](docs/CreateSession201ResponseAnyOf1Segments.md)
+- [CreateSession201ResponseAnyOfUpload](docs/CreateSession201ResponseAnyOfUpload.md)
+- [CreateSessionRequest](docs/CreateSessionRequest.md)
+- [CreateSessionRequestCalibrationInput](docs/CreateSessionRequestCalibrationInput.md)
+- [CreateSessionRequestCalibrationInputAnyOf](docs/CreateSessionRequestCalibrationInputAnyOf.md)
+- [CreateSessionRequestCalibrationInputAnyOf1](docs/CreateSessionRequestCalibrationInputAnyOf1.md)
+- [CreateSessionRequestCalibrationInputAnyOfPointsPx](docs/CreateSessionRequestCalibrationInputAnyOfPointsPx.md)
+- [CreateSessionRequestFreePlaySeed](docs/CreateSessionRequestFreePlaySeed.md)
+- [CreateSessionRequestRallyCandidatesInner](docs/CreateSessionRequestRallyCandidatesInner.md)
+- [CreateSessionRequestSource](docs/CreateSessionRequestSource.md)
+- [CreateSessionRequestSourcePts](docs/CreateSessionRequestSourcePts.md)
+- [CreateSessionRequestWhoIsMe](docs/CreateSessionRequestWhoIsMe.md)
+- [CreateUploadParts200Response](docs/CreateUploadParts200Response.md)
+- [CreateUploadParts200ResponsePartsInner](docs/CreateUploadParts200ResponsePartsInner.md)
+- [CreateUploadPartsRequest](docs/CreateUploadPartsRequest.md)
+- [GetAnalysis200Response](docs/GetAnalysis200Response.md)
+- [GetArtifact200Response](docs/GetArtifact200Response.md)
+- [GetCapabilities200Response](docs/GetCapabilities200Response.md)
+- [GetHealth200Response](docs/GetHealth200Response.md)
+- [GetMatch200Response](docs/GetMatch200Response.md)
+- [GetMatch200ResponseAnalysis](docs/GetMatch200ResponseAnalysis.md)
+- [GetMatch200ResponseAnalysisArtifacts](docs/GetMatch200ResponseAnalysisArtifacts.md)
+- [GetMatch200ResponseCalibration](docs/GetMatch200ResponseCalibration.md)
+- [GetMatch200ResponseCapabilities](docs/GetMatch200ResponseCapabilities.md)
+- [GetMatch200ResponseCapabilitiesCourt](docs/GetMatch200ResponseCapabilitiesCourt.md)
+- [GetMatch200ResponseClipsInner](docs/GetMatch200ResponseClipsInner.md)
+- [GetMatch200ResponseClipsInnerLocal](docs/GetMatch200ResponseClipsInnerLocal.md)
+- [GetMatch200ResponseClipsInnerRemote](docs/GetMatch200ResponseClipsInnerRemote.md)
+- [GetMatch200ResponseConfirmedPointsInner](docs/GetMatch200ResponseConfirmedPointsInner.md)
+- [GetMatch200ResponseCorrectionsInner](docs/GetMatch200ResponseCorrectionsInner.md)
+- [GetMatch200ResponseCorrectionsInnerTarget](docs/GetMatch200ResponseCorrectionsInnerTarget.md)
+- [GetMatch200ResponseEventsInner](docs/GetMatch200ResponseEventsInner.md)
+- [GetMatch200ResponseEventsInnerEvidenceInner](docs/GetMatch200ResponseEventsInnerEvidenceInner.md)
+- [GetMatch200ResponseInsightsInner](docs/GetMatch200ResponseInsightsInner.md)
+- [GetMatch200ResponseInsightsInnerCount](docs/GetMatch200ResponseInsightsInnerCount.md)
+- [GetMatch200ResponseInsightsInnerVisual](docs/GetMatch200ResponseInsightsInnerVisual.md)
+- [GetMatch200ResponseInsightsInnerVisualFilter](docs/GetMatch200ResponseInsightsInnerVisualFilter.md)
+- [GetMatch200ResponseMetricsInner](docs/GetMatch200ResponseMetricsInner.md)
+- [GetMatch200ResponseMomentsInner](docs/GetMatch200ResponseMomentsInner.md)
+- [GetMatch200ResponsePlayersInner](docs/GetMatch200ResponsePlayersInner.md)
+- [GetMatch200ResponseRalliesInner](docs/GetMatch200ResponseRalliesInner.md)
+- [GetMatch200ResponseRalliesInnerClipId](docs/GetMatch200ResponseRalliesInnerClipId.md)
+- [GetMatch200ResponseReviewsInner](docs/GetMatch200ResponseReviewsInner.md)
+- [GetMatch200ResponseRuleset](docs/GetMatch200ResponseRuleset.md)
+- [GetMatch200ResponseScore](docs/GetMatch200ResponseScore.md)
+- [GetMatch200ResponseScoreTimelineInner](docs/GetMatch200ResponseScoreTimelineInner.md)
+- [GetMatch200ResponseShotsInner](docs/GetMatch200ResponseShotsInner.md)
+- [GetMatch200ResponseShotsInnerChosen](docs/GetMatch200ResponseShotsInnerChosen.md)
+- [GetMatch200ResponseShotsInnerContext](docs/GetMatch200ResponseShotsInnerContext.md)
+- [GetMatch200ResponseShotsInnerIncoming](docs/GetMatch200ResponseShotsInnerIncoming.md)
+- [GetMatch200ResponseShotsInnerOutcome](docs/GetMatch200ResponseShotsInnerOutcome.md)
+- [GetMatch200ResponseShotsInnerQuality](docs/GetMatch200ResponseShotsInnerQuality.md)
+- [GetMatch200ResponseShotsInnerRoles](docs/GetMatch200ResponseShotsInnerRoles.md)
+- [GetMatch200ResponseShotsInnerRolesFocal](docs/GetMatch200ResponseShotsInnerRolesFocal.md)
+- [GetRally200Response](docs/GetRally200Response.md)
+- [GetSession200Response](docs/GetSession200Response.md)
+- [GetSession200ResponseUpload](docs/GetSession200ResponseUpload.md)
+- [GetShotComparisons200Response](docs/GetShotComparisons200Response.md)
+- [GetShotComparisons200ResponseCandidatesInner](docs/GetShotComparisons200ResponseCandidatesInner.md)
+- [GetShotComparisons200ResponseCandidatesInnerEvidence](docs/GetShotComparisons200ResponseCandidatesInnerEvidence.md)
+- [ListAnalysisEvents200Response](docs/ListAnalysisEvents200Response.md)
+- [ListAnalysisEvents200ResponseEventsInner](docs/ListAnalysisEvents200ResponseEventsInner.md)
+- [ListAnalysisEvents200ResponseEventsInnerAnyOf](docs/ListAnalysisEvents200ResponseEventsInnerAnyOf.md)
+- [ListAnalysisEvents200ResponseEventsInnerAnyOf1](docs/ListAnalysisEvents200ResponseEventsInnerAnyOf1.md)
+- [ListAnalysisEvents200ResponseEventsInnerAnyOf2](docs/ListAnalysisEvents200ResponseEventsInnerAnyOf2.md)
+- [ListAnalysisEvents200ResponseEventsInnerAnyOf3](docs/ListAnalysisEvents200ResponseEventsInnerAnyOf3.md)
+- [ListAnalysisEvents200ResponseEventsInnerAnyOf4](docs/ListAnalysisEvents200ResponseEventsInnerAnyOf4.md)
+- [ListAnalysisEvents200ResponseEventsInnerAnyOf5](docs/ListAnalysisEvents200ResponseEventsInnerAnyOf5.md)
+- [ListAnalysisEvents200ResponseEventsInnerAnyOf6](docs/ListAnalysisEvents200ResponseEventsInnerAnyOf6.md)
+- [ListAnalysisEvents200ResponseEventsInnerAnyOf7](docs/ListAnalysisEvents200ResponseEventsInnerAnyOf7.md)
+- [ListAnalysisEvents200ResponseEventsInnerAnyOf8](docs/ListAnalysisEvents200ResponseEventsInnerAnyOf8.md)
+- [ListFriends200Response](docs/ListFriends200Response.md)
+- [ListFriends200ResponseItemsInner](docs/ListFriends200ResponseItemsInner.md)
+- [ListMatchMoments200Response](docs/ListMatchMoments200Response.md)
+- [ListMatchMoments200ResponseItemsInner](docs/ListMatchMoments200ResponseItemsInner.md)
+- [ListMatches200Response](docs/ListMatches200Response.md)
+- [ListMatches200ResponseItemsInner](docs/ListMatches200ResponseItemsInner.md)
+- [ListMatches200ResponseItemsInnerScore](docs/ListMatches200ResponseItemsInnerScore.md)
+- [ListRallies200Response](docs/ListRallies200Response.md)
+- [RegisterSegment200Response](docs/RegisterSegment200Response.md)
+- [RegisterSegmentRequest](docs/RegisterSegmentRequest.md)
 
 ### Authorization
 

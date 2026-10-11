@@ -32,11 +32,11 @@ import {
   DefaultApi,
   FetchError,
   ResponseError,
-  V1SessionsPostRequestFormatEnum,
-  V1SessionsPostRequestModeEnum,
-  V1SessionsPostRequestSportEnum,
-  V1SessionsPostRequestUploadModeEnum,
-  type V1SessionsPostRequestSource,
+  CreateSessionRequestFormatEnum,
+  CreateSessionRequestModeEnum,
+  CreateSessionRequestSportEnum,
+  CreateSessionRequestUploadModeEnum,
+  type CreateSessionRequestSource,
 } from "../src/index";
 
 const MAX_PART_ATTEMPTS = 3;
@@ -77,7 +77,7 @@ async function describe(e: unknown): Promise<string> {
 }
 
 // ---- 1. Read the video's real facts --------------------------------------------------------
-function probe(path: string): V1SessionsPostRequestSource {
+function probe(path: string): CreateSessionRequestSource {
   const ff = (extra: string[]) => execFileSync("ffprobe", ["-v", "error", "-of", "json", ...extra, path], { maxBuffer: 1 << 28 }).toString();
   const info = JSON.parse(ff(["-show_entries", "stream=index,codec_type,codec_name,width,height,r_frame_rate,sample_rate,side_data_list,tags"]));
   const video = info.streams.find((s: { codec_type: string }) => s.codec_type === "video");
@@ -150,19 +150,19 @@ async function main() {
   if (!flags.has("me")) console.log("note: --me not given, using the frame centre as who-is-me (not a real tap).");
 
   // Create the session.
-  const session = await api.v1SessionsPost({
+  const session = await api.createSession({
     idempotencyKey: randomUUID(),
-    v1SessionsPostRequest: {
-      sport: V1SessionsPostRequestSportEnum.Badminton,
-      format: flags.get("format") === "doubles" ? V1SessionsPostRequestFormatEnum.Doubles : V1SessionsPostRequestFormatEnum.Singles,
+    createSessionRequest: {
+      sport: CreateSessionRequestSportEnum.Badminton,
+      format: flags.get("format") === "doubles" ? CreateSessionRequestFormatEnum.Doubles : CreateSessionRequestFormatEnum.Singles,
       ruleset: { id: "bwf_3x21", version: "2025-04" },
-      mode: V1SessionsPostRequestModeEnum.Practice,
+      mode: CreateSessionRequestModeEnum.Practice,
       source,
       calibrationInput: null,
       whoIsMe: { imageXy: me, tMs: 0 },
       freePlaySeed: null,
       rallyCandidates: [],
-      uploadMode: V1SessionsPostRequestUploadModeEnum.Multipart,
+      uploadMode: CreateSessionRequestUploadModeEnum.Multipart,
     },
   });
   const upload = (session as { upload?: { partSize: number; maxConcurrency: number } }).upload;
@@ -178,7 +178,7 @@ async function main() {
     const concurrency = Math.min(upload.maxConcurrency || 1, 3);
     for (let first = 1; first <= partCount; first += concurrency) {
       const numbers = Array.from({ length: Math.min(concurrency, partCount - first + 1) }, (_, i) => first + i);
-      const { parts } = await api.v1SessionsIdUploadPartsPost({ id: sessionId, v1SessionsIdUploadPartsPostRequest: { partNumbers: numbers } });
+      const { parts } = await api.createUploadParts({ id: sessionId, createUploadPartsRequest: { partNumbers: numbers } });
       await Promise.all(parts.map(async (part) => {
         const start = (part.n - 1) * upload.partSize;
         const length = Math.min(upload.partSize, size - start);
@@ -190,19 +190,19 @@ async function main() {
     }
   } catch (e) {
     console.error(`upload stopped: ${await describe(e)}; aborting the upload (no retries on a failed URL).`);
-    await api.v1SessionsIdUploadAbortPost({ id: sessionId }).catch(() => undefined);
+    await api.abortUpload({ id: sessionId }).catch(() => undefined);
     process.exit(1);
   } finally {
     await file.close();
   }
-  const done = await api.v1SessionsIdUploadCompletePost({
+  const done = await api.completeUpload({
     id: sessionId,
-    v1SessionsIdUploadCompletePostRequest: { parts: [...etags].sort((a, b) => a[0] - b[0]).map(([n, etag]) => ({ n, etag })) },
+    completeUploadRequest: { parts: [...etags].sort((a, b) => a[0] - b[0]).map(([n, etag]) => ({ n, etag })) },
   });
   console.log(`upload ${done.status}: ${done.bytes} bytes`);
 
   // ---- 3. Start the analysis and follow its events -----------------------------------------
-  const analysis = await api.v1AnalysesPost({ idempotencyKey: randomUUID(), v1AnalysesPostRequest: { sessionId } });
+  const analysis = await api.createAnalysis({ idempotencyKey: randomUUID(), createAnalysisRequest: { sessionId } });
   console.log(`analysis ${analysis.analysisId} state ${analysis.state}`);
 
   let afterSeq = 0;
@@ -214,7 +214,7 @@ async function main() {
   let state: string = analysis.state;
   let failure: string | undefined;
   while (state !== "completed" && state !== "failed") {
-    const page = await api.v1AnalysesIdEventsGet({ id: analysis.analysisId, afterSeq, limit: 100 });
+    const page = await api.listAnalysisEvents({ id: analysis.analysisId, afterSeq, limit: 100 });
     for (const ev of page.events) {
       if (ev.type === "analysis.started" && ev.windowsExpected !== undefined) windowsExpected = ev.windowsExpected;
       if (ev.type === "analysis.failed") failure = ev.reason ?? "unknown";
@@ -224,7 +224,7 @@ async function main() {
           lastWindowArtifact = ev.artifactId;
           if (countHits) {
             try {
-              const signed = await api.v1ArtifactsIdGet({ id: ev.artifactId });
+              const signed = await api.getArtifact({ id: ev.artifactId });
               const result = (await (await fetch(signed.url)).json()) as { events?: { type: string }[] };
               hits += (result.events ?? []).filter((x) => x.type === "hit").length;
             } catch (e) {
@@ -242,10 +242,10 @@ async function main() {
   }
 
   // ---- 4. Final state and the signed URL of the last window result -------------------------
-  const final = await api.v1AnalysesIdGet({ id: analysis.analysisId });
+  const final = await api.getAnalysis({ id: analysis.analysisId });
   console.log(`analysis ${final.analysisId} finished: state ${final.state}, engine ${final.engineVersion ?? "unknown"}, last_seq ${final.lastSeq}${failure ? `, failure ${failure}` : ""}`);
   if (lastWindowArtifact) {
-    const signed = await api.v1ArtifactsIdGet({ id: lastWindowArtifact });
+    const signed = await api.getArtifact({ id: lastWindowArtifact });
     console.log(`last window result ${lastWindowArtifact}: ${signed.url} (expires ${signed.expiresAt.toISOString()})`);
   } else {
     console.log("no window result was produced.");
