@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The match card image is written here (cache dir, share/) and handed to the share sheet by URI. -->
+<paths>
+    <cache-path name="share" path="share/" />
+</paths>

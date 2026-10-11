@@ -16,26 +16,36 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.elevate.app.domain.coach.CoachReport
+import com.elevate.app.domain.coach.CoachVoice
+import com.elevate.app.domain.coach.ShareCard
 import com.elevate.app.domain.coach.LandingHeat
 import com.elevate.app.domain.coach.RallyRhythm
 import com.elevate.app.domain.coach.Suggestion
 import com.elevate.app.domain.court.ZoneId
 import com.elevate.app.domain.court.ZoneRow
 import com.elevate.app.ui.components.ElevateCard
-import com.elevate.app.ui.components.SectionTitle
 import com.elevate.app.ui.theme.Elevate
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Every card in the report is engine output, so each carries this tag. */
 private const val SOURCE_TAG = "from your video · candidates"
@@ -49,7 +59,37 @@ private const val SOURCE_TAG = "from your video · candidates"
 internal fun CoachSection(s: MatchOverviewState) {
     val report = remember(s.landings, s.hitTimeline) { CoachReport.build(s.landings, s.hitTimeline.hits, s.hitTimeline.rallies) }
     val c = Elevate.colors
-    SectionTitle("Coach report")
+    val voice = rememberVoiceCoach()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var shareProblem by remember { mutableStateOf(false) }
+    val hitCount = s.hitTimeline.hits.size
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "Coach report", style = MaterialTheme.typography.titleMedium, color = c.ink,
+            modifier = Modifier.weight(1f).semantics { heading() },
+        )
+        CoachActions(
+            speaking = voice.speaking,
+            onListen = { voice.toggle(CoachVoice.script(report)) },
+            showShare = ShareCard.hasData(report, hitCount),
+            onShare = {
+                shareProblem = false
+                scope.launch {
+                    val intent = withContext(Dispatchers.Default) {
+                        runCatching {
+                            val lines = ShareCard.lines(report, hitCount, ShareCard.format(s.landings.template))
+                            val file = ShareCardRenderer.writePng(context, ShareCardRenderer.render(lines, s.landings))
+                            ShareCardRenderer.shareIntent(context, file)
+                        }.getOrNull()
+                    }
+                    if (intent == null || runCatching { context.startActivity(intent) }.isFailure) shareProblem = true
+                }
+            },
+        )
+    }
+    if (voice.unavailable) Text("Voice not available on this phone", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+    if (shareProblem) Text("Could not share the card", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
     ElevateCard {
         Pill(SOURCE_TAG, c.lavender, c.ink)
         Spacer(Modifier.height(10.dp))
