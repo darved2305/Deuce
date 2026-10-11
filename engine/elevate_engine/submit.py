@@ -71,6 +71,8 @@ def parse(body: object) -> SubmitRequest:
     sid = body.get("session_id")
     if sid is not None and (not isinstance(sid, str) or not SESSION_ID.fullmatch(sid)):
         raise ValueError("session_id must look like s_…")
+    if sid is not None and not r2_key.split("/")[1] == sid:
+        raise ValueError("session_id does not match the session in r2_key")
     return SubmitRequest(analysis_id, r2_key, spec, match_id, sid)
 
 

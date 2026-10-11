@@ -75,3 +75,33 @@ def test_artifact_registration_returns_the_api_id():
 
 def test_token_is_not_in_the_repr():
     assert "s3cret" not in repr(api(FakeServer()))
+
+
+def minimal_finalize():
+    from elevate_engine import finalize
+
+    spec = {
+        "sport": "badminton",
+        "format": "singles",
+        "ruleset": {"id": "bwf_3x21", "version": "1"},
+    }
+    return finalize.request(analysis_id="a_1", match_id="m_1", r2_key="orig/s_1/source.mp4",
+                            session_spec=spec, engine_version="0.1.0", models=["tracknet_v3"],
+                            artifacts={"ball_track": None, "player_tracks": None},
+                            window_events=[], calibration=None)  # fmt: skip
+
+
+def test_finalize_whose_response_was_lost_is_not_reported_as_a_failure():
+    # The first attempt committed but answered 502; the retry is told it is already finalized.
+    server = FakeServer(
+        (502, "bad gateway"), (409, '{"error":{"message":"analysis already finalized"}}')
+    )
+    body = minimal_finalize()
+    assert api(server).finalize("a_1", body) == {"state": "already_finalized"}
+
+
+def test_a_first_attempt_conflict_is_still_an_error():
+    server = FakeServer((409, '{"error":{"message":"analysis already finalized"}}'))
+    body = minimal_finalize()
+    with pytest.raises(ApiError):
+        api(server).finalize("a_1", body)

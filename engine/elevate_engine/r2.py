@@ -16,17 +16,17 @@ from pathlib import Path
 
 ORIG_KEY = re.compile(r"orig/s_[A-Za-z0-9_-]+/source\.mp4")
 WINDOW_KEY = re.compile(r"analysis/a_[A-Za-z0-9_-]+/[^/]+/windows/[0-9]+\.json")
-# G8: at most 2 track files per analysis (ball, players).
-TRACK_KEY = re.compile(r"analysis/a_[A-Za-z0-9_-]+/[^/]+/tracks/(ball|players)\.json")
+# G8: at most 2 track files per analysis; named by artifact kind (contracts §4, keys.ts).
+TRACK_KEY = re.compile(r"analysis/a_[A-Za-z0-9_-]+/[^/]+/tracks/(ball_track|player_tracks)\.json")
 
 
 class WritesDisabled(RuntimeError):
     """R2_WRITES_ENABLED is not "true": the kill switch is on."""
 
 
-def track_key(analysis_id: str, engine_version: str, name: str) -> str:
-    """contracts §4: analysis/{analysis_id}/{engine_version}/tracks/{name}.json (ball|players)"""
-    key = f"analysis/{analysis_id}/{engine_version}/tracks/{name}.json"
+def track_key(analysis_id: str, engine_version: str, kind: str) -> str:
+    """contracts §4: analysis/{analysis_id}/{engine_version}/tracks/{kind}.json"""
+    key = f"analysis/{analysis_id}/{engine_version}/tracks/{kind}.json"
     if not TRACK_KEY.fullmatch(key):
         raise ValueError(f"not a contract track key: {key}")
     return key

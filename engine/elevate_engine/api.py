@@ -41,7 +41,8 @@ def validate(name: str, body: dict) -> None:
     jsonschema.validate(body, schema)
 
 
-def _post_http(url: str, token: str, body: dict, timeout: float = 15.0) -> tuple[int, str]:
+# 60 s: finalize ingests the vision result and runs insights in one call.
+def _post_http(url: str, token: str, body: dict, timeout: float = 60.0) -> tuple[int, str]:
     import urllib.error
     import urllib.request
 
@@ -69,8 +70,13 @@ class InternalApi:
     def from_env(cls) -> InternalApi:
         return cls(os.environ["API_BASE_URL"].rstrip("/"), os.environ["INTERNAL_API_TOKEN"])
 
-    def _send(self, analysis_id: str, route: str, body: dict) -> dict:
+    def _send(
+        self, analysis_id: str, route: str, body: dict, done_marker: str | None = None
+    ) -> dict:
+        """POST with retries on network errors and 5xx. done_marker: a 409 whose body contains it,
+        after an earlier attempt whose outcome is unknown, means that attempt succeeded."""
         url = f"{self.base_url}/internal/analyses/{analysis_id}/{route}"
+        uncertain = False
         for attempt in range(len(RETRY_DELAYS_S) + 1):
             try:
                 status, text = self.post(url, self.token, body)
@@ -78,11 +84,15 @@ class InternalApi:
                 status, text = 0, repr(exc)
             if 200 <= status < 300:
                 return json.loads(text)
+            if status == 409 and uncertain and done_marker and done_marker in text:
+                log("api.already_done", route=route, analysis_id=analysis_id, attempt=attempt)
+                return {"state": "already_finalized"}
             retryable = status == 0 or status >= 500
             log("api.error", route=route, analysis_id=analysis_id, status=status,
                 attempt=attempt, retry=retryable, body=text[:200])  # fmt: skip
             if not retryable or attempt == len(RETRY_DELAYS_S):
                 raise ApiError(status, text)
+            uncertain = True
             self.sleep(RETRY_DELAYS_S[attempt])
         raise AssertionError("unreachable")
 
@@ -104,7 +114,7 @@ class InternalApi:
         """POST the vision result once. Validated first: an invalid body makes the API fail the
         analysis (it appends analysis.failed), so it must never leave the engine."""
         validate("analysis.finalize.request.v1", body)
-        resp = self._send(analysis_id, "finalize", body)
+        resp = self._send(analysis_id, "finalize", body, done_marker="already finalized")
         log("api.finalize", analysis_id=analysis_id, state=resp.get("state"),
             last_seq=resp.get("last_seq"))  # fmt: skip
         return resp

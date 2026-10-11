@@ -153,18 +153,17 @@ def analyze(
         post(len(results) - 1)
         rows, stats = pipeline.track_windows(results, BADMINTON)
 
-        def put_track(name: str, kind: str, body: dict) -> str:
+        def put_track(kind: str, body: dict) -> str:
             data = (json.dumps(body) + "\n").encode()
-            stored = r2.put_json(track_key(analysis_id, ENGINE_VERSION, name), data)
+            stored = r2.put_json(track_key(analysis_id, ENGINE_VERSION, kind), data)
             return api.artifact(analysis_id, kind, stored["r2_key"], stored["bytes"],
                                 stored["sha256"])  # fmt: skip
 
         artifacts = {
-            "ball_track": put_track("ball", "ball_track", {"analysis_id": analysis_id,
+            "ball_track": put_track("ball_track", {"analysis_id": analysis_id,
                                     "engine_version": ENGINE_VERSION, "ball": rows}),
-            # Empty until player tracks land: no rows rather than invented ones.
-            "player_tracks": put_track("players", "player_tracks", {"analysis_id": analysis_id,
-                                       "engine_version": ENGINE_VERSION, "players": []}),
+            # null until player tracks exist (contracts 1.9.0, HW15): no empty file, no write.
+            "player_tracks": None,
         }  # fmt: skip
         if match_id is None:
             log("finalize.skipped", analysis_id=analysis_id,

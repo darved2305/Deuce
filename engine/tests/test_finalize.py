@@ -43,9 +43,10 @@ def test_a_wrong_match_id_never_validates():
 
 
 def test_track_keys_are_the_two_g8_files_only():
-    assert r2.track_key("a_1", "0.1.0", "ball") == "analysis/a_1/0.1.0/tracks/ball.json"
+    key = r2.track_key("a_1", "0.1.0", "ball_track")
+    assert key == "analysis/a_1/0.1.0/tracks/ball_track.json"
     with pytest.raises(ValueError):
-        r2.track_key("a_1", "0.1.0", "extra")
+        r2.track_key("a_1", "0.1.0", "ball")
 
 
 def test_submit_passes_an_optional_match_id_through():
@@ -54,5 +55,12 @@ def test_submit_passes_an_optional_match_id_through():
     assert submit.parse({**base, "match_id": "m_9"}).match_id == "m_9"
     with pytest.raises(ValueError):
         submit.parse({**base, "match_id": "x"})
-    assert submit.parse({**base, "session_id": "s_7"}).session_id == "s_7"
+    assert submit.parse({**base, "session_id": "s_1"}).session_id == "s_1"
+    with pytest.raises(ValueError):  # names a session other than the footage analysed
+        submit.parse({**base, "session_id": "s_7"})
     assert body(sid="s_7")["vision_result"]["session_ids"] == ["s_7"]
+
+
+def test_null_player_tracks_validate_since_contracts_1_9():
+    validate("analysis.finalize.request.v1",
+             body(artifacts={"ball_track": "art_b", "player_tracks": None}))  # fmt: skip
