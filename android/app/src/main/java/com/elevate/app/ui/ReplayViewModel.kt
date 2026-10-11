@@ -14,6 +14,16 @@ import com.elevate.app.data.upload.UploadScheduler
 import com.elevate.app.data.upload.UriAccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.SharingStarted
+import androidx.core.net.toUri
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import com.elevate.app.data.upload.UploadState
+import com.elevate.app.domain.analysis.AnalysisUiState
+import com.elevate.app.domain.media.SourceFacts
+import com.elevate.app.ui.overview.AnalysingFlow
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -69,6 +79,8 @@ sealed interface Screen {
         val setup: SetupResult? = null,
         /** Recorded engine output for this exact file, if Person 1 recorded a run on it. */
         val engine: EngineOffer? = null,
+        /** Live engine output for THIS file from its own analysis, as windows arrive. */
+        val live: LiveOffer? = null,
         /** sha256 of the file's bytes (also `source.sha256` in the session request), once measured. */
         val sha256: String? = null,
         /** Whole-court view from the setup's four corner taps, once a homography exists. */
@@ -89,6 +101,14 @@ sealed interface Screen {
     }
 
     /** A recorded engine run offered on the open file; [shown] = drawn instead of the hand labels. */
+    /** [track]: observed rows when the engine sends any, else its candidates (drawn as candidates). */
+    data class LiveOffer(
+        val track: com.elevate.app.domain.model.TrailTrack,
+        val framesWithBall: Int,
+        val engineVersion: String,
+        val shown: Boolean = true,
+    )
+
     data class EngineOffer(
         val run: com.elevate.app.data.engine.RecordedEngineRun,
         val trail: com.elevate.app.data.engine.RecordedEngineRun.CandidateTrail,
@@ -197,7 +217,9 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             val current = _screen.value
             if (current is Screen.Replay && current.uri == uri) {
                 val hand = (annotations as? AnnotationState.Available)?.track
-                controller.setTrack(hand)
+                // A live engine trail that already arrived for this file stays on screen.
+                val live = (_screen.value as? Screen.Replay)?.live?.takeIf { it.shown }
+                controller.setTrack(live?.track ?: hand)
                 // A recorded engine run is offered only on a file whose bytes matched the fixture
                 // for the same clip id (the run's manifest has no file hash of its own).
                 val offer = hand?.let { h ->
@@ -223,6 +245,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     fun cancelSetup() = _screen.update { s -> if (s is Screen.Replay) s.copy(setupAtUs = null) else s }
 
+    /** Setup confirmed == start: the upload and analysis begin at once and the Analysing screen opens. */
     fun finishSetup(result: SetupResult) {
         val court = (_screen.value as? Screen.Replay)?.let { courtCalibration(it, result) }
         courtOverlay.setCalibration(court)
@@ -233,6 +256,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         }
         // Repaint the paused frame so the lines appear without pressing play.
         redrawOverlay()
+        analyse()
     }
 
     /** The court geometry from the setup's corner taps, or null without four corners + a solve. */
@@ -282,13 +306,63 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Draws the recorded engine candidates instead of the hand labels, or back. One trail at a time. */
+    /**
+     * A new live window arrived. Drawn only on the very file that was analysed (sha256 of the open
+     * file = `source.sha256` of the upload). The first arrival switches the video to the live trail.
+     */
+    fun onLiveTrail(trail: com.elevate.app.playback.WindowTrailAdapter.EngineTrail?, engineVersion: String?) {
+        val s = _screen.value as? Screen.Replay ?: return
+        if (trail == null || engineVersion == null) return
+        val sha = s.sha256 ?: return
+        if (pipelineSha256() != sha) return
+        val useObserved = trail.observedRows > 0
+        val raw = if (useObserved) trail.observed else trail.candidate
+        // Denominator = real frames of this file inside the analysed range (the adapter alone only
+        // knows frames that have rows, which read "101/101").
+        val times = (s.preflight as? PreflightState.Done)?.facts?.frameTimesUs
+        val framesInRange = times?.count { it in raw.rangeStartUs..raw.rangeEndUs }?.takeIf { it >= raw.labelledFrames }
+        val track = if (framesInRange == null) raw else com.elevate.app.domain.model.TrailTrack(
+            raw.clip, raw.provenance, raw.rangeStartUs, raw.rangeEndUs, framesInRange, raw.tUs, raw.x, raw.y,
+        )
+        val rows = if (useObserved) trail.observedRows else trail.candidateRows
+        if (rows == 0) return
+        val first = s.live == null
+        val shown = first || s.live?.shown == true
+        val offer = Screen.LiveOffer(track, rows, engineVersion, shown)
+        if (shown) {
+            controller.setTrack(track)
+            controller.setOverlayVisible(true)
+        }
+        _screen.value = s.copy(
+            live = offer,
+            engine = if (shown) s.engine?.copy(shown = false) else s.engine,
+            overlayVisible = if (shown) true else s.overlayVisible,
+        )
+    }
+
+    fun showLive(show: Boolean) {
+        val s = _screen.value as? Screen.Replay ?: return
+        val live = s.live ?: return
+        val hand = (s.annotations as? AnnotationState.Available)?.track
+        controller.setTrack(if (show) live.track else hand)
+        controller.setOverlayVisible(true)
+        _screen.value = s.copy(live = live.copy(shown = show), engine = s.engine?.copy(shown = false), overlayVisible = true)
+    }
+
+    /** sha256 of the uploaded source (from the saved session request), to match live output to a file. */
+    fun pipelineSha256(): String? = runCatching {
+        val st = uploadRuntime.coordinator.current() ?: return null
+        val src = kotlinx.serialization.json.Json.parseToJsonElement(st.createRequestJson).jsonObject.getValue("source").jsonObject
+        (src["sha256"] as? JsonPrimitive)?.content
+    }.getOrNull()
+
     fun showEngine(show: Boolean) {
         val s = _screen.value as? Screen.Replay ?: return
         val offer = s.engine ?: return
         val hand = (s.annotations as? AnnotationState.Available)?.track
         controller.setTrack(if (show) offer.trail.track else hand)
         controller.setOverlayVisible(true)
-        _screen.value = s.copy(engine = offer.copy(shown = show), overlayVisible = true)
+        _screen.value = s.copy(engine = offer.copy(shown = show), live = s.live?.copy(shown = false), overlayVisible = true)
     }
 
     val uploadRuntime: UploadRuntime by lazy { UploadRuntime.get(getApplication()) }
@@ -305,6 +379,54 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _panel = MutableStateFlow(Screen.Panel.None)
     val panel: StateFlow<Screen.Panel> = _panel.asStateFlow()
+
+    private val _pipelineStep = MutableStateFlow<String?>(null)
+    /** Local step before the upload exists ("Identifying the file", "Preparing"); null once the upload runs. */
+    val pipelineStep: StateFlow<String?> = _pipelineStep.asStateFlow()
+
+    /** What the analysis screens show about the video the pipeline belongs to (not the one open now). */
+    data class PipelineHero(val eyebrow: String?, val sourceUri: Uri?, val durationMs: Long?, val fileName: String?)
+
+    private val _hero = MutableStateFlow(PipelineHero(null, null, null, null))
+    val pipelineHero: StateFlow<PipelineHero> = _hero.asStateFlow()
+
+    private val _lastAnalysis = MutableStateFlow<AnalysisUiState?>(null)
+
+    /** The analysis screen's latest state, so the video screen's pill can show it after Back. */
+    fun onAnalysisState(state: AnalysisUiState) { _lastAnalysis.value = state }
+
+    /**
+     * Short line for a pill on the video / import screen ("Analysing · 18/485 s"); null when nothing
+     * runs. Tapping it should call `showPanel(Screen.Panel.Analysing)` (= PipelineUi.onOpenAnalysis).
+     */
+    val pipelinePill: StateFlow<String?> by lazy {
+        combine(_pipeline, _pipelineStep, uploadRuntime.coordinator.progress, _lastAnalysis) { p, step, up, a ->
+            AnalysingFlow.pill(p, step, up, a)
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    }
+
+    private fun heroFrom(s: Screen.Replay, facts: SourceFacts, setup: SetupResult): PipelineHero {
+        val sport = (setup.toJson()["sport"] as? JsonPrimitive)?.content
+        return PipelineHero(
+            AnalysingFlow.heroLine(sport, facts.durationMs, facts.displayWidth, facts.displayHeight, facts.fpsNominal),
+            s.uri, facts.durationMs.takeIf { it > 0 }, s.title,
+        )
+    }
+
+    /** After a restart: the same line from the saved session request (real probe values). */
+    private fun heroFromSaved(st: UploadState): PipelineHero = runCatching {
+        val req = Json.parseToJsonElement(st.createRequestJson).jsonObject
+        val src = req.getValue("source").jsonObject
+        fun str(o: JsonObject, k: String) = (o[k] as? JsonPrimitive)?.content
+        val duration = str(src, "duration_ms")?.toDoubleOrNull()?.toLong()
+        PipelineHero(
+            AnalysingFlow.heroLine(
+                str(req, "sport"), duration, str(src, "width")?.toIntOrNull(), str(src, "height")?.toIntOrNull(),
+                str(src, "fps_nominal")?.toDoubleOrNull(),
+            ),
+            runCatching { st.sourceUri.toUri() }.getOrNull(), duration?.takeIf { it > 0 }, null,
+        )
+    }.getOrElse { PipelineHero(null, null, null, null) }
 
     /**
      * Facts of the uploaded source, read back from the saved session request (real probe values), so
@@ -326,6 +448,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         if (!UploadRuntime.isConfigured) return
         viewModelScope.launch {
             val cur = withContext(Dispatchers.IO) { runCatching { uploadRuntime.coordinator.current() }.getOrNull() } ?: return@launch
+            _hero.value = heroFromSaved(cur)
             when (cur.phase) {
                 UploadPhase.Creating, UploadPhase.Uploading, UploadPhase.Completing -> {
                     _pipeline.value = Screen.Pipeline.Uploading
@@ -341,23 +464,39 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Uploads the original file to R2 through the deployed API and starts the real analysis.
      * The session request is built only from measured facts (probe + sha256) and the user's setup.
+     * The Analysing screen opens at once, before any session or analysis id exists; the upload job is
+     * started as soon as the file is identified. Starting again while an upload runs only reopens it.
      */
     fun analyse() {
         val s = _screen.value as? Screen.Replay ?: return
         val facts = (s.preflight as? PreflightState.Done)?.takeIf { !it.blocked }?.facts ?: return
         val setup = s.setup ?: return
-        val sha = s.sha256 ?: return
-        if (!UploadRuntime.isConfigured) {
-            _pipeline.value = Screen.Pipeline.Failed("setup", "Elevate cloud is not configured in this build")
+        val running = _pipeline.value
+        if (running == Screen.Pipeline.Uploading || running is Screen.Pipeline.StartingAnalysis) {
+            _panel.value = Screen.Panel.Analysing
             return
         }
         pipelineJob?.cancel()
         pipelineTitle = s.title
+        _hero.value = heroFrom(s, facts, setup)
+        _lastAnalysis.value = null
+        _panel.value = Screen.Panel.Analysing
+        if (!UploadRuntime.isConfigured) {
+            _pipeline.value = Screen.Pipeline.Failed("setup", "Elevate cloud is not configured in this build")
+            return
+        }
+        _pipelineStep.value = if (s.sha256 == null) "Identifying the file" else "Preparing"
         _pipeline.value = Screen.Pipeline.Uploading
         pipelineJob = viewModelScope.launch {
             val app = getApplication<Application>()
             try {
-                val access = withContext(Dispatchers.IO) { UriAccess.prepare(app, s.uri, facts.bytes, sha) }
+                val sha = s.sha256 ?: awaitSha(s.uri)
+                if (sha == null) {
+                    _pipelineStep.value = null
+                    _pipeline.value = Screen.Pipeline.Failed("upload", "This video could not be identified, so it cannot be uploaded")
+                    return@launch
+                }
+                _pipelineStep.value = "Preparing"
                 val j = setup.toJson()
                 fun str(k: String) = (j.getValue(k) as JsonPrimitive).content
                 val request = SessionCreateRequest(
@@ -373,7 +512,26 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                     rallyCandidates = JsonArray(emptyList()),
                     uploadMode = "multipart",
                 )
-                uploadRuntime.coordinator.prepare(request, sourceUri = s.uri.toString(), stagedPath = (access as? SourceAccess.Staged)?.file?.path)
+                val existing = withContext(Dispatchers.IO) { runCatching { uploadRuntime.coordinator.current() }.getOrNull() }
+                if (existing?.phase == UploadPhase.Completed && existing.createRequestJson == request.toJson()) {
+                    // Same file and setup already stored: no second upload; the start is idempotent per upload.
+                    _pipelineStep.value = null
+                    finishPipeline()
+                    return@launch
+                }
+                if (existing != null && existing.sha256 == sha && existing.phase != UploadPhase.Completed && existing.phase != UploadPhase.Aborted) {
+                    // This file's upload stopped part way: resume it (accepted parts are kept) instead of failing.
+                    _pipelineStep.value = null
+                    UploadScheduler.start(app, existing.bytes)
+                    finishPipeline()
+                    return@launch
+                }
+                // Staging/hashing and the state file are disk work: off the main thread.
+                withContext(Dispatchers.IO) {
+                    val access = UriAccess.prepare(app, s.uri, facts.bytes, sha)
+                    uploadRuntime.coordinator.prepare(request, sourceUri = s.uri.toString(), stagedPath = (access as? SourceAccess.Staged)?.file?.path)
+                }
+                _pipelineStep.value = null
                 if (!UploadScheduler.start(app, facts.bytes)) {
                     _pipeline.value = Screen.Pipeline.Failed("upload", "The system refused to start the upload")
                     return@launch
@@ -382,9 +540,19 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                _pipelineStep.value = null
                 _pipeline.value = Screen.Pipeline.Failed("upload", e.message ?: e.javaClass.simpleName)
             }
         }
+    }
+
+    /** The file's sha256 once the fingerprint started on open finishes; null if it cannot be measured. */
+    private suspend fun awaitSha(uri: Uri): String? {
+        val r = _screen.first { cur ->
+            cur !is Screen.Replay || cur.uri != uri || cur.sha256 != null ||
+                cur.annotations is AnnotationState.Failed || cur.annotations is AnnotationState.UnsupportedHdr
+        }
+        return (r as? Screen.Replay)?.takeIf { it.uri == uri }?.sha256
     }
 
     /** Waits for the server to confirm the upload, then starts the analysis (idempotent per upload). */
@@ -417,7 +585,6 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             // One key per upload: a start retried after process death returns the same analysis (contracts §3).
             val started = analysisClient.startAnalysis(sessionId, "analyse-${st.localId}")
             _pipeline.value = Screen.Pipeline.Started(started.response.analysisId, sessionId, st.matchId, started.dispatched, started.response.state)
-            _panel.value = Screen.Panel.Analysing
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -428,7 +595,13 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     /** Retry after a failure: resumes the saved upload (accepted parts are kept), or redoes the analysis start. */
     fun retryPipeline() {
         val cur = runCatching { uploadRuntime.coordinator.current() }.getOrNull()
-        if (cur == null) { analyse(); return }
+        if (cur == null || cur.phase == UploadPhase.Aborted) {
+            // Nothing saved to resume (e.g. it failed before the upload existed): start from the top.
+            pipelineJob?.cancel()
+            _pipeline.value = Screen.Pipeline.Idle
+            analyse()
+            return
+        }
         pipelineJob?.cancel()
         _pipeline.value = Screen.Pipeline.Uploading
         if (cur.phase != UploadPhase.Completed) UploadScheduler.start(getApplication(), cur.bytes)
@@ -440,7 +613,9 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             UploadScheduler.stop(getApplication())
             uploadRuntime.coordinator.cancel()
+            _pipelineStep.value = null
             _pipeline.value = Screen.Pipeline.Idle
+            _panel.value = Screen.Panel.None
         }
     }
 

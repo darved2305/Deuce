@@ -85,6 +85,7 @@ class MediaProbe(private val resolver: ContentResolver) {
             lastSampleUs = times.maxOrNull(),
             durationMeasured = trackMs == null && stats != null,
             samplesCapped = times.size >= MAX_SAMPLES,
+            frameTimesUs = times.sortedArray(),
         )
     }
 

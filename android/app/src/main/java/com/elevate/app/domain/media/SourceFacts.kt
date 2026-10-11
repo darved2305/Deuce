@@ -30,6 +30,8 @@ data class SourceFacts(
     val durationMeasured: Boolean = false,
     /** The sample walk stopped at its cap, so timing covers only the first [PtsStats.frames] frames. */
     val samplesCapped: Boolean = false,
+    /** Sorted presentation times (µs) of every video frame read: snaps engine rows to real frames. */
+    val frameTimesUs: LongArray? = null,
 ) {
     /** Size as displayed: width and height swap for 90/270 rotation. */
     val displayWidth get() = if (rotation % 180 == 0) width else height

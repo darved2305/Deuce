@@ -126,3 +126,23 @@ Pick `h13g_singles` → clip check → setup (4 corners, you at 41.26 s) → **U
 
 Also fixed during the run: a retry after a failure ended at once on the stale "failed" progress
 value (the waiter now follows the saved upload phase; device-verified path: completed → start).
+
+## Final UI + live engine trail on the real video (A55, 2026-10-11)
+
+Redesign in the v2 reference look (home, video screen, 2-step setup, Analysing, Match Overview),
+setup confirm = start analysis (Analysing opens at once, upload is stage 1), cursor polled every
+1.5 s, live status pill on the video screen.
+
+Live run, real clip `eurogames_bern_1.webm` (7,717,311 bytes), deployed API + Modal (#54):
+session `s_de11aa34d9ed4834b4ab307e690e5cc2`, analysis `a_fc8800d5cd054f7090f94e4493ecfe4f`.
+Events: queued → started → `window.completed` ×5 (0–6, 6–12, 12–18, 18–24, 24–25.6 s). Window
+JSON downloaded through the newly deployed `GET /v1/artifacts/{id}`: 101 observed shuttle rows
+(19 / 0 / 15 / 53 / 14 per window), `events: []` (no hits/landings from the engine yet, #67), state
+stays `partial` (no finalize yet, #67). On the A55 the app shows "Tracking the shuttle · 5 windows ·
+25.6 of 25.6 s" and on the video "Live engine · shuttle · 101/767" (767 = the clip's real frame
+count); at PTS 22.770 s the engine's detection is drawn on that frame with its trail.
+
+Fixed during the run: the setup frame scrolled under the header while tapping (now pinned);
+opening the video reset the live trail to none (race with the hand-label lookup); dots were ~2 px
+on 464p video (minimum size = the 1080p size); the live-row denominator counted only frames with
+a detection ("101/101"); a second "Analyse this match" was offered for an already analysed file.
