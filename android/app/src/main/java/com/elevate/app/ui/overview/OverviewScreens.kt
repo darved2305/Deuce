@@ -211,7 +211,9 @@ fun MatchOverviewScreen(
     val hero = AnalysingHero(eyebrow, state.thumbnail, state.title)
     val play: (() -> Unit)? = when (val r = state.rallies) {
         is RalliesState.Available -> r.rows.firstOrNull()?.let { first -> { onOpenRally(first.rallyId, first.startMs, first.endMs) } }
-        is RalliesState.NotAvailable -> state.referenceRange?.let { ref -> { onOpenRally(REFERENCE_RALLY_ID, ref.first, ref.last) } }
+        is RalliesState.NotAvailable ->
+            state.live?.rallies?.firstOrNull()?.let { first -> { onOpenRally(first.rallyId, first.startMs, first.endMs) } }
+                ?: state.referenceRange?.let { ref -> { onOpenRally(REFERENCE_RALLY_ID, ref.first, ref.last) } }
     }
     PeachPage {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -249,14 +251,27 @@ fun MatchOverviewScreen(
 private fun OverviewTop(s: MatchOverviewState, hero: AnalysingHero, play: (() -> Unit)?) {
     val c = Elevate.colors
     s.source.badge?.let { Pill(it, c.lavender, c.ink) }
+    val live = s.live
+    if (live != null && s.source.badge == null) Pill("From the engine windows · candidates", c.lavender, c.ink)
     // capabilities come only from match.v1: non-empty means the record was read.
     val matchKnown = s.capabilities.isNotEmpty()
     Headline("Your match", if (matchKnown) s.sourceLine else hero.eyebrow ?: s.sourceLine)
     ElevateCard(tint = c.peach) {
         HeroVideo(hero, play)
-        s.analysis?.let { a ->
+        if (live?.shuttleLine != null) {
             Spacer(Modifier.height(14.dp))
-            AnalysedStat(a)
+            LiveShuttleStat(live)
+            Spacer(Modifier.height(10.dp))
+            WindowStrip(live)
+        } else {
+            s.analysis?.let { a ->
+                Spacer(Modifier.height(14.dp))
+                AnalysedStat(a)
+            }
+            if (live != null) {
+                Spacer(Modifier.height(10.dp))
+                WindowStrip(live)
+            }
         }
         if (matchKnown) {
             Spacer(Modifier.height(10.dp))
@@ -267,6 +282,7 @@ private fun OverviewTop(s: MatchOverviewState, hero: AnalysingHero, play: (() ->
             }
         }
     }
+    live?.pendingLine?.let { PendingLine(it) }
 }
 
 /** "18/485 seconds of your video analysed": covered seconds over the known clip length, never a percentage. */
@@ -314,8 +330,20 @@ private fun OverviewRallies(s: MatchOverviewState, onOpenRally: (String, Long, L
     val c = Elevate.colors
     when (val r = s.rallies) {
         is RalliesState.NotAvailable -> {
-            SectionTitle("Rallies")
-            Text(AnalysingFlow.ralliesEmpty(s.analysis), style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
+            val live = s.live
+            if (live != null && live.rallies.isNotEmpty()) {
+                SectionTitle("${live.rallies.size} rally candidate${if (live.rallies.size == 1) "" else "s"}")
+                Text(
+                    "Grouped from engine hit candidates · not confirmed rallies",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = c.inkMuted,
+                )
+                LiveRallyList(live.rallies, onOpenRally)
+            } else {
+                SectionTitle("Rallies")
+                val empty = if (live?.windowsComplete == true) "No rally candidates in the windows" else AnalysingFlow.ralliesEmpty(s.analysis)
+                Text(empty, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
+            }
         }
         is RalliesState.Available -> {
             SectionTitle("${r.rows.size} rall${if (r.rows.size == 1) "y" else "ies"} · height = shots")
