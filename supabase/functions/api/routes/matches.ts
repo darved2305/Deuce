@@ -141,6 +141,12 @@ export function registerMatches(api: OpenAPIHono<AppEnv>): void {
       }
       throw new ApiFailure(409, "conflict", "analysis not complete");
     }
+    // An unfinished run has no complete match.v1 yet, so check its state before validating.
+    const runState = (result.data as { analysis?: { state?: unknown } })
+      .analysis?.state;
+    if (typeof runState === "string" && runState !== "completed") {
+      throw new ApiFailure(409, "conflict", "analysis not complete");
+    }
     const parsed = matchV1Schema.safeParse(result.data);
     if (!parsed.success) {
       console.error(

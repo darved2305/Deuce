@@ -904,6 +904,48 @@ Template (copy to the end of the file):
   rematch scope) run in this slice; no deployed-curl proof yet, owed by Person 3 after deploy.
 - **PRs:** this PR.
 
+## D-261011-HW34 · Share frozen match summaries with friends
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the match-posts slice, facing the need to share match summaries with friends, we
+  decided on owner-created, server-frozen posts and a caller-plus-friends feed, with a 20-post UTC-day
+  cap (G12), and rejected client-supplied summary values or visibility beyond friends.
+- **Context:** The supplied #165 task requires a frozen `post.summary.v1`, owner-only creation, a
+  friends-only read path and a daily cap. Friends are derived from the existing challenge relation
+  (D-261011-HW31); no separate friends table is needed. The public issue text could not be fetched in
+  this run, so its exact wording is UNVERIFIED.
+- **Decision:**
+  1. Bump `@elevate/contracts` to 1.12.0 and add `post.create.request.v1`, `post.summary.v1`,
+     `post.v1` and `feed.page.v1`. Build summaries only from stored match data; use existing insight
+     captions for coach points, include only court-metre landing points, and leave unavailable values
+     null rather than inventing them.
+  2. Add create, feed, get and delete routes. Friends are the other side of an existing challenge.
+     Same match and caption creation deduplicates for 60 seconds. G12 allows at most 20 posts per
+     owner per UTC day and returns `daily_post_limit` with `retry_after_s`.
+  3. Add the read-only MCP tool `get_friend_feed` over `GET /v1/feed`.
+  4. Do not add `from_post_id` to the 1.11 challenge request: its strict schema has no such field, so
+     challenge-from-post is out of scope for this additive contract slice.
+- **Alternatives:** (a) accept summary data from the client, rejected because it can diverge from the
+  stored match; (b) add a separate friends table, rejected because D-261011-HW31 derives friends from
+  challenges; (c) widen reads to non-friends, rejected because posts are friend-scoped.
+- **Blast radius:**
+  - Contracts: `post.create.request.v1`, `post.summary.v1`, `post.v1`, `feed.page.v1` and
+    `daily_post_limit`; minor bump 1.11.0 to 1.12.0; regenerate JSON schemas and the API vendor.
+  - People and folders: Person 2 `android/` consumes the frozen summary and labels estimates;
+    Person 3 `supabase/` and `mcp/` implements the API and tool; Person 4 `packages/contracts/` and
+    `docs/plan/contracts.md` owns the contract and reviews the budget impact in
+    `docs/ops/cloudflare-budget.md`.
+  - Data/infra: add `supabase/migrations/20261011200000_match_posts.sql`; no new secrets or R2 use.
+    G12 is a database-enforced per-owner daily post cap, separate from the Cloudflare R2 limits.
+  - Containment: additive schemas; owner writes and reads, friend reads only, and no broader match
+    access is granted. The daily cap and 60-second dedupe are server-enforced.
+- **Exit:** remove the routes and migration only through a reviewed follow-up; the published 1.12.0
+  schemas remain until every consumer has migrated.
+- **Proof / evidence:** task #165 is the requested source; the issue body is UNVERIFIED because the
+  permitted public web/API reads returned 404 and the task forbids `gh`. Local route/schema, pgTAP and
+  MCP checks are regression evidence only. Person 3's deployed three-user proof remains owed after
+  deployment.
+- **PRs:** this PR for #165.
+
 ## D-261011-NP2 · G6 per-user cap 200 to 1,000 a day; repeat URLs for the same artifact within validity are free
 - **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @nikhilpravinpise (Person 3) · **Supersedes:** none
 - **In one line:** In the context of issue #159 (the A55 demo user locked out at

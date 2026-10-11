@@ -269,9 +269,9 @@ export function windowProgress(events: ProgressEvent[]) {
   const artifacts: string[] = [];
   let failure: string | null = null;
   for (const e of events) {
-    if (e.type === "analysis.started" && e.windows_expected !== undefined) {
-      expected = e.windows_expected;
-    }
+    // The contract puts the total on analysis.started; the deployed engine repeats it on every
+    // window.completed. Take it from whichever event carries it.
+    if (e.windows_expected !== undefined) expected = e.windows_expected;
     if (e.type === "window.completed" && e.window_seq !== undefined) {
       done.add(e.window_seq);
       if (e.artifact_id) artifacts.push(e.artifact_id);
