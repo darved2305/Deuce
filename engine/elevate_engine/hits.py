@@ -123,6 +123,30 @@ def _fuse_time(t1: int, sigma1: int, t2: int, sigma2: int) -> tuple[int, int]:
     return time_ms, sigma_ms
 
 
+def estimate_av_offset_ms(
+    turns: Sequence[dict],
+    onsets: Sequence[Sequence],
+    *,
+    search_ms: int = 250,
+    min_pairs: int = 6,
+    max_iqr_ms: float = 60.0,
+) -> int:
+    """Audio-minus-video lag: the median of (strongest onset within search_ms - turn time) over
+    the given turns, or 0 when it is not well determined (fewer than min_pairs pairs, or an
+    interquartile range above max_iqr_ms). Measured on h13g 31-91 s: median 130 ms, IQR
+    110-145 ms over 33 pairs; the turn timing uses symmetric secants, so the lag is the clip's
+    audio/video offset, not a detection bias."""
+    lags = []
+    for turn in turns:
+        near = [o for o in onsets if len(o) >= 2 and abs(int(o[0]) - turn["t_ms"]) <= search_ms]
+        if near:
+            lags.append(int(max(near, key=lambda o: float(o[1]))[0]) - turn["t_ms"])
+    if len(lags) < min_pairs:
+        return 0
+    q1, med, q3 = np.percentile(lags, [25, 50, 75])
+    return int(round(med)) if q3 - q1 <= max_iqr_ms else 0
+
+
 def hit_candidates(
     trail: Sequence[Sequence],
     onsets: Sequence[Sequence],
@@ -132,16 +156,23 @@ def hit_candidates(
     tolerance_ms: int = 100,
     onset_sigma_ms: int = 10,
     min_event_gap_ms: int = 300,  # two hits need the shuttle to cross: ~300 ms minimum
+    onset_offset_ms: int = 0,
+    owner_range: tuple[int, int] | None = None,
 ) -> list[dict]:
     """Fuse observed trajectory turns and nearby audio onsets into schema-shaped hits.
 
     ``track_id`` names the observed shuttle trail for this analysis. It does not associate a
     player; the current tracking output does not expose per-track IDs or player linkage.
+    Onsets are shifted by -onset_offset_ms (estimate_av_offset_ms) before matching and fusing.
+    owner_range [lo, hi): keep only hits whose trajectory turn lies in it, with the fused time
+    clamped into it, so the window holding the turn owns the hit even when neighbouring windows
+    estimate slightly different audio offsets (a hit is then never dropped or duplicated at a
+    window boundary).
     """
     rows = _observed_rows(trail)
     turns = detect_direction_changes(trail)
     peaks = sorted(
-        [(int(row[0]), float(row[1])) for row in onsets if len(row) >= 2],
+        [(int(row[0]) - onset_offset_ms, float(row[1])) for row in onsets if len(row) >= 2],
         key=lambda item: item[0],
     )
     pairs = sorted(
@@ -160,7 +191,9 @@ def hit_candidates(
     track_id = shuttle_track_id(analysis_id)
     candidates = []
 
-    def add_candidate(t_ms: int, sigma_ms: int, xy: Sequence[float], cues: list[str]) -> None:
+    def add_candidate(
+        t_ms: int, sigma_ms: int, xy: Sequence[float], cues: list[str], turn_ms: int
+    ) -> None:
         event_hash = hashlib.sha256(f"{analysis_id}:{window_seq}:{t_ms}".encode()).hexdigest()[:24]
         candidates.append(
             {
@@ -172,6 +205,7 @@ def hit_candidates(
                 "image_xy": [float(xy[0]), float(xy[1])],
                 "cues": cues,
                 "state": "candidate",
+                "_turn_ms": turn_ms,
             }
         )
 
@@ -186,7 +220,7 @@ def hit_candidates(
             cues.append("audio")
         nearest = _nearest_row(rows, event_time, tolerance_ms)
         if nearest is not None:
-            add_candidate(event_time, sigma, nearest[1:3], cues)
+            add_candidate(event_time, sigma, nearest[1:3], cues, turn["t_ms"])
 
     # Audio-only onsets stay in window_result.onsets but do not become hit events: on real
     # footage many are footsteps or neighbouring courts. Merge turns closer than the gap.
@@ -194,4 +228,9 @@ def hit_candidates(
     for event in sorted(candidates, key=lambda e: (-len(e["cues"]), e["t_ms"])):
         if all(abs(event["t_ms"] - other["t_ms"]) >= min_event_gap_ms for other in kept):
             kept.append(event)
+    if owner_range is not None:
+        lo, hi = owner_range
+        kept = [{**e, "t_ms": min(max(e["t_ms"], lo), hi - 1)} for e in kept
+                if lo <= e["_turn_ms"] < hi]  # fmt: skip
+    kept = [{k: v for k, v in e.items() if k != "_turn_ms"} for e in kept]
     return sorted(kept, key=lambda event: (event["t_ms"], event["event_id"]))
