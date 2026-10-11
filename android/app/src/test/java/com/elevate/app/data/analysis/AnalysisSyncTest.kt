@@ -6,6 +6,7 @@ import com.elevate.app.data.api.AnalysisEventsPage
 import com.elevate.app.data.api.AnalysisGetResponse
 import com.elevate.app.data.api.MatchRecord
 import com.elevate.app.data.api.WindowQuality
+import com.elevate.app.data.api.WindowEvent
 import com.elevate.app.data.api.WindowResult
 import com.elevate.app.domain.analysis.AnalysisState
 import com.google.common.truth.Truth.assertThat
@@ -227,6 +228,25 @@ class AnalysisSyncTest {
         assertThat(st.windowsDownloaded).isEqualTo(2)
         assertThat(sync.ballTrack.value.size).isEqualTo(2)
         assertThat(sync.windowStore().failedWindows).containsExactly(1, "decode_error")
+    }
+
+    @Test fun `hit events of stored windows are published by time, each window owning its emit range`() = runTest {
+        fun hitEv(id: String, t: Long) = WindowEvent(id, "hit", t, 15, "t_1", listOf(640.0, 360.0), listOf("trajectory"), "candidate")
+        val s = FakeServer().apply {
+            add(
+                ev(1, "analysis.started"),
+                ev(2, "window.completed", 1, listOf(6_000_000, 12_000_000), artifact = "art_1"),
+                ev(3, "window.completed", 0, listOf(0, 6_000_000), artifact = "art_0"),
+            )
+            state = "partial"
+            artifacts["art_0"] = window(0, listOf(0, 6_000_000), emptyList()).copy(events = listOf(hitEv("h_b", 4_000), hitEv("h_out", 7_000)))
+            artifacts["art_1"] = window(1, listOf(6_000_000, 12_000_000), emptyList()).copy(events = listOf(hitEv("h_c", 9_000)))
+        }
+        val sync = sync(s)
+        assertThat(sync.hits.value).isEmpty()
+        sync.syncOnce()
+        assertThat(sync.hits.value.map { it.tMs }).containsExactly(4_000L, 9_000L).inOrder()
+        assertThat(sync.hits.value.first().imageXy).isEqualTo(640.0 to 360.0)
     }
 
     @Test fun `artifact route 404 is one not-served state, asked once, and ends a finished analysis`() = runTest {
