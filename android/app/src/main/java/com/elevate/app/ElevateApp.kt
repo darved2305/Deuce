@@ -242,12 +242,18 @@ private fun AnalysisPanels(
             com.elevate.app.ui.readlab.ReadLabDrills.fromMatch(match, analysedFacts?.frameTimesUs, analysedFacts?.displayWidth, analysedFacts?.displayHeight)
         }
         val reflexRounds = remember(drills) { com.elevate.app.ui.readlab.ReflexRounds.of(drills).size }
+        val ball by ovm.sync.ballTrack.collectAsStateWithLifecycle()
+        val w = analysedFacts?.displayWidth
+        val h = analysedFacts?.displayHeight
+        val cueSource = remember(ball, w, h) {
+            if (w != null && h != null && w > 0 && h > 0) com.elevate.app.ui.readlab.CueSource(ball, w, h) else null
+        }
         if (panel == Screen.Panel.ReadLab) {
-            com.elevate.app.ui.readlab.ReadLabRoute(vm, drills, onBack = { vm.showPanel(Screen.Panel.Overview) })
+            com.elevate.app.ui.readlab.ReadLabRoute(vm, drills, cueSource, onBack = { vm.showPanel(Screen.Panel.Overview) })
             return
         }
         if (panel == Screen.Panel.Reflex) {
-            com.elevate.app.ui.readlab.ReflexRoute(vm, drills, match?.matchId.orEmpty(), onBack = { vm.showPanel(Screen.Panel.Overview) })
+            com.elevate.app.ui.readlab.ReflexRoute(vm, drills, match?.matchId.orEmpty(), cueSource, onBack = { vm.showPanel(Screen.Panel.Overview) })
             return
         }
         val overview by ovm.overview.collectAsStateWithLifecycle()

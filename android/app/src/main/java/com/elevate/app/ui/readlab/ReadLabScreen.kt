@@ -24,6 +24,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -61,7 +65,7 @@ fun ReadLabEntryButton(drills: Int, onClick: () -> Unit, modifier: Modifier = Mo
  */
 @UnstableApi
 @Composable
-fun ReadLabRoute(vm: ReplayViewModel, drills: List<Drill>, onBack: () -> Unit) {
+fun ReadLabRoute(vm: ReplayViewModel, drills: List<Drill>, cueSource: CueSource?, onBack: () -> Unit) {
     val state = vm.readLab
     val session by state.session.collectAsState()
     val controller = vm.controller
@@ -89,10 +93,16 @@ fun ReadLabRoute(vm: ReplayViewModel, drills: List<Drill>, onBack: () -> Unit) {
         }
     }
 
+    // Shuttle cue: only on the frozen, unanswered frame, from real observed rows up to that frame. Gone once locked.
+    var cueOn by rememberSaveable { mutableStateOf(true) }
+    val cue = remember(cueSource, frameUs) { if (frameUs != null) cueSource?.cueAt(frameUs) else null }
+    val cueUi = cueSource?.let { CueUi(if (cueOn) cue else null, it.imageW, it.imageH, cueOn) { cueOn = !cueOn } }
+
     BackHandler(onBack = onBack)
     ReadLabScreen(
         session = s,
         controller = controller,
+        cueUi = cueUi,
         onPick = { z -> state.update { it.pick(z) } },
         onAnotherLook = { state.update { it.anotherLook() } },
         onNext = { controller.pause(); state.update { it.next() } },
@@ -107,6 +117,7 @@ fun ReadLabRoute(vm: ReplayViewModel, drills: List<Drill>, onBack: () -> Unit) {
 fun ReadLabScreen(
     session: ReadLabSession?,
     controller: PlayerController,
+    cueUi: CueUi?,
     onPick: (ZoneId) -> Unit,
     onAnotherLook: () -> Unit,
     onNext: () -> Unit,
@@ -128,7 +139,7 @@ fun ReadLabScreen(
                     session.finished -> SummaryView(session, onRestart, onBack)
                     landscape -> Row(Modifier.fillMaxSize().padding(horizontal = ScreenGutter), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
-                            Frozen(session, controller)
+                            Frozen(session, controller, cueUi)
                         }
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
                             Answer(session, onPick, onAnotherLook, onNext, onWatch)
@@ -138,7 +149,7 @@ fun ReadLabScreen(
                         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = ScreenGutter).padding(bottom = 24.dp),
                         verticalArrangement = ScreenSpacing,
                     ) {
-                        Frozen(session, controller)
+                        Frozen(session, controller, cueUi)
                         Answer(session, onPick, onAnotherLook, onNext, onWatch)
                     }
                 }
@@ -149,13 +160,14 @@ fun ReadLabScreen(
 
 @UnstableApi
 @Composable
-private fun Frozen(s: ReadLabSession, controller: PlayerController) {
+private fun Frozen(s: ReadLabSession, controller: PlayerController, cueUi: CueUi?) {
     val c = Elevate.colors
     Text(ReadLabText.HEADER, style = MaterialTheme.typography.titleMedium, color = c.ink)
     val attempt = s.attempt ?: return
     VideoCard(Modifier.aspectRatio(16f / 9f)) {
         val player by controller.playerFlow.collectAsState()
         ContentFrame(player = player, modifier = Modifier.fillMaxSize().semantics { contentDescription = "Your match video, frozen just before a hit" })
+        if (cueUi != null && !attempt.locked) ShuttleCueOverlay(cueUi.cue, cueUi.imageW, cueUi.imageH)
         VideoChip("Drill ${s.index + 1} of ${s.drills.size} · frozen before the hit", Modifier.align(Alignment.TopStart).padding(12.dp))
     }
     Text(
@@ -163,6 +175,7 @@ private fun Frozen(s: ReadLabSession, controller: PlayerController) {
         style = MaterialTheme.typography.bodyMedium,
         color = c.ink,
     )
+    if (cueUi != null) ShuttleCueToggle(cueUi.on, cueUi.onToggle)
 }
 
 @Composable
