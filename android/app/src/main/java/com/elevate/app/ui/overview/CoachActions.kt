@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathBuilder
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.elevate.app.ui.components.rememberHaptics
 import com.elevate.app.ui.theme.Elevate
 
 /** Small line icons for the coach report actions, in the same stroke style as ElevateIcons. */
@@ -58,9 +60,10 @@ private object CoachIcons {
 /** The Coach report header buttons: Listen (read the report aloud) and Share (the match card). */
 @Composable
 internal fun CoachActions(speaking: Boolean, onListen: () -> Unit, showShare: Boolean, onShare: () -> Unit) {
+    val haptics = rememberHaptics()
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        ExplainBox(Explanations.Listen) { ActionPill(if (speaking) CoachIcons.Stop else CoachIcons.Speaker, if (speaking) "Stop" else "Listen", onListen) }
-        if (showShare) ExplainBox(Explanations.Share) { ActionPill(CoachIcons.Share, "Share", onShare) }
+        ExplainBox(Explanations.Listen) { ActionPill(if (speaking) CoachIcons.Stop else CoachIcons.Speaker, if (speaking) "Stop" else "Listen") { haptics.confirm(); onListen() } }
+        if (showShare) ExplainBox(Explanations.Share) { ActionPill(CoachIcons.Share, "Share") { haptics.confirm(); onShare() } }
     }
 }
 
@@ -76,6 +79,6 @@ private fun ActionPill(icon: ImageVector, label: String, onClick: () -> Unit) {
         modifier = Modifier.heightIn(min = 48.dp),
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = c.orangeText)
-        Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 6.dp))
+        Text(label, style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp), maxLines = 1, modifier = Modifier.padding(start = 6.dp))
     }
 }

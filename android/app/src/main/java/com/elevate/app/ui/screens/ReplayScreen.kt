@@ -1,5 +1,6 @@
 package com.elevate.app.ui.screens
 
+import com.elevate.app.ui.components.ElevateRadius
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.pm.ApplicationInfo
 import androidx.activity.compose.BackHandler
@@ -212,7 +213,7 @@ private fun ControlsSheet(
 
     Column(
         modifier
-            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            .clip(RoundedCornerShape(topStart = ElevateRadius.Card, topEnd = ElevateRadius.Card))
             .background(Color.White)
             .navigationBarsPadding(),
     ) {
@@ -358,7 +359,7 @@ private fun CompactRowBody(
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(ElevateRadius.Card))
             .background(bg)
             .then(
                 if (tap != null) {
@@ -369,7 +370,7 @@ private fun CompactRowBody(
     ) {
         Row(Modifier.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.7f)),
+                Modifier.size(32.dp).clip(RoundedCornerShape(ElevateRadius.Tile)).background(Color.White.copy(alpha = 0.7f)),
                 contentAlignment = Alignment.Center,
             ) { Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp)) }
             Spacer(Modifier.size(12.dp))
@@ -569,7 +570,7 @@ private fun CourtToggleRow(screen: Screen.Replay) {
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(ElevateRadius.Card))
                 .background(c.cream)
                 .heightIn(min = 48.dp)
                 .toggleable(value = screen.courtVisible, role = Role.Switch, onValueChange = vm::setCourtVisible)
@@ -653,7 +654,7 @@ fun PipelineStatus(ui: PipelineUi, ready: Boolean = true) {
         Screen.Pipeline.Uploading -> UploadProgressCard(ui.upload, onRetry = ui.onRetryUpload, onCancel = ui.onCancelUpload)
         is Screen.Pipeline.StartingAnalysis -> StatusCard("Uploaded · starting analysis…", "Waiting for the server", c.cream)
         is Screen.Pipeline.Started -> Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.mint)
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(ElevateRadius.Card)).background(c.mint)
                 .clickable(onClickLabel = "Open analysis progress", role = Role.Button, onClick = ui.onOpenAnalysis)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
@@ -670,7 +671,7 @@ fun PipelineStatus(ui: PipelineUi, ready: Boolean = true) {
             Text("Tap for live progress", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
         }
         is Screen.Pipeline.Failed -> Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.errorSurface)
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(ElevateRadius.Card)).background(c.errorSurface)
                 .clickable(onClickLabel = "Try again", role = Role.Button, onClick = ui.onRetryUpload)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
@@ -686,7 +687,7 @@ fun PipelineStatus(ui: PipelineUi, ready: Boolean = true) {
 
 @Composable
 private fun StatusCard(title: String, detail: String, bg: Color) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(bg).padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(ElevateRadius.Card)).background(bg).padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp), color = Elevate.colors.ink)
         Text(detail, style = MaterialTheme.typography.labelMedium, color = Elevate.colors.inkMuted)
     }

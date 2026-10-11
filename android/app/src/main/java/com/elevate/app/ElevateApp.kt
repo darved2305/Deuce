@@ -6,7 +6,10 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.runtime.Composable
+import com.elevate.app.ui.components.panelTransition
+import com.elevate.app.ui.components.rememberReduceMotion
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -226,6 +229,25 @@ private fun rememberAnalysis(vm: ReplayViewModel, started: Screen.Pipeline.Start
 @UnstableApi
 @Composable
 private fun AnalysisPanels(
+    vm: ReplayViewModel,
+    panel: Screen.Panel,
+    pipeline: Screen.Pipeline,
+    step: String?,
+    upload: UploadProgress,
+    ovm: OverviewViewModel?,
+    hero: ReplayViewModel.PipelineHero,
+    analysedFacts: SourceFacts?,
+) {
+    // Analysing, Overview, ReadLab and Reflex cross-fade into each other (snap when motion is reduced).
+    val reduce = rememberReduceMotion()
+    AnimatedContent(targetState = panel, transitionSpec = { panelTransition(reduce) }, label = "analysis-panel") { shown ->
+        AnalysisPanel(vm, shown, pipeline, step, upload, ovm, hero, analysedFacts)
+    }
+}
+
+@UnstableApi
+@Composable
+private fun AnalysisPanel(
     vm: ReplayViewModel,
     panel: Screen.Panel,
     pipeline: Screen.Pipeline,
