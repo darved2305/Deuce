@@ -9,6 +9,9 @@
    same spot in more than 40% of the window's frames is dropped (back-wall marks).
 5. The tracking layer runs over the windows in time order, so tracks cross boundaries.
 6. Each window becomes a window_result.v1 with the tracked rows inside its emitted range.
+7. Audio onsets (measured per emitted range) and candidate hits (elevate_engine.hits: an
+   observed trajectory turn, fused with a nearby onset when there is one) go in the same
+   window. A hit's track_id names the shuttle trail until player tracks exist.
 
 Per-window quality: ball_coverage = emitted frames with an observed tracked point / emitted
 frames (the trail, after the tracking layer); camera_motion_px and blur_index as in
@@ -21,6 +24,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from elevate_engine import window as win
+from elevate_engine.hits import hit_candidates
 from elevate_engine.sports import TrackingConfig
 from elevate_engine.tracking import track
 
@@ -119,6 +123,17 @@ def window_result(
                      onsets, events)  # fmt: skip
 
 
+def window_hits(
+    analysis_id: str, k: int, rows: Sequence[list], results: Sequence[dict]
+) -> tuple[list[list], list[dict]]:
+    """Audio onsets and candidate hit events for window k, from tracked rows and the onsets of
+    the given windows (k and its neighbours), so a turn near a boundary still finds its onset.
+    window.build keeps only those inside window k's emitted range. A result without an
+    "onsets" key (no audio measured) gives trajectory-only candidates."""
+    onsets_ = sorted(o for res in results for o in res.get("onsets", []))
+    return onsets_, hit_candidates(rows, onsets_, analysis_id, k)
+
+
 def window_for_posting(
     analysis_id: str, plans: Sequence[WindowPlan], results: Sequence[dict], k: int,
     cfg: TrackingConfig, models: Sequence[str] = ("tracknet_v3",),
@@ -127,7 +142,8 @@ def window_for_posting(
     h13g working clip this equals tracking the whole range at once for every window."""
     lo, hi = max(0, k - 1), min(len(results), k + 2)
     rows, _ = track_windows(results[lo:hi], cfg)
-    return window_result(analysis_id, plans[k], results[k], rows, models)
+    onsets_, events = window_hits(analysis_id, k, rows, results[lo:hi])
+    return window_result(analysis_id, plans[k], results[k], rows, models, onsets_, events)
 
 
 def assemble(
@@ -141,7 +157,8 @@ def assemble(
     frames, plus measured camera_motion_px and blur_index. Returns (windows, tracker stats)."""
     rows, stats = track_windows(per_window, cfg)
     windows = [
-        window_result(analysis_id, plan, res, rows, models)
+        window_result(analysis_id, plan, res, rows, models,
+                      *window_hits(analysis_id, plan.seq, rows, per_window))
         for plan, res in zip(plans, per_window, strict=True)
-    ]
+    ]  # fmt: skip
     return windows, stats

@@ -133,7 +133,8 @@ def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
                 "decode_window_us": w["decode_window_us"], "emit_range_us": w["emit_range_us"],
                 "artifact_id": art,
             })  # fmt: skip
-            posted.append({"window_seq": k, "artifact_id": art, "ball_rows": len(w["ball"])})
+            posted.append({"window_seq": k, "artifact_id": art, "ball_rows": len(w["ball"]),
+                           "onsets": len(w["onsets"]), "hits": len(w["events"])})  # fmt: skip
 
         for res in models_.candidates.starmap(args):  # results arrive in window order
             results.append(res)
@@ -465,8 +466,10 @@ class Models:
 
     @modal.method()
     def candidates(self, clip: str, decode_ms: list, emit_ms: list, background) -> dict:
-        """One window of the whole-video pipeline: TrackNet candidates (source px) and measured
-        camera motion / blur for the emitted frames, using the shared background."""
+        """One window of the whole-video pipeline: TrackNet candidates (source px), measured
+        camera motion / blur and audio onsets for the emitted range, using the shared
+        background."""
+        from elevate_engine import audio
         from elevate_engine import window as win
         from elevate_engine.log import log
         from elevate_engine.tracknet import infer
@@ -493,9 +496,10 @@ class Models:
             ],
             "camera_motion_px": q["camera_motion_px"],
             "blur_index": q["blur_index"],
+            "onsets": audio.onsets(path, lo, hi),
         }
         log("window.candidates", emit=[lo, hi], frames=len(emitted),
-            candidates=sum(len(c) for c in out["cands"]))  # fmt: skip
+            candidates=sum(len(c) for c in out["cands"]), onsets=len(out["onsets"]))  # fmt: skip
         return out
 
 
@@ -614,6 +618,8 @@ def run_clip(
         "clip": clip, "range_ms": [lo, hi], "windows": len(windows),
         "frames": sum(len(r["t_ms"]) for r in per_window),
         "ball_rows": sum(len(w["ball"]) for w in windows), "tracker": stats,
+        "onsets": sum(len(w["onsets"]) for w in windows),
+        "hits": sum(len(w["events"]) for w in windows),
         "background_s": round(t_bg, 1), "windows_s": round(t_win, 1),
         "total_s": round(time.perf_counter() - t0, 1),
         "realtime_factor": round((time.perf_counter() - t0) / ((hi - lo) / 1000), 2),
