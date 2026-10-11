@@ -84,7 +84,7 @@ def court_calibration(calibration_input: dict | None, size: tuple[int, int], log
         return None
     record = c.to_match(
         cal.calibration_id(calibration_input["points_px"], calibration_input["template"]),
-        method=calibration_input.get("method", "tap"),
+        method=m if isinstance(m := calibration_input.get("method"), str) else "tap",
     )
     log("calibration.done", calibration_id=record["calibration_id"], tier=record["tier"],
         sigma_m=round(c.uncertainty.sigma_m, 3), visible=record["visible_fraction"])  # fmt: skip
@@ -188,9 +188,13 @@ def analyze(
             # null until player tracks exist (contracts 1.9.0, HW15): no empty file, no write.
             "player_tracks": None,
         }  # fmt: skip
-        calibration = court_calibration(
-            session_spec.get("calibration_input"), source_size(local), log
-        )
+        try:  # a calibration problem never fails an analysis whose windows are posted
+            calibration = court_calibration(
+                session_spec.get("calibration_input"), source_size(local), log
+            )
+        except Exception as exc:
+            log("calibration.failed", analysis_id=analysis_id, reason=repr(exc)[:200])
+            calibration = None
         if match_id is None:
             log("finalize.skipped", analysis_id=analysis_id,
                 reason="no match_id in the submit body (API dispatch #82)")  # fmt: skip
