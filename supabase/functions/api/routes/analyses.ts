@@ -7,6 +7,7 @@ import {
   analysisEventsPageSchema,
   analysisGetResponseSchema,
   errorEnvelopeSchema,
+  sessionCreateRequestSchema,
 } from "../lib/contracts_vendor/index.ts";
 import { ApiFailure } from "../lib/errors.ts";
 import { appendEvent, listEvents } from "../lib/events.ts";
@@ -101,11 +102,13 @@ async function dispatch(
   const spec = await admin.rpc("session_spec", { p_session_id: sessionId });
   if (spec.error) throw spec.error;
   if (spec.data == null) return { kind: "invalid" };
+  const sessionSpec = sessionCreateRequestSchema.safeParse(spec.data);
+  if (!sessionSpec.success) return { kind: "invalid" };
   try {
     const out = await submitToModal({
       analysis_id: run.id,
       r2_key: r2Key,
-      session_spec: spec.data as Record<string, unknown>,
+      session_spec: sessionSpec.data,
       // The run row comes from create_analysis_run (the whole analysis_runs row), so match_id is
       // the run's own match; the engine echoes it in vision_result (D-261011-HW15).
       ...(run.match_id
@@ -150,7 +153,11 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
         completed_at: string | null;
       } | null;
       if (!first || !first.completed_at) {
-        throw new ApiFailure(409, "conflict", "upload is not complete");
+        throw new ApiFailure(
+          409,
+          "upload_not_complete",
+          "upload is not complete",
+        );
       }
       r2Key = first.r2_key;
     } else {
@@ -159,7 +166,11 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
       if (upload.error) throw upload.error;
       const up = upload.data as { r2_key: string; status: string } | null;
       if (!up || up.status !== "completed") {
-        throw new ApiFailure(409, "conflict", "upload is not complete");
+        throw new ApiFailure(
+          409,
+          "upload_not_complete",
+          "upload is not complete",
+        );
       }
       r2Key = up.r2_key;
     }

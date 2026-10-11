@@ -6,6 +6,7 @@ import {
   makeApp,
   ok,
   type Res,
+  testSessionSpec,
 } from "./fakes.ts";
 import { conforms } from "./jsonschema.ts";
 
@@ -71,7 +72,7 @@ function build(o: Opts = {}) {
         return ok("claim" in o ? o.claim : { id: "a_1", state: "queued" });
       }
       if (c.name === "session_spec") {
-        return ok("spec" in o ? o.spec : { sport: "badminton" });
+        return ok("spec" in o ? o.spec : testSessionSpec);
       }
     }
     if (c.kind === "from" && c.table === "analysis_runs") {
@@ -451,11 +452,28 @@ Deno.test("analysis_run_conflict -> 409", async () => {
   assert.equal((await res.json()).error.code, "analysis_run_conflict");
 });
 
-Deno.test("upload not complete -> 409; no upload row -> 409", async () => {
+Deno.test("upload not complete -> 409 upload_not_complete; no upload row -> 409", async () => {
   for (const upload of [{ r2_key: "k", status: "initiated" }, null]) {
     const res = await post(build({ upload }).app);
     assert.equal(res.status, 409);
-    assert.equal((await res.json()).error.code, "conflict");
+    assert.equal((await res.json()).error.code, "upload_not_complete");
+  }
+});
+
+Deno.test("missing or incomplete segment 0 -> 409 upload_not_complete", async () => {
+  for (
+    const segment of [
+      null,
+      { r2_key: "seg/s_1/0.mp4", completed_at: null },
+    ]
+  ) {
+    const t = build({
+      session: { id: "s_1", upload_mode: "segments" },
+      segment,
+    });
+    const res = await post(t.app);
+    assert.equal(res.status, 409);
+    assert.equal((await res.json()).error.code, "upload_not_complete");
   }
 });
 
@@ -466,6 +484,7 @@ Deno.test("completed segment 0 enables analysis and dispatches its seg key", asy
       r2_key: "seg/s_1/0.mp4",
       completed_at: "2026-10-11T10:00:00Z",
     },
+    spec: { ...testSessionSpec, upload_mode: "segments" },
   });
   const res = await post(t.app);
   assert.equal(res.status, 202);

@@ -2,6 +2,50 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createApp } from "../lib/app.ts";
 import type { Deps } from "../lib/deps.ts";
 import { createR2, type R2 } from "../lib/r2.ts";
+import { sessionCreateRequestSchema } from "../lib/contracts_vendor/index.ts";
+
+export const testSessionSpec = sessionCreateRequestSchema.parse({
+  sport: "badminton",
+  format: "singles",
+  ruleset: { id: "bwf_3x21", version: "2025-04" },
+  mode: "match",
+  source: {
+    width: 1920,
+    height: 1080,
+    rotation: 0,
+    fps_nominal: 60,
+    duration_ms: 20480,
+    pts: {
+      median_interval_us: 16667,
+      min_us: 16600,
+      max_us: 33400,
+      gaps: 0,
+      vfr: false,
+    },
+    codec: "avc1",
+    has_audio: true,
+    audio_rate_hz: 48000,
+    device: "SM-S711B",
+    bytes: 51203344,
+    sha256: "a".repeat(64),
+  },
+  calibration_input: {
+    method: "tap",
+    plane: "court",
+    template: "badminton_singles",
+    points_px: {
+      near_left: [16, 196],
+      near_right: [334, 196],
+      far_right: [248, 34],
+      far_left: [102, 34],
+    },
+    frame_ms: 1200,
+  },
+  who_is_me: { image_xy: [128, 150], t_ms: 1200 },
+  free_play_seed: null,
+  rally_candidates: [],
+  upload_mode: "multipart",
+});
 
 Deno.env.set("SUPABASE_URL", "https://test.supabase.co");
 Deno.env.set("INTERNAL_API_TOKEN", "tok");

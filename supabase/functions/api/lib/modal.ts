@@ -1,3 +1,8 @@
+import {
+  type ModalSubmitRequest,
+  modalSubmitRequestSchema,
+} from "./contracts_vendor/index.ts";
+
 export type ModalDeps = {
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
@@ -5,14 +10,8 @@ export type ModalDeps = {
   token: string;
 };
 
-export type ModalSubmitBody = {
-  analysis_id: string;
-  r2_key: string;
-  session_spec: Record<string, unknown>;
-  // contracts 1.9.0 (D-261011-HW15): the engine needs both to build its finalize body.
-  match_id?: string;
-  session_id?: string;
-};
+// contracts 1.9.0 (D-261011-HW15): the engine needs both to build its finalize body.
+export type ModalSubmitBody = ModalSubmitRequest;
 
 export class ModalUnavailable extends Error {}
 
@@ -22,9 +21,6 @@ export class ModalRejected extends ModalUnavailable {
   }
 }
 
-const ANALYSIS_ID = /^a_[A-Za-z0-9_-]{1,64}$/;
-const R2_KEY =
-  /^(?:orig\/s_[A-Za-z0-9_-]{1,64}\/source\.mp4|seg\/s_[A-Za-z0-9_-]+\/\d+\.mp4)$/;
 const BACKOFF_MS = [500, 1000, 2000];
 const TIMEOUT_MS = 30_000;
 
@@ -32,10 +28,8 @@ export async function submitToModal(
   body: ModalSubmitBody,
   deps: ModalDeps,
 ): Promise<{ modal_call_id: string }> {
-  if (
-    !ANALYSIS_ID.test(body.analysis_id) || !R2_KEY.test(body.r2_key) ||
-    !body.session_spec.sport
-  ) {
+  const parsedBody = modalSubmitRequestSchema.safeParse(body);
+  if (!parsedBody.success) {
     throw new ModalUnavailable("submit body fails Modal preconditions");
   }
   const doFetch = deps.fetchImpl ?? fetch;
@@ -49,7 +43,7 @@ export async function submitToModal(
           "Authorization": `Bearer ${deps.token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(parsedBody.data),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
       const parsed = await res.json().catch(() => null) as
