@@ -790,3 +790,11 @@ Template (copy to the end of the file):
   at dispatch, accept null artifacts; #82); Person 2 (Kotlin `MatchArtifacts` nullable, done in this
   PR). Contracts 1.9.0, additive except the nullable artifact ids.
 - **PRs:** this PR.
+
+## D-261011-HW17 · The demo clip is h13g_singles
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **Decision:** the live demo and the "analysed earlier" result both use `h13g_singles` (full file).
+  It is the only clip with proof at every layer (#49, #54, #76, #87, #88), it is amateur singles from
+  one fixed camera (our user), the burned-in score lets judges check rally winners, and singles is
+  the format the rules confirm supports tonight. `eurogames_bern` is a low-resolution backup moment.
+- **Blast radius:** Person 2 tests and records on this clip (#84); demo script updated.
