@@ -97,10 +97,19 @@ class ElevateHttp(
     private fun backoffMs(attempt: Int) = 500L shl (attempt - 1).coerceAtMost(6)
 
     private suspend fun callOnce(method: String, path: String, jsonBody: String?, idempotencyKey: String?): String {
-        var token = auth.accessToken()
+        var token = try {
+            auth.accessToken()
+        } catch (e: com.elevate.app.data.auth.AuthException) {
+            // A failed sign-in refresh (e.g. a timeout on a slow network) is reported like any API error.
+            throw ApiException(e.status, if (e.status == 0) "network" else "auth_refresh_failed", e.message ?: "sign-in failed")
+        }
         var res = send(method, path, jsonBody, idempotencyKey, token)
         if (res.status == 401) {
-            token = auth.refreshAfterUnauthorized(token)
+            token = try {
+                auth.refreshAfterUnauthorized(token)
+            } catch (e: com.elevate.app.data.auth.AuthException) {
+                throw ApiException(e.status, if (e.status == 0) "network" else "auth_refresh_failed", e.message ?: "sign-in failed")
+            }
             res = send(method, path, jsonBody, idempotencyKey, token)
         }
         if (res.status in 200..299) return res.text()

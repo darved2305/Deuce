@@ -1,5 +1,6 @@
 package com.elevate.app.ui.overview
 
+import androidx.compose.ui.unit.sp
 import com.elevate.app.ui.components.Explanations
 import com.elevate.app.ui.components.ExplainBox
 import androidx.compose.foundation.background
@@ -103,6 +104,11 @@ internal fun CoachSection(s: MatchOverviewState, introPlayed: MutableState<Boole
     }
     if (voice.unavailable) Text("Voice not available on this phone", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
     if (shareProblem) Text("Could not share the card", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+    // Visual first: the court, the match as a waveform, the tempo, rally lengths. Text only where a picture can't say it.
+    if (s.landings.points.isNotEmpty()) LandingCourtHero(s.landings)
+    RallyPulse(s.hitTimeline.rallies)
+    TempoRing(s.hitTimeline.hits, s.hitTimeline.rallies)
+    RallyLengthBars(s.hitTimeline.rallies)
     val reduce = rememberReduceMotion()
     val wasPlayed = remember { introPlayed.value || reduce }
     report.suggestions.forEachIndexed { i, sug -> StaggerIn(i, wasPlayed) { SuggestionCard(sug) } }
@@ -110,16 +116,10 @@ internal fun CoachSection(s: MatchOverviewState, introPlayed: MutableState<Boole
         if (!wasPlayed) delay(report.suggestions.size * ElevateMotion.Stagger.toLong() + ElevateMotion.Short)
         introPlayed.value = true
     }
-    RhythmCard(report.rhythm)
-    ElevateCard {
-        Pill(SOURCE_TAG, c.lavender, c.ink)
-        Spacer(Modifier.height(10.dp))
-        Text("Where your landings fell", style = MaterialTheme.typography.titleMedium, color = c.ink)
-        Spacer(Modifier.height(8.dp))
-        ExplainBox(Explanations.Landing, Modifier.fillMaxWidth()) { HeatGrid(report.heat) }
-        Spacer(Modifier.height(8.dp))
-        Text(report.heat.caption, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
-    }
+    Text(
+        "All from your video · engine candidates, not confirmed",
+        style = MaterialTheme.typography.labelMedium, color = c.inkMuted, modifier = Modifier.padding(top = 4.dp),
+    )
 }
 
 private val GRID_ROWS = listOf(ZoneRow.BACK to "Back", ZoneRow.MIDDLE to "Mid", ZoneRow.FRONT to "Front")
@@ -210,10 +210,13 @@ private fun SuggestionCard(s: Suggestion) {
     ExplainBox(Explanations.CoachReport, Modifier.fillMaxWidth()) {
         ElevateCard(tint = if (s.enoughData) c.mint else c.lavender) {
             Column(Modifier.semantics(mergeDescendants = true) { contentDescription = "${s.text}. Evidence: ${s.evidence}. $SOURCE_TAG" }) {
-                Pill(SOURCE_TAG, Color.White, c.ink)
-                Spacer(Modifier.height(10.dp))
-                Text(s.text, style = MaterialTheme.typography.bodyLarge, color = c.ink)
-                Text(s.evidence, style = MaterialTheme.typography.labelMedium, color = c.inkMuted, modifier = Modifier.padding(top = 6.dp))
+                // "Many landings are short: 6 of 15 in the front row. Add clears…" -> headline + detail.
+                val cut = s.text.indexOf(": ")
+                val headline = if (cut > 0) s.text.substring(0, cut) else s.text
+                val detail = if (cut > 0) s.text.substring(cut + 2) else null
+                Text(s.title.uppercase(java.util.Locale.ROOT), style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.2.sp), color = c.orangeText)
+                Text(headline, style = MaterialTheme.typography.titleLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = c.ink, modifier = Modifier.padding(top = 2.dp))
+                if (detail != null) Text(detail, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted, modifier = Modifier.padding(top = 4.dp))
             }
         }
     }

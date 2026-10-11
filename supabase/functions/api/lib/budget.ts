@@ -3,7 +3,7 @@
 // service-role RPCs, so the numbers survive cold starts and concurrent requests.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiFailure } from "./errors.ts";
-import { PART_URL_TTL_S } from "./r2.ts";
+import { GET_URL_TTL_S, PART_URL_TTL_S } from "./r2.ts";
 
 const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
@@ -17,7 +17,7 @@ export const BUDGET = {
   sessionsPerUserPerDay: 5, // G3
   uploadsPerDay: 30, // G3
   partUrlsPerPart: 3, // G4: at most 3 x part count per session
-  downloadsPerUserPerDay: 200, // G6
+  downloadsPerUserPerDay: 1000, // G6 (D-261011-NP2)
 } as const;
 
 export type Snapshot = {
@@ -209,15 +209,19 @@ export async function addUsage(
   }
 }
 
-// G6: call before presigning a download URL (artifact reads, a later slice). The kill switch
-// does not apply: reads must keep working during an emergency stop.
+// G6: call before presigning a download URL. The kill switch does not apply: reads must keep
+// working during an emergency stop. Re-issuing a URL for the same artifact while the previous
+// one is still valid is free against the per-user cap (D-261011-NP2).
 export async function takeDownloadUrl(
   admin: SupabaseClient,
   ownerId: string,
+  artifactId: string,
 ): Promise<void> {
   const res = await admin.rpc("r2_take_download", {
     p_owner: ownerId,
     p_limit: BUDGET.downloadsPerUserPerDay,
+    p_artifact: artifactId,
+    p_ttl: GET_URL_TTL_S,
   });
   if (res.error) throw res.error;
   if (res.data === null || res.data === undefined) {

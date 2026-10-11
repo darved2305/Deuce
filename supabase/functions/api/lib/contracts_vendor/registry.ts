@@ -14,6 +14,10 @@ import {
   challengeSchema,
   comparisonsResponseSchema,
   friendsResponseSchema,
+  feedPageSchema,
+  postCreateRequestSchema,
+  postSummarySchema,
+  postV1Schema,
   confirmedPointSchema,
   errorEnvelopeSchema,
   healthResponseSchema,
@@ -66,7 +70,7 @@ function entry(
 ): SchemaRegistryEntry {
   return {
     schema,
-    version: "1.11.0",
+    version: "1.12.0",
     file: `${name}.schema.json`,
     description,
   };
@@ -217,6 +221,26 @@ export const schemaRegistry = {
     "friends.response.v1",
     friendsResponseSchema,
     "GET /v1/friends response: head-to-head records.",
+  ),
+  "post.create.request.v1": entry(
+    "post.create.request.v1",
+    postCreateRequestSchema,
+    "POST /v1/matches/{id}/posts request.",
+  ),
+  "post.summary.v1": entry(
+    "post.summary.v1",
+    postSummarySchema,
+    "Frozen summary of stored match data on a post.",
+  ),
+  "post.v1": entry(
+    "post.v1",
+    postV1Schema,
+    "A frozen match post visible to its owner and friends.",
+  ),
+  "feed.page.v1": entry(
+    "feed.page.v1",
+    feedPageSchema,
+    "GET /v1/feed: caller and friends' posts, newest first.",
   ),
   "comparisons.response.v1": entry(
     "comparisons.response.v1",

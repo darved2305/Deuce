@@ -8,6 +8,7 @@ import {
   rallyDetail,
   rewatchPicks,
   windowProgress,
+  eventSummary,
   type Match,
 } from "../src/coach.ts";
 import { matchV1Schema } from "../src/contracts/api.ts";
@@ -74,6 +75,17 @@ test("rally detail orders shots and returns null for an unknown rally", () => {
   assert.equal(rallyDetail(match, "r_zzz"), null);
 });
 
+test("window progress reads windows_expected from window.completed when analysis.started has none", () => {
+  // Shape seen on the deployed API for run a_1549d3f005ce4e098e205526e86fcaa5.
+  const p = windowProgress([
+    { type: "analysis.started", seq: 2 },
+    { type: "window.completed", seq: 3, window_seq: 0, windows_expected: 11, artifact_id: "art_1" },
+    { type: "window.completed", seq: 4, window_seq: 1, windows_expected: 11, artifact_id: "art_2" },
+  ]);
+  assert.equal(p.windows_expected, 11);
+  assert.equal(p.windows_done, 2);
+});
+
 test("window progress reads windows_expected, done and failed from the events", () => {
   const p = windowProgress([
     { type: "analysis.queued", seq: 1 },
@@ -94,4 +106,27 @@ test("countHits counts only hit events and tolerates bad bodies", () => {
   assert.equal(countHits({ events: [{ type: "hit" }, { type: "bounce" }, { type: "hit" }] }), 2);
   assert.equal(countHits(null), 0);
   assert.equal(countHits({ events: "nope" }), 0);
+});
+
+test("eventSummary counts per type and state over the whole record and keeps candidates as candidates", () => {
+  // Shape and mix seen on the deployed API for match m_e4e43ddfcae54f6aa09808b535d0fb95.
+  const events = [
+    { event_id: "e_3", type: "landing", t_ms: 58300, t_sigma_ms: 10, state: "candidate", cues: ["trajectory"] },
+    { event_id: "e_1", type: "hit", t_ms: 780, t_sigma_ms: 20, state: "candidate", cues: ["trajectory"] },
+    { event_id: "e_2", type: "hit", t_ms: 2100, state: "candidate" },
+  ];
+  const all = eventSummary(events);
+  assert.equal(all.total_events, 3);
+  assert.deepEqual(all.counts, [
+    { type: "hit", state: "candidate", count: 2 },
+    { type: "landing", state: "candidate", count: 1 },
+  ]);
+  assert.deepEqual(all.items.map((e) => e.event_id), ["e_1", "e_2", "e_3"]);
+  assert.equal(all.items[1].t_sigma_ms, null);
+  const hits = eventSummary(events, { type: "hit", limit: 1 });
+  assert.equal(hits.matching, 2);
+  assert.equal(hits.items.length, 1);
+  assert.equal(hits.total_events, 3);
+  assert.equal(eventSummary(events, { state: "observed" }).matching, 0);
+  assert.equal(eventSummary(events, { limit: 0 }).items.length, 0);
 });

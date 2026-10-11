@@ -173,3 +173,68 @@ test("get_analysis_progress counts windows and hit candidates from signed artifa
     await h.close();
   }
 });
+
+test("get_friend_feed forwards its cursor and validates feed.page.v1", async () => {
+  const feed = {
+    items: [{
+      post_id: "po_feed",
+      match_id: "m_feed",
+      owner: {
+        player_id: "11111111-1111-4111-8111-111111111111",
+        display_name: "Friend",
+      },
+      created_at: "2026-10-11T10:00:00Z",
+      caption: null,
+      summary: {
+        title: null,
+        duration_ms: null,
+        rally_count: null,
+        hit_count: null,
+        landings_in: null,
+        landings_out: null,
+        longest_rally_ms: null,
+        top_coach_points: [],
+        landing_points_m: [],
+        owner_display_name: "Friend",
+      },
+    }],
+    next_cursor: null,
+  };
+  const feedStub: Stub = (path, _request, response) => {
+    if (path === "/v1/openapi.json") {
+      return json(response, { paths: { "/v1/feed": { get: {} } } });
+    }
+    if (path === "/v1/feed?cursor=next") return json(response, feed);
+    response.statusCode = 404;
+    json(response, { error: { code: "not_found", message: "nope" } });
+  };
+  // Both credentials set: the feed is caller-scoped, so the tool must send the JWT, never the key.
+  const h = await startHarness(feedStub, {
+    ELEVATE_API_KEY: "ek_feed",
+    ELEVATE_JWT: "jwt_feed",
+  });
+  try {
+    const result = await h.call("get_friend_feed", { cursor: "next" });
+    assert.equal(result.isError, false, result.text);
+    assert.deepEqual(JSON.parse(result.text), feed);
+    assert.deepEqual(h.requests.map(({ path }) => path), [
+      "/v1/openapi.json",
+      "/v1/feed?cursor=next",
+    ]);
+    assert.equal(h.requests[1].headers.authorization, "Bearer jwt_feed");
+    assert.equal(h.requests[1].headers["x-api-key"], undefined);
+    assert.deepEqual(h.stray, []);
+  } finally {
+    await h.close();
+  }
+  // Key only: a clear tool error, and no feed request is sent.
+  const k = await startHarness(feedStub, { ELEVATE_API_KEY: "ek_feed" });
+  try {
+    const result = await k.call("get_friend_feed", {});
+    assert.equal(result.isError, true);
+    assert.match(result.text, /needs ELEVATE_JWT/);
+    assert.equal(k.requests.some(({ path }) => path.startsWith("/v1/feed")), false);
+  } finally {
+    await k.close();
+  }
+});

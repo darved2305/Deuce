@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import * as z from "zod/v4";
 import {
   countHits,
+  eventSummary,
   filterMoments,
   landingZones,
   rallyDetail,
@@ -18,6 +19,7 @@ import {
   analysisGetResponseSchema,
   capabilitiesResponseSchema,
   comparisonsResponseSchema,
+  feedPageSchema,
   errorEnvelopeSchema,
   matchV1Schema,
   momentsPageSchema,
@@ -36,6 +38,10 @@ const DEFAULT_API_BASE =
 
 export const getMatchSummaryInput = z.object({
   match_id: matchIdSchema.describe("Match ID from the Elevate API."),
+});
+
+export const getFriendFeedInput = z.object({
+  cursor: z.string().min(1).optional().describe("Opaque cursor from the previous feed page."),
 });
 
 export const findMomentsInput = z.object({
@@ -92,6 +98,16 @@ export const compareMomentInput = z.object({
   limit: z.number().int().min(1).max(5).default(5),
 });
 
+export const listEventsInput = z.object({
+  match_id: matchIdSchema,
+  type: z.string().min(1).max(40).optional().describe(
+    "Keep only this event type, for example hit or landing.",
+  ),
+  state: z.enum(["observed", "candidate", "inferred", "user"]).optional()
+    .describe("Keep only events with this provenance state."),
+  limit: z.number().int().min(1).max(100).default(20),
+});
+
 export const getAnalysisProgressInput = z.object({
   analysis_id: analysisIdSchema,
   include_hits: z.boolean().default(true).describe(
@@ -140,20 +156,34 @@ async function handleTool(
   }
 }
 
-function authHeaders(): Headers {
+// "user" auth is for caller-scoped routes (feed, posts, challenges): they span several accounts
+// under RLS, and developer keys are owner-only, so the API rejects keys there (403 read_only_key).
+type AuthMode = "any" | "user";
+
+function authHeaders(mode: AuthMode = "any"): Headers {
   const headers = new Headers({ accept: "application/json" });
   const apiKey = process.env.ELEVATE_API_KEY;
   const jwt = process.env.ELEVATE_JWT;
-  if (apiKey) headers.set("X-API-Key", apiKey);
+  if (mode === "user") {
+    if (!jwt) {
+      throw new ToolUnavailable(
+        "This tool reads a per-person feed and needs ELEVATE_JWT (a signed-in user's token); developer keys cannot read it.",
+      );
+    }
+    headers.set("Authorization", `Bearer ${jwt}`);
+  } else if (apiKey) headers.set("X-API-Key", apiKey);
   else if (jwt) headers.set("Authorization", `Bearer ${jwt}`);
   else throw new Error("Set ELEVATE_API_KEY or ELEVATE_JWT to query the API.");
   return headers;
 }
 
-export async function requestApi(path: string): Promise<unknown> {
+export async function requestApi(
+  path: string,
+  mode: AuthMode = "any",
+): Promise<unknown> {
   const response = await fetch(`${apiBase()}${path}`, {
     method: "GET",
-    headers: authHeaders(),
+    headers: authHeaders(mode),
   });
   let body: unknown;
   try {
@@ -218,6 +248,7 @@ async function requestContract<T>(
   path: string,
   requestPath: string,
   schema: z.ZodType<T>,
+  mode: AuthMode = "any",
 ): Promise<T> {
   const paths = await getOpenApiPaths();
   if (!hasGetOperation(paths[path])) {
@@ -225,7 +256,7 @@ async function requestContract<T>(
       `Not available yet: GET ${path} is not present in the deployed OpenAPI document.`,
     );
   }
-  const parsed = schema.safeParse(await requestApi(requestPath));
+  const parsed = schema.safeParse(await requestApi(requestPath, mode));
   if (!parsed.success) {
     throw new Error(
       `The API response for GET ${path} did not match the vendored response schema.`,
@@ -295,6 +326,7 @@ export function summarizeMatch(value: unknown) {
       }
       : null,
     rally_count: match.rallies.length,
+    events: eventSummary(match.events, { limit: 0 }).counts,
     capability_tiers: Object.fromEntries(
       Object.entries(match.capabilities).map(([name, capability]) => [
         name,
@@ -317,6 +349,25 @@ const READ_ONLY = {
 
 export function createServer(): McpServer {
   const server = new McpServer({ name: "elevate", version: "1.0.0" });
+
+  server.registerTool(
+    "get_friend_feed",
+    {
+      title: "Get friend feed",
+      annotations: READ_ONLY,
+      description:
+        "Read the caller's and friends' frozen match posts, newest first. Landing counts remain MODEL ESTIMATE values.",
+      inputSchema: getFriendFeedInput,
+    },
+    ({ cursor }) =>
+      handleTool("get_friend_feed", () =>
+        requestContract(
+          "/v1/feed",
+          cursor ? `/v1/feed?cursor=${encodeURIComponent(cursor)}` : "/v1/feed",
+          feedPageSchema,
+          "user",
+        )),
+  );
 
   server.registerTool(
     "get_match_summary",
@@ -363,6 +414,26 @@ export function createServer(): McpServer {
         }
         return detail;
       }),
+  );
+
+  server.registerTool(
+    "list_events",
+    {
+      title: "List events",
+      annotations: READ_ONLY,
+      description:
+        "The engine's detections on the match timeline (hits, landings) with their provenance state (observed, candidate, inferred, user), time and time uncertainty. Returns counts per type and state over the whole match plus the first events in time order. Candidates are not confirmed facts: say so when quoting them.",
+      inputSchema: listEventsInput,
+    },
+    ({ match_id, type, state, limit }) =>
+      handleTool("list_events", async () => ({
+        match_id,
+        ...eventSummary((await getMatch(match_id)).events, {
+          type,
+          state,
+          limit,
+        }),
+      })),
   );
 
   server.registerTool(

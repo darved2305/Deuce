@@ -85,7 +85,7 @@ export function registerArtifacts(api: OpenAPIHono<AppEnv>): void {
     }
 
     const admin = deps.admin();
-    await takeDownloadUrl(admin, c.var.userId);
+    await takeDownloadUrl(admin, c.var.userId, artifact.id);
     const url = await deps.r2().presignGet(artifact.r2_key);
     await addUsage(admin, 0, 1); // Each issued artifact URL accounts for one Class B read.
     return c.json(

@@ -1,6 +1,6 @@
 -- pgTAP for the R2 budget counters (migration r2_budget). Run: supabase test db
 begin;
-select plan(17);
+select plan(24);
 
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values ('00000000-0000-0000-0000-000000000000', '22222222-2222-2222-2222-222222222222',
@@ -39,9 +39,19 @@ select is(public.r2_take_part_urls('s_b', '22222222-2222-2222-2222-222222222222'
 select is(public.r2_take_part_urls('s_b', '22222222-2222-2222-2222-222222222222', 2, 3), null, 'a 4th URL is refused');
 select is((select class_a from public.r2_usage_monthly), 7::bigint, 'refusal adds no Class A');
 
--- G6: download limit per owner per day
-select is(public.r2_take_download('22222222-2222-2222-2222-222222222222', 1), 1, 'first download taken');
-select is(public.r2_take_download('22222222-2222-2222-2222-222222222222', 1), null, 'second refused at limit 1');
+-- G6 (D-261011-NP2): per-owner daily cap on counted takes; a re-issue for the same artifact
+-- while the previous URL is still valid is free and slides the window
+select ok((select relrowsecurity from pg_class where oid = 'public.r2_download_issued'::regclass), 'issued: RLS on');
+select ok(not has_function_privilege('authenticated', 'public.r2_take_download(uuid,integer,text,integer)', 'execute'), 'take_download rpc: not executable by users');
+select is(public.r2_take_download('22222222-2222-2222-2222-222222222222', 3, 'art_a', 300), 1, 'first download taken');
+select is(public.r2_take_download('22222222-2222-2222-2222-222222222222', 3, 'art_a', 300), 1, 're-issue within validity is free');
+select is(public.r2_take_download('22222222-2222-2222-2222-222222222222', 3, 'art_b', 300), 2, 'a different artifact counts');
+update public.r2_download_issued set issued_at = now() - interval '10 minutes'
+ where owner_id = '22222222-2222-2222-2222-222222222222' and artifact_id = 'art_a';
+select is(public.r2_take_download('22222222-2222-2222-2222-222222222222', 3, 'art_a', 300), 3, 're-issue after validity counts again');
+select is(public.r2_take_download('22222222-2222-2222-2222-222222222222', 3, 'art_c', 300), null, 'a new artifact at the cap is refused');
+select is(public.r2_take_download('22222222-2222-2222-2222-222222222222', 3, 'art_a', 300), 3, 'a still-valid re-issue stays free at the cap');
+select is((select class_b from public.r2_usage_monthly), 10::bigint, 'every issued URL still counts as Class B');
 
 select * from finish();
 rollback;

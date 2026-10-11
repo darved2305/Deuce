@@ -177,7 +177,16 @@ class HttpAnalysisClient(
 
     private suspend fun call(method: String, pathAndQuery: String, body: String? = null, headers: Map<String, String> = emptyMap()): Response {
         if (baseUrl.isBlank() || apiKey.isBlank()) throw AnalysisApiException(AnalysisApiException.Kind.NOT_CONFIGURED, "API not configured")
-        val token = tokenProvider()
+        // A sign-in refresh that fails (a slow network times out) is an ordinary API failure for the
+        // caller to show and retry; escaping as AuthException crashed the app on the A55.
+        val token = try {
+            tokenProvider()
+        } catch (e: com.elevate.app.data.auth.AuthException) {
+            throw AnalysisApiException(
+                if (e.status == 0) AnalysisApiException.Kind.NETWORK else AnalysisApiException.Kind.HTTP,
+                e.message ?: "sign-in failed",
+            )
+        }
         return withContext(io) {
             val conn = (URL(baseUrl.trimEnd('/') + pathAndQuery).openConnection() as HttpURLConnection).apply {
                 requestMethod = method

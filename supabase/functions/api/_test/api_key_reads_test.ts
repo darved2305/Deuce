@@ -214,7 +214,7 @@ Deno.test("API key signs only an owner's artifact and keeps the download cap", a
   assert.ok(
     t.adminLog.some((call) =>
       call.kind === "rpc" && call.name === "r2_take_download" &&
-      call.args.p_owner === OWNER_A && call.args.p_limit === 200
+      call.args.p_owner === OWNER_A && call.args.p_limit === 1000
     ),
   );
   assert.ok(
