@@ -70,6 +70,9 @@ class OverviewViewModel(
 
     val analysis: StateFlow<AnalysisUiState> = this.sync.state
 
+    /** Whether the server hands out window results yet (404 = route not deployed). */
+    val artifactAccess: StateFlow<com.elevate.app.data.analysis.ArtifactAccess> = this.sync.artifactAccess
+
     val overview: StateFlow<MatchOverviewState> =
         combine(this.sync.state, match, matchProblem, thumbnail, this.sync.ballTrack) { a, m, p, t, _ ->
             OverviewDerivation.derive(
@@ -114,7 +117,8 @@ class OverviewViewModel(
 
     /** Retry button / connectivity back: poll now; re-read the match if that failed. */
     fun retryNow() {
-        sync.retryNow()
+        // A finished run (terminal state) has stopped polling: start one more pass instead of waking nothing.
+        if (pollJob?.isActive == true) sync.retryNow() else startObserving()
         if (matchProblem.value != null) loadMatch()
     }
 

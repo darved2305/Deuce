@@ -104,7 +104,8 @@ class TrailOverlay(private val trailWindowUs: Long = 400_000) : CanvasOverlay(/*
         // Labels are in clip.width x clip.height; the canvas is the decoded frame / downscale.
         val sx = canvas.width.toFloat() / track.clip.width
         val sy = canvas.height.toFloat() / track.clip.height
-        val unit = canvas.height / 1080f
+        // Never smaller than on 1080p: on a 464p frame the dots were ~2 px (A55, EuroGames clip).
+        val unit = max(canvas.height / 1080f, 1f)
         linePaint.strokeWidth = 2.5f * unit
         currentRing.strokeWidth = 3f * unit
         val candidate = track.provenance.state == "candidate"
