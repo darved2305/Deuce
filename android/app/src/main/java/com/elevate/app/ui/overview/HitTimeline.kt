@@ -43,7 +43,7 @@ internal object HitTimelineText {
     fun caption(s: HitTimelineState): String =
         "${s.hits.size} hit ${plural(s.hits.size, "candidate")} · " +
             "${s.rallies.size} rally ${plural(s.rallies.size, "candidate")} · " +
-            "from ${windows(s)} analysed (engine, candidates)"
+            (s.recordSource?.let { "from $it (candidates)" } ?: "from ${windows(s)} analysed (engine, candidates)")
 
     /** "4 of 5 windows". Without the engine's expected total, the total is the windows reported so far. */
     fun windows(s: HitTimelineState): String =
@@ -53,7 +53,7 @@ internal object HitTimelineText {
     fun detail(s: HitTimelineState): String =
         "Rally candidates group hits at most ${HitRallies.MAX_GAP_MS / 1000.0} s apart, " +
             "${HitRallies.MIN_HITS}+ hits each. Not confirmed rallies." +
-            if (s.totalIsExpected) "" else " Window total so far: only windows the server has reported."
+            if (s.totalIsExpected || s.recordSource != null) "" else " Window total so far: only windows the server has reported."
 
     /** Shown instead of the caption when there are no hits; keeps the window denominator when known. */
     fun emptyDetail(s: HitTimelineState): String? =
