@@ -13,6 +13,7 @@ import { registerDeveloperKeys } from "../routes/developer-keys.ts";
 import { registerHealth } from "../routes/health.ts";
 import { registerInternal } from "../routes/internal.ts";
 import { registerMatches } from "../routes/matches.ts";
+import { registerReads } from "../routes/reads.ts";
 import { registerReviews } from "../routes/reviews.ts";
 import { registerSessions } from "../routes/sessions.ts";
 
@@ -33,6 +34,7 @@ export function createApp(deps: Deps = defaultDeps()): Hono {
   registerDeveloperKeys(api);
   registerArtifacts(api);
   registerMatches(api);
+  registerReads(api);
   registerReviews(api);
   registerChallenges(api);
   registerComparisons(api);
