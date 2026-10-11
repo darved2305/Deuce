@@ -11,6 +11,12 @@ import analysisEventsPage from "../../../../packages/contracts/schemas/analysis.
 import analysisGetResponse from "../../../../packages/contracts/schemas/analysis.get.response.v1.schema.json" with {
   type: "json",
 };
+import challenge from "../../../../packages/contracts/schemas/challenge.v1.schema.json" with {
+  type: "json",
+};
+import friendsResponse from "../../../../packages/contracts/schemas/friends.response.v1.schema.json" with {
+  type: "json",
+};
 import errorEnvelope from "../../../../packages/contracts/schemas/error.envelope.v1.schema.json" with {
   type: "json",
 };
@@ -76,6 +82,8 @@ const schemas: Record<string, Schema> = {
   "analysis.get.response.v1": analysisGetResponse as Schema,
   "confirmed.point.v1": confirmedPoint as Schema,
   "comparisons.response.v1": comparisonsResponse as Schema,
+  "challenge.v1": challenge as Schema,
+  "friends.response.v1": friendsResponse as Schema,
   "error.envelope.v1": errorEnvelope as Schema,
   "health.response.v1": healthResponse as Schema,
   "internal.artifact.request.v1": internalArtifactRequest as Schema,

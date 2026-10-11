@@ -6,7 +6,12 @@ import {
   analysisEventsPageSchema,
   analysisFinalizeRequestSchema,
   analysisGetResponseSchema,
+  challengeAcceptRequestSchema,
+  challengeCreateRequestSchema,
+  challengeEntryRequestSchema,
+  challengeSchema,
   comparisonsResponseSchema,
+  friendsResponseSchema,
   confirmedPointSchema,
   errorEnvelopeSchema,
   healthResponseSchema,
@@ -59,7 +64,7 @@ function entry(
 ): SchemaRegistryEntry {
   return {
     schema,
-    version: "1.10.0",
+    version: "1.11.0",
     file: `${name}.schema.json`,
     description,
   };
@@ -185,6 +190,31 @@ export const schemaRegistry = {
     "confirmed.point.v1",
     confirmedPointSchema,
     "Confirmed point returned after review confirmation.",
+  ),
+  "challenge.create.request.v1": entry(
+    "challenge.create.request.v1",
+    challengeCreateRequestSchema,
+    "POST /v1/challenges request: a Reflex run's freeze set, score and per-round results.",
+  ),
+  "challenge.accept.request.v1": entry(
+    "challenge.accept.request.v1",
+    challengeAcceptRequestSchema,
+    "POST /v1/challenges/{id}/accept request.",
+  ),
+  "challenge.entry.request.v1": entry(
+    "challenge.entry.request.v1",
+    challengeEntryRequestSchema,
+    "POST /v1/challenges/{id}/entries request: the opponent's score and per-round results.",
+  ),
+  "challenge.v1": entry(
+    "challenge.v1",
+    challengeSchema,
+    "A challenge as the caller may see it (GET, and the answer of create, accept and entries).",
+  ),
+  "friends.response.v1": entry(
+    "friends.response.v1",
+    friendsResponseSchema,
+    "GET /v1/friends response: head-to-head records.",
   ),
   "comparisons.response.v1": entry(
     "comparisons.response.v1",

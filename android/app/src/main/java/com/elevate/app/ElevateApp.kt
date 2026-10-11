@@ -137,6 +137,14 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
         }
     }
 
+    // A friend's challenge (link, rematch or result) sits above everything else while it is open.
+    val community: com.elevate.app.ui.community.CommunityViewModel = viewModel()
+    val communityScreen by community.screen.collectAsStateWithLifecycle()
+    if (communityScreen !is com.elevate.app.ui.community.CommunityScreen.Hidden) {
+        com.elevate.app.ui.community.CommunityRoute(vm, community, pickVideo)
+        return
+    }
+
     if (panel != Screen.Panel.None && pipeline != Screen.Pipeline.Idle) {
         AnalysisPanels(vm, panel, pipeline, step, upload, ovm, hero, if (analysedHere) openFacts else null)
         return
@@ -273,7 +281,7 @@ private fun AnalysisPanel(
     /** Facts of the open video when it is the analysed file; ReadLab freezes frames of that file only. */
     analysedFacts: SourceFacts?,
 ) {
-    if ((panel == Screen.Panel.Overview || panel == Screen.Panel.ReadLab || panel == Screen.Panel.Reflex) && ovm != null) {
+    if ((panel == Screen.Panel.Overview || panel == Screen.Panel.ReadLab || panel == Screen.Panel.Reflex || panel == Screen.Panel.Review || panel == Screen.Panel.Decide) && ovm != null) {
         val match by ovm.matchRecord.collectAsStateWithLifecycle()
         val drills = remember(match, analysedFacts) {
             com.elevate.app.ui.readlab.ReadLabDrills.fromMatch(match, analysedFacts?.frameTimesUs, analysedFacts?.displayWidth, analysedFacts?.displayHeight)
@@ -285,16 +293,40 @@ private fun AnalysisPanel(
         val cueSource = remember(ball, w, h) {
             if (w != null && h != null && w > 0 && h > 0) com.elevate.app.ui.readlab.CueSource(ball, w, h) else null
         }
+        val reviewLandings = remember(match) { com.elevate.app.domain.review.ReviewLandings.from(match) }
+        if (panel == Screen.Panel.Review) {
+            com.elevate.app.ui.review.InstantReviewRoute(vm, reviewLandings, analysedFacts, ball, match?.matchId, onBack = { vm.showPanel(Screen.Panel.Overview) })
+            return
+        }
         if (panel == Screen.Panel.ReadLab) {
             com.elevate.app.ui.profile.RecordReadLabResult(vm.readLab, match?.matchId)
             com.elevate.app.ui.readlab.ReadLabRoute(vm, drills, cueSource, onBack = { vm.showPanel(Screen.Panel.Overview) })
             return
         }
+        val feet by ovm.sync.feet.collectAsStateWithLifecycle()
+        val freezes = remember(match, analysedFacts, feet) {
+            com.elevate.app.ui.decide.DecideFreezes.fromMatch(match, analysedFacts?.frameTimesUs, analysedFacts?.displayWidth, analysedFacts?.displayHeight, feet)
+        }
+        if (panel == Screen.Panel.Decide) {
+            com.elevate.app.ui.decide.DecideRoute(vm, freezes, onBack = { vm.showPanel(Screen.Panel.Overview) })
+            return
+        }
         if (panel == Screen.Panel.Reflex) {
-            com.elevate.app.ui.readlab.ReflexRoute(vm, drills, match?.matchId.orEmpty(), cueSource, onBack = { vm.showPanel(Screen.Panel.Overview) })
+            com.elevate.app.ui.readlab.ReflexRoute(
+                vm, drills, match?.matchId.orEmpty(), cueSource, onBack = { vm.showPanel(Screen.Panel.Overview) },
+                endExtra = { s -> com.elevate.app.ui.community.ChallengeFriendCard(match?.matchId, s) },
+            )
             return
         }
         val overview by ovm.overview.collectAsStateWithLifecycle()
+        val cal = match?.calibration
+        val trainingLock = when {
+            match == null -> "they unlock when your match summary is ready."
+            cal == null || cal.tier == "C" -> "set the 4 court corners in setup so we can place landings on the court."
+            analysedFacts == null -> "open this match's video on this phone to train on it."
+            drills.isEmpty() -> "no clear landings were found in this match."
+            else -> null
+        }
         MatchOverviewScreen(
             state = overview,
             eyebrow = hero.eyebrow,
@@ -304,6 +336,11 @@ private fun AnalysisPanel(
             onTrainRead = { vm.showPanel(Screen.Panel.ReadLab) },
             reflexRounds = reflexRounds,
             onReflex = { vm.showPanel(Screen.Panel.Reflex) },
+            reviewLandings = reviewLandings,
+            onReview = { id -> vm.review.select(id); vm.showPanel(Screen.Panel.Review) },
+            decideFreezes = freezes.size,
+            trainingLock = trainingLock,
+            onDecide = { vm.showPanel(Screen.Panel.Decide) },
         )
         return
     }

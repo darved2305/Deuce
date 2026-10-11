@@ -840,3 +840,66 @@ Template (copy to the end of the file):
 - **Exit:** ends when Person 3 is back; revert any PR listed below.
 - **Proof / evidence:** mcpkit 0.6.0 report on `mcp/` (0 errors, 1 warning, 4 notes, 12 clients).
 - **PRs:** this PR; follow-ups listed in comments on #110, #109, #99 and the MCP/SDK PRs.
+
+## D-261011-HW31 · Friends and challenges: contracts 1.11.0, a challenge is a shared Reflex run
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** In the friends and challenges slice, facing the need to let two people play the
+  same Reflex freezes on one match without uploading more video, we decided on server-stored
+  challenges that reuse match share grants and a same-file-or-ask video rule, and rejected a
+  per-challenge video upload and a shareable clip download, to achieve a safe end to end flow inside
+  the Cloudflare budget, accepting that a friend needs the same video file.
+- **Context:** The product story is "challenge a friend": after a Reflex run the creator shares a
+  link, the friend plays the same freezes, both see a result card, and the profile lists friends with
+  a head-to-head record. The match video is deleted after a day and the friend may not have it.
+- **Decision:**
+  1. **Contracts 1.11.0 (additive):** `ch_` id prefix; `challenge.create.request.v1`,
+     `challenge.accept.request.v1`, `challenge.entry.request.v1`, `challenge.v1`,
+     `friends.response.v1`. A challenge holds the exact freeze set (per round: hit and landing event
+     ids, contact_ms, contact_sigma_ms, ladder_us from the creator's real decoded frames), the
+     creator's score and per-round results. Scores come from the app's own Reflex scoring; the server
+     checks only that a score equals the sum of its round points and that every result names a round
+     of the freeze set. `video_sha256` is read by the server from the match's upload, never trusted
+     from the app.
+  2. **Routes (Person 3 deploys):** `POST /v1/challenges` (Idempotency-Key), `POST
+     /v1/challenges/{id}/accept`, `POST /v1/challenges/{id}/entries`, `GET /v1/challenges/{id}`,
+     `GET /v1/friends`. Existing error codes only (`not_found`, `conflict`, `validation_failed`,
+     `idempotency_conflict`). Writes run in service_role SQL functions (`create_challenge`,
+     `accept_challenge`, `submit_challenge_entry`); reads run as the caller under RLS
+     (`get_challenge_v1`, `list_friends_v1`).
+  3. **Access:** tables `challenges` and `challenge_entries` have RLS for the creator and
+     participants only (an opponent sees only their own entry; a stranger sees nothing, and 404 on
+     the route). Accept inserts a match-scope read grant into the existing `share_grants` (scope
+     `read`), so the friend reads the match through the existing share policies. Only the match owner
+     can create a challenge. A rematch (`rematch_of`) may be started by anyone already in the old
+     challenge, must repeat the same rounds, and can only be accepted by people already in it, so a
+     rematch never widens who can read the owner's match.
+  4. **Video, the honest path:** the friend plays only on a video file whose sha256 equals the
+     challenge's `video_sha256`: the file they already have, or one they pick (verified by sha256).
+     Otherwise the app says "Ask your friend to send the video". We do not upload extra video and do
+     not download stored clips: stored engine artifacts hold tracks and windows, not the pre-contact
+     frames a Reflex round freezes on, so they cannot stand in for the footage, and fetching them
+     would spend R2 operations against `docs/ops/cloudflare-budget.md` for nothing. If the friend's
+     file yields fewer scorable rounds than the challenge, the app plays those and says "N of M".
+  5. **Friends:** derived from challenges, no separate table. A friend is the other side of any
+     challenge; the display name is the one sent with the challenge or entry (the profile name
+     field); the record counts challenges both sides have played.
+- **Alternatives:** (a) upload the friend's video or the creator's clip to R2 per challenge,
+  rejected: budget and privacy; (b) a share link that carries scores, rejected: scores must be
+  server-held so they cannot be edited in a link; (c) a friends table with requests, rejected:
+  nothing in the product needs a request step.
+- **Blast radius:**
+  - Contracts: new schemas listed above; minor bump 1.10.0 to 1.11.0; the vendored copy in
+    `supabase/functions/api/lib/contracts_vendor` is regenerated; Kotlin readers added to
+    `ContractSchemaTest`.
+  - People and folders: Person 3 `supabase/` (cross-lane edit approved for this slice; Person 3
+    reviews and deploys); Person 2 `android/` (new `ui/community/` and `domain/community/`, minimal
+    wiring in the profile, Reflex finish screen, deep link and manifest).
+  - Data/infra: migration `20261011180000_challenges.sql` and an `api` function deploy. No new
+    secrets, no R2 use.
+  - Containment: additive; the challenge UI is only reachable from a finished Reflex run, a link, or
+    the profile Friends section.
+- **Exit:** drop the two tables and three functions, remove the routes; the share grants it made stay
+  until revoked.
+- **Proof / evidence:** deno tests (route behaviour with fakes) and pgTAP (RLS, accept grant,
+  rematch scope) run in this slice; no deployed-curl proof yet, owed by Person 3 after deploy.
+- **PRs:** this PR.

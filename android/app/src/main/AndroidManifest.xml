@@ -53,6 +53,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="elevate" android:host="m" />
             </intent-filter>
+            <!-- A friend's Reflex challenge: elevate://c/{challenge_id} (domain/link/DeepLink.kt). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="elevate" android:host="c" />
+            </intent-filter>
         </activity>
 
         <!-- Share your match card: the cached PNG goes to the share sheet through this provider. -->

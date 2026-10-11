@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "display_name": {
+      "maxLength": 24,
+      "minLength": 1,
+      "type": "string"
+    },
+    "round_results": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "hit_event_id": {
+            "pattern": "^e_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "pick": {
+            "anyOf": [
+              {
+                "enum": [
+                  "F1",
+                  "F2",
+                  "F3",
+                  "M1",
+                  "M2",
+                  "M3",
+                  "B1",
+                  "B2",
+                  "B3",
+                  "S",
+                  "L"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "points": {
+            "maximum": 1000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reaction_ms": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verdict": {
+            "enum": [
+              "exact",
+              "adjacent",
+              "wrong",
+              "too_slow"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "hit_event_id",
+          "pick",
+          "reaction_ms",
+          "verdict",
+          "points"
+        ],
+        "type": "object"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "type": "array"
+    },
+    "score": {
+      "maximum": 100000,
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "score",
+    "round_results"
+  ],
+  "type": "object"
+}

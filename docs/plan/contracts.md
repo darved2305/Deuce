@@ -279,6 +279,13 @@ Review estimate enum `IN | OUT | TOO_CLOSE | UNOBSERVED`; `TOO_CLOSE` renders as
 - Phase 4: `POST /v1/matches/{id}/simulation-runs {moment_id, mode: "read"|"decide", target_zone?}`
   → `{result: "exact"|"adjacent"|"wrong"|"unscored" | {legal, spacing: "covered"|"adjacent"|"separated"}, evidence_ids[], continuation_clip_id}`;
   `GET /v1/matches/{id}/opponent-scout?opponent_id=` → tiles `{pattern, n, matches, clip_ids[]}`.
+- Friends and challenges (contracts 1.11.0, D-261011-HW31): `POST /v1/challenges` + `Idempotency-Key`
+  (`challenge.create.request.v1`: match, freeze-set rounds, score, per-round results, optional
+  `rematch_of`) → `challenge.v1`; `POST /v1/challenges/{id}/accept` (grants read on the match);
+  `POST /v1/challenges/{id}/entries` (the opponent's run); `GET /v1/challenges/{id}` (creator sees
+  every entry, an opponent only their own); `GET /v1/friends` → `{items: [{player_id, display_name,
+  challenges, played, wins, losses, ties, last_challenge_at}]}`. Ids are `ch_…`; errors reuse
+  `not_found`, `conflict`, `validation_failed`, `idempotency_conflict`.
 
 ## 9. Zones and sport packs
 
