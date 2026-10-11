@@ -122,6 +122,8 @@ one `analysis.completed`.
   on the two window types (the dedupe key is `(type, window_seq)`).
 - `POST /internal/analyses/{id}/artifacts {kind, r2_key, bytes, sha256}` → `{artifact_id}`.
 - `POST /internal/analyses/{id}/finalize {vision_result: <match.v1 without insights>, clip_artifact_ids: []}`.
+  The engine fills `match_id` and `session_ids: [session_id]` from the dispatch request (`modal.submit.request.v1`
+  carries optional `match_id`, `session_id` since 1.9.0); `analysis.artifacts.*` may be `null` (D-261011-HW15).
 
 Event row (`analysis_events`):
 
