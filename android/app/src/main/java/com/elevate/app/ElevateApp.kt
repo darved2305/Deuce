@@ -13,6 +13,7 @@ import com.elevate.app.ui.components.rememberReduceMotion
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -51,6 +52,17 @@ import java.io.File
 @UnstableApi
 @Composable
 fun ElevateApp(vm: ReplayViewModel = viewModel()) {
+    // Record live (ui/record): a full-screen route over Home; the Analysing screen takes over once the analysis starts.
+    val recordVm: com.elevate.app.ui.record.RecordViewModel = viewModel()
+    var recording by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    if (recording) {
+        com.elevate.app.ui.record.RecordRoute(
+            vm = recordVm,
+            onClose = { recording = false },
+            onOpenAnalysis = { id -> recording = false; vm.openHistory(id) },
+        )
+        return
+    }
     // System Photo Picker, videos only: no storage permission. The returned grant lasts while
     // this activity lives, which is all Phase 1 playback needs (no persistence yet).
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> vm.onPicked(uri) }
@@ -144,6 +156,7 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
             matches = matches.map { com.elevate.app.ui.screens.matchCardOf(it, thumbs[it.analysisId]) },
             onOpenMatch = vm::openHistory,
             onOpenProfile = vm::openProfile,
+            onRecord = { recording = true },
         ) {
             // The pill only while something is actually running; a finished run is the history card.
             val running = when (val p = pipeline) {
@@ -314,6 +327,13 @@ private fun AnalysisPanel(
             drills.isEmpty() -> "no clear landings were found in this match."
             else -> null
         }
+        val tactics by ovm.tactics.collectAsStateWithLifecycle()
+        // This phone's setup (court taps, "who are you" tap) feeds the live tactics until match.v1 arrives.
+        val replay = vm.screen.collectAsStateWithLifecycle().value as? Screen.Replay
+        LaunchedEffect(ovm, replay?.court, replay?.setup) {
+            replay?.court?.let { ovm.setTacticsCourt(it.template, it.homography) }
+            replay?.setup?.whoIsMe?.let { w -> if (w.imageXy.size == 2) ovm.setWhoIsMe(w.tMs, w.imageXy[0], w.imageXy[1]) }
+        }
         MatchOverviewScreen(
             state = overview,
             eyebrow = hero.eyebrow,
@@ -328,6 +348,9 @@ private fun AnalysisPanel(
             decideFreezes = freezes.size,
             trainingLock = trainingLock,
             onDecide = { vm.showPanel(Screen.Panel.Decide) },
+            tactics = tactics,
+            onOpenAt = { ms -> vm.openRally(ms) },
+            onSwapYou = { ovm.swapYou() },
         )
         return
     }

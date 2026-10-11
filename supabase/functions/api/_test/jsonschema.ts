@@ -71,12 +71,32 @@ import segmentRegisterResponse from "../../../../packages/contracts/schemas/segm
 import uploadPartsResponse from "../../../../packages/contracts/schemas/upload.parts.response.v1.schema.json" with {
   type: "json",
 };
+import capabilitiesResponse from "../../../../packages/contracts/schemas/capabilities.v1.schema.json" with {
+  type: "json",
+};
+import matchesPage from "../../../../packages/contracts/schemas/matches.page.v1.schema.json" with {
+  type: "json",
+};
+import momentsPage from "../../../../packages/contracts/schemas/moments.page.v1.schema.json" with {
+  type: "json",
+};
+import ralliesPage from "../../../../packages/contracts/schemas/rallies.page.v1.schema.json" with {
+  type: "json",
+};
+import rallyDetail from "../../../../packages/contracts/schemas/rally.detail.v1.schema.json" with {
+  type: "json",
+};
 
 // Minimal JSON Schema (draft 2020-12 subset used by packages/contracts/schemas) checker.
 type Schema = Record<string, unknown>;
 
 const schemas: Record<string, Schema> = {
   "analysis.create.response.v1": analysisCreateResponse as Schema,
+  "capabilities.v1": capabilitiesResponse as Schema,
+  "matches.page.v1": matchesPage as Schema,
+  "moments.page.v1": momentsPage as Schema,
+  "rallies.page.v1": ralliesPage as Schema,
+  "rally.detail.v1": rallyDetail as Schema,
   "analysis.event.v1": analysisEvent as Schema,
   "analysis.events.page.v1": analysisEventsPage as Schema,
   "analysis.get.response.v1": analysisGetResponse as Schema,

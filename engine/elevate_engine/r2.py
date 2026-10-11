@@ -1,7 +1,7 @@
-"""Cloudflare R2 for the engine: read the original once, write window results.
+"""Cloudflare R2 for the engine: read each input object once, write window results.
 
-Budget rules (docs/ops/cloudflare-budget.md): never list objects (G7); read the original once per
-analysis and write at most one window_result per window (G8); write nothing unless
+Budget rules (docs/ops/cloudflare-budget.md): never list objects (G7); read each uploaded object
+once and write at most one window_result per window (G8); write nothing unless
 R2_WRITES_ENABLED is "true" (G9). Credentials come from the `elevate-r2` Modal Secret and are
 never logged.
 """
@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ORIG_KEY = re.compile(r"orig/s_[A-Za-z0-9_-]+/source\.mp4")
+SEGMENT_KEY = re.compile(r"seg/s_[A-Za-z0-9_-]+/[0-9]+\.mp4")
 WINDOW_KEY = re.compile(r"analysis/a_[A-Za-z0-9_-]+/[^/]+/windows/[0-9]+\.json")
 # G8: at most 2 track files per analysis; named by artifact kind (contracts §4, keys.ts).
 TRACK_KEY = re.compile(r"analysis/a_[A-Za-z0-9_-]+/[^/]+/tracks/(ball_track|player_tracks)\.json")
@@ -65,6 +66,15 @@ class R2:
         """One GetObject for the original (G8). Returns its size in bytes."""
         if not ORIG_KEY.fullmatch(key):
             raise ValueError(f"not an original key: {key}")
+        return self._download(key, dest)
+
+    def download_segment(self, key: str, dest: Path) -> int:
+        """One GetObject for a recorded segment (G8). Returns its size in bytes."""
+        if not SEGMENT_KEY.fullmatch(key):
+            raise ValueError(f"not a segment key: {key}")
+        return self._download(key, dest)
+
+    def _download(self, key: str, dest: Path) -> int:
         body = self.client.get_object(Bucket=self.bucket, Key=key)["Body"]
         with dest.open("wb") as f:
             for chunk in iter(lambda: body.read(1 << 20), b""):

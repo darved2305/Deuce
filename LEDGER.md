@@ -120,3 +120,12 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T04:56Z | #150 | @HetanshWaghela | p4 | android: Instant Review, line calls shown with the evidence (freeze, zoom to the | none | 1.10.0 | ``` |
 | 2026-10-11T04:58Z | #151 | @HetanshWaghela | p4 | android: training games say what unlocks them instead of disappearing | none | 1.10.0 | ``` |
 | 2026-10-11T05:03Z | #152 | @HetanshWaghela | p4 | Friends and challenges end to end: challenge a friend on the same shots (contrac | D-261011-HW31 | 1.11.0 | ``` |
+| 2026-10-11T05:05Z | #153 | @HetanshWaghela | p4 | android: Record a match live (pieces upload while recording, analysis starts ear | none | 1.11.0 | ``` |
+| 2026-10-11T05:09Z | #132 | @nikhilpravinpise | p3 | api: B6 read routes on contracts 1.10.0 (capabilities, matches, rallies, moments | D-261011-HW16 | 1.11.0 | Live deployed API proof was not run because deploy and live API use were prohibited. Person 3's exact Bearer-authenticat |
+| 2026-10-11T05:10Z | #140 | @nikhilpravinpise | p3 | docs: Person 3 API reference and runbook | none | 1.11.0 | ``` |
+| 2026-10-11T05:26Z | #157 | @darved2305 | p2 | android: ReadLab reveal shows the real landing; training row shows Read, Reflex  | none | 1.11.0 | Galaxy A55 `RZCY12S9LRD`, this branch installed, real h13g footage. Analysis `a_fdcb5c99c85140e898bd1c777d736cec` / matc |
+| 2026-10-11T05:33Z | #158 | @HetanshWaghela | p4 | web: dev-site API reference shows all 29 live routes | none | 1.11.0 | ``` |
+| 2026-10-11T05:35Z | #160 | @HetanshWaghela | p4 | docs: business case (market, competition, pricing, real unit costs, scenarios) + | none | 1.11.0 | ``` |
+| 2026-10-11T06:04Z | #161 | @darved2305 | p2 | android: Tactics tab (readability, opponent scout, ghost base, point autopsy), l | none (D-007 labelling; D-261011-HW32 cap noted below) | 1.11.0 | **Real engine data:** `TacticsRealDataTest` runs on Person 1's committed run `engine/eval/runs/h13g_31_91_*` (Modal `ap- |
+| 2026-10-11T06:05Z | #162 | @VrajVed | p1 | engine: analyse segment uploads (Record live) on the original timeline | none | 1.11.0 | **Join on real pieces:** `h13g_singles` cut at its real keyframes 30.24 / 37.24 / 42.24 / 49.2 / 53.84 s (H.264 High wit |
+| 2026-10-11T06:15Z | #163 | @nikhilpravinpise | p3 | api: internal segments accept after_seq=-1 (verify segment 0, HW33) | none (implements Person 4's D-261011-HW33 ask on #154; the contract text, contracts.md:100, sets no minimum) | 1.11.0 | ``` |

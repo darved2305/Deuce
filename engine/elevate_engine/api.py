@@ -59,12 +59,29 @@ def _post_http(url: str, token: str, body: dict, timeout: float = 60.0) -> tuple
         return e.code, e.read().decode()
 
 
+def _get_http(url: str, token: str, timeout: float = 60.0) -> tuple[int, str]:
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(
+        url,
+        headers={"accept": "application/json", "x-internal-token": token},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status, resp.read().decode()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()
+
+
 @dataclass
 class InternalApi:
     base_url: str
     token: str = field(repr=False)
     post: Callable[[str, str, dict], tuple[int, str]] = _post_http
     sleep: Callable[[float], None] = time.sleep
+    get: Callable[[str, str], tuple[int, str]] = _get_http
 
     @classmethod
     def from_env(cls) -> InternalApi:
@@ -101,6 +118,35 @@ class InternalApi:
         row = self._send(analysis_id, "events", body)
         log("api.event", analysis_id=analysis_id, type=body["type"], seq=row.get("seq"))
         return row
+
+    def segments(self, analysis_id: str, after_seq: int) -> dict:
+        """GET the contiguous completed segment page after `after_seq` with retry semantics."""
+        if not isinstance(after_seq, int) or isinstance(after_seq, bool) or after_seq < 0:
+            raise ValueError("after_seq must be a non-negative integer")
+        url = f"{self.base_url}/internal/analyses/{analysis_id}/segments?after_seq={after_seq}"
+        for attempt in range(len(RETRY_DELAYS_S) + 1):
+            try:
+                status, text = self.get(url, self.token)
+            except OSError as exc:
+                status, text = 0, repr(exc)
+            if 200 <= status < 300:
+                body = json.loads(text)
+                validate("internal.segments.page.v1", body)
+                return body
+            retryable = status == 0 or status >= 500
+            log(
+                "api.error",
+                route="segments",
+                analysis_id=analysis_id,
+                status=status,
+                attempt=attempt,
+                retry=retryable,
+                body=text[:200],
+            )
+            if not retryable or attempt == len(RETRY_DELAYS_S):
+                raise ApiError(status, text)
+            self.sleep(RETRY_DELAYS_S[attempt])
+        raise AssertionError("unreachable")
 
     def artifact(self, analysis_id: str, kind: str, r2_key: str, size: int, sha256: str) -> str:
         body = {"kind": kind, "r2_key": r2_key, "bytes": size, "sha256": sha256}

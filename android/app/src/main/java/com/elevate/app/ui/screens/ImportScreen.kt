@@ -76,6 +76,8 @@ fun ImportScreen(
     onOpenMatch: (String) -> Unit = {},
     /** Opens "Your game" (the profile); null hides the avatar. */
     onOpenProfile: (() -> Unit)? = null,
+    /** Opens Record live (ui/record); null hides the entry. */
+    onRecord: (() -> Unit)? = null,
     /** Upload / analysis status of an earlier pick, shown under the main card. Last, so callers can pass it as a trailing lambda. */
     status: @Composable () -> Unit = {},
 ) {
@@ -120,6 +122,15 @@ fun ImportScreen(
                             modifier = Modifier.padding(bottom = 4.dp),
                         )
                     }
+                }
+
+                if (onRecord != null) {
+                    Spacer(Modifier.height(12.dp))
+                    com.elevate.app.ui.components.SecondaryButton(
+                        text = "Record a match",
+                        onClick = onRecord,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
 
                 Spacer(Modifier.height(16.dp))
