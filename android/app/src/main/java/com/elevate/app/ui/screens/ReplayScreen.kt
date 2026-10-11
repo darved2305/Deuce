@@ -1,5 +1,6 @@
 package com.elevate.app.ui.screens
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.pm.ApplicationInfo
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -246,7 +247,7 @@ private fun ControlsSheet(
             SpeedSelector(state.speed) { controller.setSpeed(it) }
         }
         Spacer(Modifier.height(4.dp))
-        AnnotationRow(screen, onOverlayVisible)
+        if (screen.live == null) AnnotationRow(screen, onOverlayVisible)
         LiveRow(screen.live, onShowLive)
         EngineRow(screen.engine, onShowEngine)
         CourtSection(screen)
@@ -388,9 +389,9 @@ private fun DetailText(text: String, color: Color = Elevate.colors.inkMuted) {
 private fun AnnotationRow(screen: Screen.Replay, onOverlayVisible: (Boolean) -> Unit) {
     val c = Elevate.colors
     when (val a = screen.annotations) {
-        AnnotationState.Checking -> CompactRow(ElevateIcons.Trail, "Looking for a trail…", c.cream, c.inkMuted)
-        AnnotationState.NoneForThisVideo -> CompactRow(ElevateIcons.Trail, "No trail for this video", c.cream, c.inkMuted) {
-            DetailText("Only the original footage is shown.")
+        AnnotationState.Checking -> CompactRow(ElevateIcons.Trail, "Reading the video…", c.cream, c.inkMuted)
+        AnnotationState.NoneForThisVideo -> CompactRow(ElevateIcons.Trail, "Not analysed yet", c.cream, c.inkMuted) {
+            DetailText("Set up the court and analyse: the shuttle trail, hits and court positions are drawn on this video as each part finishes.")
         }
         is AnnotationState.Failed -> CompactRow(ElevateIcons.Trail, "Trail unavailable", c.errorSurface, c.error) { DetailText(a.reason, c.ink) }
         AnnotationState.UnsupportedHdr -> CompactRow(ElevateIcons.Trail, "No trail on HDR video yet", c.cream, c.inkMuted) {
@@ -449,20 +450,35 @@ private fun LiveRow(live: Screen.LiveOffer?, onShowLive: (Boolean) -> Unit) {
     val c = Elevate.colors
     val t = live.track
     val range = "${"%.1f".format(Locale.ROOT, t.rangeStartUs / 1e6)}–${"%.1f".format(Locale.ROOT, t.rangeEndUs / 1e6)} s"
-    val kind = if (t.provenance.state == "candidate") "shuttle candidates" else "shuttle"
+    val text = liveRowText(t.provenance.state == "candidate", live.framesWithBall, t.framesInRange)
     CompactRow(
         icon = ElevateIcons.Bolt,
-        title = "Live engine · $kind",
+        title = text.title,
         bg = c.mint,
         iconTint = c.mintInk,
         value = "${live.framesWithBall}/${t.framesInRange}",
-        valueDescription = "shuttle on ${live.framesWithBall} of ${t.framesInRange} frames",
+        valueDescription = text.spoken,
         toggle = live.shown to onShowLive,
         toggleLabel = "Live engine trail",
     ) {
         DetailText("Your upload, analysed by the engine ${live.engineVersion} · $range so far")
-        DetailText("Shuttle on ${live.framesWithBall} of ${t.framesInRange} frames · more appear as windows finish")
+        DetailText(text.detail)
     }
+}
+
+/**
+ * Live row wording. Candidate rows are not observations (D-007): they read "a candidate on N of M
+ * frames", never "shuttle on", so a trail of unconfirmed candidates does not claim the shuttle was seen.
+ */
+internal data class LiveRowText(val title: String, val spoken: String, val detail: String)
+
+internal fun liveRowText(candidates: Boolean, frames: Int, framesInRange: Int): LiveRowText {
+    val count = if (candidates) "a candidate on $frames of $framesInRange frames" else "shuttle on $frames of $framesInRange frames"
+    return LiveRowText(
+        title = if (candidates) "Live engine · shuttle candidates" else "Live engine · shuttle",
+        spoken = count,
+        detail = "${count.replaceFirstChar { it.uppercase() }} · more appear as windows finish",
+    )
 }
 
 /** What the file itself says: measured facts, then any finding. Nothing here is a model output. */
@@ -530,7 +546,9 @@ private fun CourtSection(screen: Screen.Replay) {
         }
     }
     Spacer(Modifier.height(8.dp))
-    MiniCourt(cal)
+    val vm: ReplayViewModel = viewModel()
+    val landings by vm.courtLandings.collectAsStateWithLifecycle()
+    MiniCourt(cal, landings = landings.map { Triple(it.xM, it.yM, it.state) })
 }
 
 /** What the replay screen needs to drive upload → analysis (state lives in the ViewModel). */

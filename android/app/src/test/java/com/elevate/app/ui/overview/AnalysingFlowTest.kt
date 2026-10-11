@@ -1,6 +1,7 @@
 package com.elevate.app.ui.overview
 
 import com.elevate.app.data.analysis.ArtifactAccess
+import com.elevate.app.data.analysis.CacheInfo
 import com.elevate.app.data.upload.UploadFailure
 import com.elevate.app.data.upload.UploadProgress
 import com.elevate.app.domain.analysis.AnalysisSource
@@ -197,5 +198,42 @@ class AnalysingFlowTest {
         assertThat(AnalysingFlow.sameFile("content://a", "abc123", "content://b", "def456")).isFalse()
         assertThat(AnalysingFlow.sameFile(null, null, "content://b", "def456")).isFalse()
         assertThat(AnalysingFlow.sameFile("content://a", null, "content://b", null)).isFalse()
+    }
+
+    private val utc = java.time.ZoneOffset.UTC
+    private val cached = CacheInfo(fromCache = true, cachedAtMs = 1_760_000_000_000, windowsCached = 2)
+
+    @Test fun `a finished match restored from the phone says analysed earlier with engine and the completion time`() {
+        val a = analysis(AnalysisState.COMPLETED, stages = listOf("analysis.started", "analysis.completed")).copy(engineVersion = "0.3.0")
+        val f = AnalysingFlow.state(started, null, UploadProgress.Idle, a, ArtifactAccess.Unknown, cached, utc)
+        assertThat(f.notice).isEqualTo("Analysed earlier · engine 0.3.0 · 11 Oct 2026 10:00")
+        // Offline too: the same line replaces "Offline · showing the last update".
+        val off = AnalysingFlow.state(started, null, UploadProgress.Idle, a.copy(offline = true), ArtifactAccess.Unknown, cached, utc)
+        assertThat(off.notice).isEqualTo("Analysed earlier · engine 0.3.0 · 11 Oct 2026 10:00")
+    }
+
+    @Test fun `without a completion event the cache time is used, unknown engine left out`() {
+        val a = analysis(AnalysisState.COMPLETED).copy(offline = true)
+        assertThat(AnalysingFlow.analysedEarlier(a, cached, utc)).isEqualTo("Analysed earlier · 9 Oct 2025 08:53")
+    }
+
+    @Test fun `analysed earlier is never said of fresh data or an unfinished analysis`() {
+        val done = analysis(AnalysisState.COMPLETED).copy(engineVersion = "0.3.0")
+        assertThat(AnalysingFlow.analysedEarlier(done, cached.copy(fromCache = false), utc)).isNull()
+        assertThat(AnalysingFlow.analysedEarlier(done, null, utc)).isNull()
+        val running = analysis(AnalysisState.PROCESSING, coveredUs = 6_000_000, windowsDone = 1).copy(offline = true)
+        assertThat(AnalysingFlow.analysedEarlier(running, cached, utc)).isNull()
+        val f = AnalysingFlow.state(started, null, UploadProgress.Idle, running, ArtifactAccess.Unknown, cached, utc)
+        assertThat(f.notice).isEqualTo("Offline · showing the last update")
+        // The old signature still works and never says it.
+        assertThat(AnalysingFlow.state(started, null, UploadProgress.Idle, done).notice).isNull()
+    }
+
+    @Test fun `a failed cancel says so and retry cancels, never upload stopped`() {
+        val p = Screen.Pipeline.Failed(AnalysingFlow.CANCEL_STAGE, "no network (host not resolved)")
+        val f = AnalysingFlow.state(p, null, UploadProgress.Idle, null)
+        assertThat(f.stages.first().value).isEqualTo("cancel failed")
+        assertThat(f.send!!.note).isEqualTo("Could not cancel the upload · Try again cancels it · no network (host not resolved)")
+        assertThat(AnalysingFlow.pill(p, null, UploadProgress.Idle, null)).isEqualTo("Cancel failed · tap to cancel again")
     }
 }

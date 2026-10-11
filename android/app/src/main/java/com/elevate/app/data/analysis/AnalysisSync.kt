@@ -2,6 +2,8 @@ package com.elevate.app.data.analysis
 
 import com.elevate.app.data.api.AnalysisEvent
 import com.elevate.app.data.api.AnalysisGetResponse
+import com.elevate.app.data.api.MatchRecord
+import com.elevate.app.data.api.WindowResult
 import com.elevate.app.data.events.EventLog
 import com.elevate.app.domain.analysis.AnalysisSource
 import com.elevate.app.domain.analysis.AnalysisState
@@ -11,6 +13,7 @@ import com.elevate.app.domain.analysis.BallTrack
 import com.elevate.app.domain.analysis.HitCandidate
 import com.elevate.app.domain.analysis.WindowResultStore
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +21,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Poll timing. Polling runs only while the analysis is on screen (contracts §3). While observed the
@@ -58,6 +63,21 @@ sealed interface ArtifactAccess {
 }
 
 /**
+ * What part of the shown analysis came from this phone's cache ([WindowCache], [CursorStore])
+ * rather than from the network in this session.
+ */
+data class CacheInfo(
+    /** The shown events/windows were restored from disk and nothing newer has been fetched since. */
+    val fromCache: Boolean = false,
+    /** Latest time (wall-clock ms) anything restored was written to the cache; null when nothing was. */
+    val cachedAtMs: Long? = null,
+    /** Windows restored from the cache (never downloaded again). */
+    val windowsCached: Int = 0,
+    /** `match.v1` was served from the cache. */
+    val matchCached: Boolean = false,
+)
+
+/**
  * Drives [EventLog] from the events cursor of one analysis (contracts §3) and downloads each
  * completed window's `window_result.v1` into a [WindowResultStore].
  *
@@ -80,6 +100,10 @@ class AnalysisSync(
     sourceHeight: Int? = null,
     private val policy: PollPolicy = PollPolicy(),
     private val pageLimit: Int = 100,
+    /** Window results and match.v1 kept on the phone; null = no offline copy (tests, recorded runs). */
+    private val windowCache: WindowCache? = null,
+    /** Where cache file IO runs (tests pass an empty context to stay on the test scheduler). */
+    private val io: CoroutineContext = Dispatchers.IO,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private val source = AnalysisSource.Live(analysisId)
@@ -98,6 +122,8 @@ class AnalysisSync(
     private val artifactAttempts = HashMap<String, Int>()
     private val artifactReasons = HashMap<String, String>()
     private val downloaded = HashSet<String>()
+    /** window_seq -> artifact_id of cached windows; these are never downloaded again. */
+    private val cachedWindows = HashMap<Int, String?>()
 
     private val _state = MutableStateFlow(
         // Nothing is current until the first cursor pass succeeds.
@@ -119,6 +145,10 @@ class AnalysisSync(
     private val _artifactAccess = MutableStateFlow<ArtifactAccess>(ArtifactAccess.Unknown)
     /** Whether window results can be fetched from the server at all (see [ArtifactAccess]). */
     val artifactAccess: StateFlow<ArtifactAccess> = _artifactAccess.asStateFlow()
+
+    private val _cache = MutableStateFlow(CacheInfo())
+    /** Whether what is shown came from the phone's cache (for "Analysed earlier"). */
+    val cache: StateFlow<CacheInfo> = _cache.asStateFlow()
 
     /** Coverage of the downloaded windows (may lag [AnalysisUiState.coverageUs] while downloads run). */
     val downloadedCoverageUs: List<LongRange> get() = store.coverageUs
@@ -145,7 +175,7 @@ class AnalysisSync(
      * is safe at any point: state is saved after every applied page).
      */
     suspend fun run() {
-        restoreOnce()
+        mutex.withLock { restoreOnce() }
         var idleDelay = policy.activeMs
         var idleForMs = 0L
         var errorDelay = policy.errorBaseMs
@@ -217,7 +247,10 @@ class AnalysisSync(
             serverState = page.state
             val progressed = next.afterSeq > log.afterSeq
             log = next
-            if (progressed) persist()
+            if (progressed) {
+                persist()
+                _cache.update { it.copy(fromCache = false) }
+            }
             publish(catchingUp = page.hasMore || log.missingSeq != null)
             if (!page.hasMore || !progressed) return true
         }
@@ -232,16 +265,65 @@ class AnalysisSync(
         }
     }
 
-    private fun restoreOnce() {
-        // Called by run() before the first request (saved state shows at once) and by syncOnce().
-        if (!restored) {
-            val saved = cursorStore?.load(analysisId)
-            restored = true
-            if (saved != null && saved.events.isNotEmpty()) {
-                log = EventLog.EMPTY.plus(saved.events)
-                publish(catchingUp = true, lastSyncAtMs = null)
+    /**
+     * Shows what this phone saved, before any request: the event cursor ([CursorStore]) and every
+     * cached window ([WindowCache]), so the trail, hits and overview appear with no network.
+     * Called under [mutex] by run() before the first request and by syncOnce().
+     */
+    private suspend fun restoreOnce() {
+        if (restored) return
+        restored = true
+        val saved = cursorStore?.load(analysisId)
+        val cachedAt = mutableListOf<Long>()
+        if (saved != null && saved.events.isNotEmpty()) {
+            log = EventLog.EMPTY.plus(saved.events)
+            cachedAt += saved.savedAtMs
+            publish(catchingUp = true, lastSyncAtMs = null)
+        }
+        val windows = windowCache?.let { c -> withContext(io) { runCatching { c.windows() }.getOrDefault(emptyList()) } }.orEmpty()
+        var restoredWindows = 0
+        for (w in windows) {
+            if (store.put(w.result, w.engineVersion) is WindowResultStore.PutResult.Rejected) continue
+            cachedWindows[w.windowSeq] = w.artifactId
+            w.artifactId?.let { downloaded += it }
+            cachedAt += w.cachedAtMs
+            restoredWindows++
+        }
+        if (restoredWindows > 0) {
+            _ballTrack.value = store.track()
+            _hits.value = store.hits()
+            _state.update { it.copy(windowsDownloaded = downloaded.size) }
+        }
+        if (cachedAt.isNotEmpty()) {
+            _cache.value = CacheInfo(fromCache = true, cachedAtMs = cachedAt.max(), windowsCached = restoredWindows)
+        }
+    }
+
+    /**
+     * Shows the saved state now (cursor + cached windows), without any request. Optional: [run] and
+     * [syncOnce] do it first anyway; call it to fill the screen before observing starts.
+     */
+    suspend fun restore() {
+        mutex.withLock { restoreOnce() }
+    }
+
+    /**
+     * `match.v1` for [matchId]: the cached copy first (no request), else `GET /v1/matches/{id}`,
+     * then kept for next time. [refresh] skips the cache. Throws [AnalysisApiException] like the client.
+     */
+    suspend fun match(matchId: String, refresh: Boolean = false): MatchRecord {
+        val c = windowCache
+        if (c != null && !refresh) {
+            val hit = withContext(io) { c.match() }
+            if (hit != null && hit.first.matchId == matchId) {
+                _cache.update { it.copy(matchCached = true, cachedAtMs = maxOf(it.cachedAtMs ?: 0, hit.second)) }
+                return hit.first
             }
         }
+        val m = client.getMatch(matchId)
+        if (c != null) withContext(io) { runCatching { c.putMatch(m) } }
+        _cache.update { it.copy(matchCached = false) }
+        return m
     }
 
     private fun persist() {
@@ -271,7 +353,10 @@ class AnalysisSync(
 
     private fun pendingArtifacts(): List<AnalysisEvent> = completedWithArtifacts().filter { e ->
         val id = e.artifactId!!
-        id !in downloaded && (artifactAttempts[id] ?: 0) < policy.artifactAttempts
+        // A cached window is never fetched again (unless the server names a new artifact for that window_seq).
+        val seq = e.windowSeq
+        val cached = seq != null && cachedWindows.containsKey(seq) && cachedWindows[seq].let { it == null || it == id }
+        !cached && id !in downloaded && (artifactAttempts[id] ?: 0) < policy.artifactAttempts
     }
 
     private suspend fun downloadArtifacts() {
@@ -298,9 +383,15 @@ class AnalysisSync(
                     fail(id, "window_seq ${w.windowSeq} in the file, ${e.windowSeq} in the event")
                     continue
                 }
-                when (val r = store.put(w, e.engineVersion?.ifBlank { null } ?: _state.value.engineVersion)) {
+                val engine = e.engineVersion?.ifBlank { null } ?: _state.value.engineVersion
+                when (val r = store.put(w, engine)) {
                     is WindowResultStore.PutResult.Rejected -> fail(id, r.reason)
-                    else -> { downloaded += id; artifactReasons.remove(id); changed = true }
+                    else -> {
+                        downloaded += id
+                        artifactReasons.remove(id)
+                        changed = true
+                        if (r is WindowResultStore.PutResult.Stored) saveWindow(w, id, engine)
+                    }
                 }
             } catch (ce: CancellationException) {
                 throw ce
@@ -312,8 +403,20 @@ class AnalysisSync(
         if (changed) {
             _ballTrack.value = store.track()
             _hits.value = store.hits()
+            _cache.update { it.copy(fromCache = false) }
         }
         _state.update { it.copy(windowsDownloaded = downloaded.size, artifactProblems = problems()) }
+    }
+
+    /** Keeps a downloaded window for offline reopening. Not fatal: it is downloaded again next time. */
+    private suspend fun saveWindow(w: WindowResult, artifactId: String, engine: String?) {
+        val c = windowCache ?: return
+        try {
+            withContext(io) { c.put(w, artifactId, engine) }
+            cachedWindows[w.windowSeq] = artifactId
+        } catch (e: java.io.IOException) {
+            _state.update { it.copy(syncError = "could not keep window ${w.windowSeq} on this phone: ${e.message}") }
+        }
     }
 
     private fun fail(id: String, reason: String) {

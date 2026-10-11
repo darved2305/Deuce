@@ -42,6 +42,12 @@ class UploadCoordinator(
     private val sleep: suspend (Long) -> Unit = { delay(it) },
     private val io: CoroutineDispatcher = Dispatchers.IO,
     private val newId: () -> String = { UUID.randomUUID().toString() },
+    /**
+     * Called once the server confirmed the upload, before the staging copy is deleted: keeps that
+     * copy for the match history (`filesDir/videos/<sha256>.<ext>`, [LocalVideoStore.keepStaged]).
+     * Only a staging copy exists when no read grant could be persisted, so a held grant never copies.
+     */
+    private val keepCopy: (UploadState) -> File? = LocalVideoStore::keepStaged,
 ) {
     private val _progress = MutableStateFlow(initialProgress(store.load()))
     val progress: StateFlow<UploadProgress> = _progress.asStateFlow()
@@ -51,12 +57,29 @@ class UploadCoordinator(
 
     fun current(): UploadState? = store.load()
 
-    /** Saves a new upload. Throws [IllegalStateException] while another upload is unfinished. */
+    /** Server sessions of discarded failed uploads, aborted (best effort) at the start of the next [resume]. */
+    private val pendingAborts = java.util.concurrent.ConcurrentLinkedQueue<String>()
+
+    /**
+     * Saves a new upload. An earlier upload that stopped with a failure (or paused offline) and is not
+     * running is discarded: its local state and staging copy are deleted and its server upload is
+     * aborted on the next [resume], so a stuck upload of another file never blocks a new one. Throws
+     * [IllegalStateException] only while another upload is actually running or waiting to resume.
+     */
     fun prepare(request: SessionCreateRequest, sourceUri: String, stagedPath: String? = null): UploadState {
         val bytes = request.source.bytes
         require(bytes >= 1) { "an empty file cannot be uploaded" }
         require(bytes <= Preflight.MAX_UPLOAD_BYTES) { "uploads are limited to 300 MiB (G1)" }
-        store.load()?.let { check(it.phase == UploadPhase.Completed || it.phase == UploadPhase.Aborted) { "another upload is unfinished" } }
+        store.load()?.let { old ->
+            val finished = old.phase == UploadPhase.Completed || old.phase == UploadPhase.Aborted
+            val stopped = (old.phase == UploadPhase.Failed || old.failure != null) && !running.isLocked
+            check(finished || stopped) { "another upload is unfinished" }
+            if (!finished) {
+                old.sessionId?.let { pendingAborts += it }
+                if (old.stagedPath != stagedPath) deleteStaged(old)
+                store.clear()
+            }
+        }
         val id = newId()
         val s = UploadState(
             phase = UploadPhase.Creating,
@@ -81,6 +104,7 @@ class UploadCoordinator(
         if (!running.tryLock()) return null
         try {
             runJob = currentCoroutineContext()[Job]
+            abortDiscarded()
             var s = store.load() ?: return null
             when (s.phase) {
                 UploadPhase.Completed -> { _progress.value = UploadProgress.Completed(s.confirmedBytes ?: s.bytes); return s }
@@ -91,7 +115,17 @@ class UploadCoordinator(
                 s = createSession(s) ?: return store.load()
             }
             val result = MultipartUploader(api, partTransport, store, _progress, policy, nowMs, sleep, io).run(s, sourceFor(s))
-            if (result.phase == UploadPhase.Completed) deleteStaged(result)
+            if (result.phase == UploadPhase.Completed) {
+                // Not fatal: without a kept copy the history asks for the video again.
+                try {
+                    keepCopy(result)
+                } catch (e: IOException) {
+                    // fall through: the staging copy is deleted below
+                } catch (e: SecurityException) {
+                    // same
+                }
+                deleteStaged(result)
+            }
             return result
         } finally {
             runJob = null
@@ -144,6 +178,22 @@ class UploadCoordinator(
         )
         store.save(next)
         return next
+    }
+
+    /** Frees the server-side uploads of discarded failed uploads. Best effort: R2 expires them otherwise. */
+    private suspend fun abortDiscarded() {
+        while (true) {
+            val id = pendingAborts.poll() ?: return
+            try {
+                api.abort(id)
+            } catch (e: ApiException) {
+                // 404/409: already gone or completed. Anything else: not retried (the server expires it).
+            } catch (e: AuthException) {
+                // same
+            } catch (e: IOException) {
+                // offline: not retried
+            }
+        }
     }
 
     private fun failBeforeSession(s: UploadState, f: UploadFailure) {

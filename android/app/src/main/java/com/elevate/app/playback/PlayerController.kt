@@ -172,7 +172,7 @@ class PlayerController(context: Context) {
         seekToHeldFrame()
     }
     fun replay() { acceptNextFrame = true; player.seekTo(0); player.play() }
-    fun seekTo(ms: Long) { acceptNextFrame = true; player.seekTo(ms.coerceIn(0, maxOf(0, _state.value.durationMs))) }
+    fun seekTo(ms: Long) { acceptNextFrame = true; player.seekTo(seekTargetMs(ms, _state.value.durationMs)) }
     fun setSpeed(speed: Float) = player.setPlaybackSpeed(speed)
 
     /** Debug aid: stamp every frame with its own presentation time (drawn by the overlay). */
@@ -246,3 +246,11 @@ class PlayerController(context: Context) {
         player.release()
     }
 }
+
+/**
+ * Seek target for [ms] on a clip [durationMs] long. Right after [PlayerController.open] the duration
+ * is still unknown (0): the target is then kept (only floored at 0) instead of clamped to 0, so a
+ * rally opened on a video that is still loading lands on the rally, not on 0:00.
+ */
+internal fun seekTargetMs(ms: Long, durationMs: Long): Long =
+    if (durationMs > 0) ms.coerceIn(0, durationMs) else ms.coerceAtLeast(0)
