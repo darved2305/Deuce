@@ -5,6 +5,7 @@ import {
   analysisIdSchema,
   artifactIdSchema,
   calibrationIdSchema,
+  challengeIdSchema,
   capabilityStatusSchema,
   capabilityTierSchema,
   canonicalModelIdSchema,
@@ -831,6 +832,106 @@ export const comparisonsResponseSchema = strictObject({
   candidates: z.array(comparisonCandidateSchema),
 });
 
+// Friends and challenges (1.11.0, D-261011-HW31). A challenge is one Reflex run on a match:
+// the exact freeze set (the rounds), the creator's score and per-round results. Players accept
+// it, play the same rounds and post their own entry. Scores are the app's own Reflex scoring;
+// the server checks that a score equals the sum of its round points and nothing else.
+export const challengeVerdictSchema = z.enum(["exact", "adjacent", "wrong", "too_slow"]);
+
+// One frozen shot. ladder_us are real decoded frame times of the creator's file (same sha256
+// means the same frames); landing_event_id and hit_event_id name events of the match.
+export const challengeRoundSchema = strictObject({
+  hit_event_id: eventIdSchema,
+  landing_event_id: eventIdSchema,
+  contact_ms: millisecondsSchema,
+  contact_sigma_ms: millisecondsSchema,
+  ladder_us: z.array(microsecondsSchema).min(1).max(8),
+});
+
+export const challengeRoundResultSchema = strictObject({
+  hit_event_id: eventIdSchema,
+  pick: zoneIdSchema.nullable(),
+  reaction_ms: millisecondsSchema.nullable(),
+  verdict: challengeVerdictSchema,
+  points: nonNegativeInteger.max(1000),
+});
+
+const challengeDisplayNameSchema = z.string().trim().min(1).max(24);
+const challengeScoreSchema = nonNegativeInteger.max(100000);
+const challengeRoundsSchema = z.array(challengeRoundSchema).min(3).max(50);
+const challengeRoundResultsSchema = z.array(challengeRoundResultSchema).min(1).max(50);
+
+// POST /v1/challenges (Idempotency-Key). rematch_of: a new challenge on the same match and rounds
+// by someone already in the old one; only they can accept it.
+export const challengeCreateRequestSchema = strictObject({
+  match_id: matchIdSchema,
+  display_name: challengeDisplayNameSchema.optional(),
+  rounds: challengeRoundsSchema,
+  score: challengeScoreSchema,
+  round_results: challengeRoundResultsSchema,
+  rematch_of: challengeIdSchema.optional(),
+});
+
+// POST /v1/challenges/{id}/accept
+export const challengeAcceptRequestSchema = strictObject({
+  display_name: challengeDisplayNameSchema.optional(),
+});
+
+// POST /v1/challenges/{id}/entries: the accepting player's own run of the same rounds.
+export const challengeEntryRequestSchema = strictObject({
+  display_name: challengeDisplayNameSchema.optional(),
+  score: challengeScoreSchema,
+  round_results: challengeRoundResultsSchema,
+});
+
+const challengePlayerSchema = strictObject({
+  player_id: z.uuid(),
+  display_name: z.string(),
+  score: nonNegativeInteger,
+  round_results: z.array(challengeRoundResultSchema),
+});
+
+// score and round_results are null until that player has played (accepted, not played yet).
+// outcome is from the creator's side, null until played: creator won, opponent won, or tie.
+export const challengeEntrySchema = strictObject({
+  player_id: z.uuid(),
+  display_name: z.string(),
+  score: nonNegativeInteger.nullable(),
+  round_results: z.array(challengeRoundResultSchema).nullable(),
+  outcome: z.enum(["creator", "opponent", "tie"]).nullable(),
+  accepted_at: isoTimestampSchema,
+  played_at: isoTimestampSchema.nullable(),
+});
+
+// GET /v1/challenges/{id} and the answer of create, accept and entries. The creator sees every
+// entry; an opponent sees only their own. video_sha256 names the file that has the frames.
+export const challengeSchema = strictObject({
+  id: challengeIdSchema,
+  match_id: matchIdSchema,
+  status: z.enum(["open", "played"]),
+  video_sha256: sha256Schema,
+  rematch_of: challengeIdSchema.nullable(),
+  rounds: challengeRoundsSchema,
+  creator: challengePlayerSchema,
+  entries: z.array(challengeEntrySchema),
+  viewer: strictObject({ player_id: z.uuid(), role: z.enum(["creator", "opponent"]) }),
+  created_at: isoTimestampSchema,
+});
+
+// GET /v1/friends: people you have exchanged challenges with, with the head-to-head record. A
+// challenge counts in the record once both scores exist.
+export const friendSchema = strictObject({
+  player_id: z.uuid(),
+  display_name: z.string(),
+  challenges: nonNegativeInteger,
+  played: nonNegativeInteger,
+  wins: nonNegativeInteger,
+  losses: nonNegativeInteger,
+  ties: nonNegativeInteger,
+  last_challenge_at: isoTimestampSchema,
+});
+export const friendsResponseSchema = strictObject({ items: z.array(friendSchema) });
+
 export const simulationRunRequestSchema = strictObject({
   moment_id: momentIdSchema,
   mode: z.enum(["read", "decide"]),
@@ -888,3 +989,7 @@ export type ComparisonsResponse = z.infer<typeof comparisonsResponseSchema>;
 export type SimulationRunRequest = z.infer<typeof simulationRunRequestSchema>;
 export type SimulationRunResponse = z.infer<typeof simulationRunResponseSchema>;
 export type OpponentScoutResponse = z.infer<typeof opponentScoutResponseSchema>;
+export type ChallengeCreateRequest = z.infer<typeof challengeCreateRequestSchema>;
+export type ChallengeEntryRequest = z.infer<typeof challengeEntryRequestSchema>;
+export type Challenge = z.infer<typeof challengeSchema>;
+export type FriendsResponse = z.infer<typeof friendsResponseSchema>;
