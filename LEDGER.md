@@ -142,3 +142,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T07:30Z | #179 | @nikhilpravinpise | p3 | budget: G6 download cap 1000/day, repeat URLs for the same artifact free (#159,  | D-261011-NP2 | 1.12.0 | Not deployed in this run, so the live curl from #159 (re-fetch does not increment, 201st |
 | 2026-10-11T07:33Z | #180 | @nikhilpravinpise | p3 | docs: finals showcase script for the MCP server in Claude | none | 1.12.0 | Real run, 2026-10-11, deployed API, match `m_e4e43ddfcae54f6aa09808b535d0fb95`, analysis `a_af59a659bf524ef5a078ae7bbe2d |
 | 2026-10-11T07:55Z | #182 | @nikhilpravinpise | p3 | posts: honest summary counts for real engine candidates (#174 follow-up) | D-261011-HW34 | 1.12.0 | ``` |
+| 2026-10-11T07:55Z | #181 | @nikhilpravinpise | p3 | mcp: self-contained, runs outside the repo (vendored contracts, pinned deps, bin | none | 1.12.0 | Copied `mcp/` to a folder outside the repo, installed and ran it there. `npm install` ran |
