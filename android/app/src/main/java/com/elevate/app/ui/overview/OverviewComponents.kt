@@ -1,5 +1,7 @@
 package com.elevate.app.ui.overview
 
+import com.elevate.app.ui.components.Explanations
+import com.elevate.app.ui.components.ExplainBox
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -187,7 +189,7 @@ internal fun RallyList(rows: List<RallyRow>, onOpenRally: (rallyId: String, star
     val c = Elevate.colors
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEachIndexed { i, r ->
-            Row(
+            ExplainBox(Explanations.Rally, Modifier.fillMaxWidth()) { Row(
                 Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(16.dp)).background(c.surface)
                     .clickable(role = Role.Button, onClickLabel = "Play rally ${i + 1}") { onOpenRally(r.rallyId, r.startMs, r.endMs) }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
@@ -204,7 +206,7 @@ internal fun RallyList(rows: List<RallyRow>, onOpenRally: (rallyId: String, star
                     Text(listOfNotNull(r.ballCoverage, r.winner).joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
                 }
                 Text("Play", color = c.orange, style = MaterialTheme.typography.labelLarge)
-            }
+            } }
         }
     }
 }

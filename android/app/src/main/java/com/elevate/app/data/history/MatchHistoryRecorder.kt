@@ -46,7 +46,8 @@ class MatchHistoryRecorder(
                 sessionId = sessionId,
                 matchId = matchId,
                 sha256 = sha256,
-                title = title,
+                // A restart re-sends start with a placeholder title: keep the one already recorded.
+                title = old?.title ?: title,
                 sourceUri = sourceUri,
                 stagedPath = stagedPath,
                 sport = sport,

@@ -1,5 +1,8 @@
 package com.elevate.app.ui.overview
 
+import com.elevate.app.ui.components.Explanation
+import com.elevate.app.ui.components.Explanations
+import com.elevate.app.ui.components.ExplainBox
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -128,13 +131,23 @@ fun AnalysingScreen(
     }
 }
 
+/** The hold-to-explain text for one line of the analysing checklist. */
+private fun stageExplanation(stage: FlowStage): Explanation = when (stage.key) {
+    FlowStage.Key.SEND -> if (stage.value == "preparing") Explanations.StageVideo else Explanations.StageUpload
+    FlowStage.Key.QUEUE -> Explanations.Analysing
+    FlowStage.Key.TRACK -> Explanations.InPieces
+    FlowStage.Key.MATCH -> Explanations.StageAnalyse
+}
+
 @Composable
 private fun ColumnScope.AnalysingBody(flow: AnalysingFlowState, onOpenResults: () -> Unit, onRetry: () -> Unit, onCancel: () -> Unit) {
     val c = Elevate.colors
     val stopped = flow.stages.any { it.state == StageState.Failed }
     flow.send?.let { SendCardView(it) }
     Column(Modifier.fillMaxWidth()) {
-        flow.stages.forEach { StageRow(it.label, it.state, it.value) }
+        flow.stages.forEach { stage ->
+            ExplainBox(stageExplanation(stage), Modifier.fillMaxWidth()) { StageRow(stage.label, stage.state, stage.value) }
+        }
     }
     flow.notice?.let { line ->
         ElevateCard(tint = if (stopped) c.errorSurface else c.lavender) {
@@ -221,7 +234,11 @@ private fun HeroVideo(hero: AnalysingHero, onPlay: (() -> Unit)?, modifier: Modi
     }
 }
 
-private enum class OverviewTab(val label: String) { Coach("Coach"), Rallies("Rallies"), Court("Court") }
+private enum class OverviewTab(val label: String, val explain: Explanation) {
+    Coach("Coach", Explanations.CoachReport),
+    Rallies("Rallies", Explanations.Rally),
+    Court("Court", Explanations.Landing),
+}
 
 /**
  * Match overview (reference 18-overview), laid out so nothing important is below the fold: a short
@@ -304,7 +321,7 @@ private fun OverviewTabRow(selected: Int, onSelect: (Int) -> Unit) {
                 onClick = { onSelect(i) },
                 selectedContentColor = c.orangeText,
                 unselectedContentColor = c.inkMuted,
-                text = { Text(tab.label, style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp)) },
+                text = { ExplainBox(tab.explain) { Text(tab.label, style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp)) } },
             )
         }
     }
@@ -427,7 +444,7 @@ private fun OverviewCourt(s: MatchOverviewState) {
     SectionTitle("Court")
     when (val ct = s.court) {
         is CourtState.Badminton -> ElevateCard {
-            ct.chip?.let { Pill(it, Elevate.colors.lavender, Elevate.colors.ink) }
+            ct.chip?.let { chip -> ExplainBox(Explanations.CourtQuality) { Pill(chip, Elevate.colors.lavender, Elevate.colors.ink) } }
             ct.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = Elevate.colors.inkMuted, modifier = Modifier.padding(top = 6.dp)) }
             if (ct.chip != null) Spacer(Modifier.height(10.dp))
             MiniCourt(ct, Modifier.fillMaxWidth())

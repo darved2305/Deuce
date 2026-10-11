@@ -52,6 +52,14 @@ object Explanations {
         "Train your read",
         "Pause on a real moment and guess where the shuttle goes next. It trains you to read the opponent earlier.",
     )
+    val Relaxed = Explanation(
+        "Relaxed",
+        "Gives you 3 seconds to answer instead of 1.5, so you can read the shot more calmly.",
+    )
+    val ZonePicker = Explanation(
+        "Landing zones",
+        "The half court is split into 9 zones. Tap the one where you think the shuttle will come down.",
+    )
     val Reflex = Explanation(
         "Reflex challenge",
         "A quick game: tap as fast as you can when the shuttle cue appears. It scores your reaction time.",
@@ -103,7 +111,7 @@ object Explanations {
     val all: List<Explanation> by lazy {
         listOf(
             CourtCorners, OffFrameCorner, ThisIsMe, Analyse, LiveTrail, Hit, Landing, Rally, Estimate, CoachReport,
-            ReadLab, Reflex, ShuttleCue, Listen, Share, CourtQuality, InPieces, UploadResumes,
+            ReadLab, Relaxed, ZonePicker, Reflex, ShuttleCue, Listen, Share, CourtQuality, InPieces, UploadResumes,
             Sport, Format, AddMatch, Cloud, Ball, Magnifier, TrailToggle, CourtToggle, Speed, Analysing, StageVideo, StageUpload, StageAnalyse,
         )
     }

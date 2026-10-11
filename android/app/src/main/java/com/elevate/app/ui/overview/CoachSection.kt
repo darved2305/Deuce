@@ -1,5 +1,7 @@
 package com.elevate.app.ui.overview
 
+import com.elevate.app.ui.components.Explanations
+import com.elevate.app.ui.components.ExplainBox
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -97,7 +99,7 @@ internal fun CoachSection(s: MatchOverviewState) {
         Spacer(Modifier.height(10.dp))
         Text("Where your landings fell", style = MaterialTheme.typography.titleMedium, color = c.ink)
         Spacer(Modifier.height(8.dp))
-        HeatGrid(report.heat)
+        ExplainBox(Explanations.Landing, Modifier.fillMaxWidth()) { HeatGrid(report.heat) }
         Spacer(Modifier.height(8.dp))
         Text(report.heat.caption, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
     }
@@ -188,12 +190,14 @@ private fun RhythmCard(r: RallyRhythm) {
 @Composable
 private fun SuggestionCard(s: Suggestion) {
     val c = Elevate.colors
-    ElevateCard(tint = if (s.enoughData) c.mint else c.lavender) {
-        Column(Modifier.semantics(mergeDescendants = true) { contentDescription = "${s.text}. Evidence: ${s.evidence}. $SOURCE_TAG" }) {
-            Pill(SOURCE_TAG, Color.White, c.ink)
-            Spacer(Modifier.height(10.dp))
-            Text(s.text, style = MaterialTheme.typography.bodyLarge, color = c.ink)
-            Text(s.evidence, style = MaterialTheme.typography.labelMedium, color = c.inkMuted, modifier = Modifier.padding(top = 6.dp))
+    ExplainBox(Explanations.CoachReport, Modifier.fillMaxWidth()) {
+        ElevateCard(tint = if (s.enoughData) c.mint else c.lavender) {
+            Column(Modifier.semantics(mergeDescendants = true) { contentDescription = "${s.text}. Evidence: ${s.evidence}. $SOURCE_TAG" }) {
+                Pill(SOURCE_TAG, Color.White, c.ink)
+                Spacer(Modifier.height(10.dp))
+                Text(s.text, style = MaterialTheme.typography.bodyLarge, color = c.ink)
+                Text(s.evidence, style = MaterialTheme.typography.labelMedium, color = c.inkMuted, modifier = Modifier.padding(top = 6.dp))
+            }
         }
     }
 }

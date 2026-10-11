@@ -12,6 +12,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import java.util.Locale
 
 /**
@@ -114,5 +116,7 @@ internal fun rememberVoiceCoach(): VoiceCoach {
     val context = LocalContext.current
     val coach = remember { VoiceCoach(context) }
     DisposableEffect(coach) { onDispose { coach.release() } }
+    // Backgrounded: stop speaking (the engine stays, so the next tap works).
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { coach.stop() }
     return coach
 }

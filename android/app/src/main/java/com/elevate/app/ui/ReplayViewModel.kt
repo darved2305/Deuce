@@ -172,9 +172,11 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) { inspector.info(uri) }
             } catch (e: IOException) {
                 Log.w(TAG, "video could not be opened", e)
+                pendingSeekMs = null
                 _screen.value = Screen.Import(error = "This video can't be opened. Try another file.")
                 return@launch
             } catch (e: SecurityException) {
+                pendingSeekMs = null
                 _screen.value = Screen.Import(error = "Access to this file was not granted. Pick it again.")
                 return@launch
             }
@@ -422,12 +424,12 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     private val _matches = MutableStateFlow<List<com.elevate.app.data.history.MatchHistoryEntry>>(emptyList())
     val matches: StateFlow<List<com.elevate.app.data.history.MatchHistoryEntry>> = _matches.asStateFlow()
 
-    // After _matches exists (init blocks run in declaration order).
-    init { refreshMatches() }
-
     private val _matchThumbs = MutableStateFlow<Map<String, androidx.compose.ui.graphics.ImageBitmap>>(emptyMap())
     /** Real middle frames of remembered matches whose video is still readable, by analysisId. */
     val matchThumbs: StateFlow<Map<String, androidx.compose.ui.graphics.ImageBitmap>> = _matchThumbs.asStateFlow()
+
+    // After _matches and _matchThumbs exist (init blocks run in declaration order).
+    init { refreshMatches() }
 
     fun refreshMatches() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -436,7 +438,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             for (e in list) {
                 if (_matchThumbs.value.containsKey(e.analysisId)) continue
                 val img = runCatching { history.thumbnail(getApplication(), e) }.getOrNull() ?: continue
-                _matchThumbs.value = _matchThumbs.value + (e.analysisId to img)
+                _matchThumbs.update { it + (e.analysisId to img) }
             }
         }
     }
@@ -446,13 +448,17 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Opens a remembered analysis: its Analysing/Overview panel at once, and its video if still readable. */
     fun openHistory(analysisId: String, seekMs: Long? = null) {
-        val p = _pipeline.value
-        if (p == Screen.Pipeline.Uploading || p is Screen.Pipeline.StartingAnalysis) { _panel.value = Screen.Panel.Analysing; return }
-        // A restore still finishing in the background must not switch the screen to its own analysis
-        // after the user picked this one (QA: restore/openHistory race).
-        pipelineJob?.cancel()
         viewModelScope.launch {
             val e = withContext(Dispatchers.IO) { history.history.get(analysisId) } ?: return@launch
+            val p = _pipeline.value
+            if (p == Screen.Pipeline.Uploading || p is Screen.Pipeline.StartingAnalysis) {
+                // Reopening the analysis that is starting only shows its panel. A different one wins over a
+                // still-starting upload (a cold-start link): the upload itself keeps running in its worker.
+                if (p is Screen.Pipeline.StartingAnalysis && p.sessionId == e.sessionId) { _panel.value = Screen.Panel.Analysing; return@launch }
+            }
+            // A restore still finishing in the background must not switch the screen to its own analysis
+            // after the user picked this one (QA: restore/openHistory race).
+            pipelineJob?.cancel()
             val uri = withContext(Dispatchers.IO) { com.elevate.app.data.history.MatchHistoryRuntime.readableSource(getApplication(), e) }
             adopted = e
             pipelineTitle = e.title
@@ -487,6 +493,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             }
             if (e == null) {
                 showPanel(Screen.Panel.None)
+                back()
                 _screen.value = Screen.Import(error = "This match isn't on this phone yet")
                 return@launch
             }
@@ -626,6 +633,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         if (!UploadRuntime.isConfigured) return
         viewModelScope.launch {
             val cur = withContext(Dispatchers.IO) { runCatching { uploadRuntime.coordinator.current() }.getOrNull() } ?: return@launch
+            // The user already opened a match (a cold-start link): the restore must not overwrite it.
+            if (adopted != null) return@launch
             _hero.value = heroFromSaved(cur)
             when (cur.phase) {
                 UploadPhase.Creating, UploadPhase.Uploading, UploadPhase.Completing -> {
