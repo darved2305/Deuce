@@ -377,8 +377,8 @@ class UploadCoordinatorTest {
             TestRequests.request(TestRequests.eurogamesSource(b.length(), TestRequests.sha256(b.readBytes()))),
             "content://media/picker/B",
         )
-        // The bug: the unfinished upload of file A is still saved, so file B cannot be prepared.
-        assertThrows(IllegalStateException::class.java) { prepareB() }
+        // A failed upload of file A is still saved; discard() must clear it (prepare also discards
+        // failed ones itself since #121), and file B must then be the saved upload.
 
         fake.apiFault("/upload/abort", Fault.Throw(offline = true))
         c.discard()
