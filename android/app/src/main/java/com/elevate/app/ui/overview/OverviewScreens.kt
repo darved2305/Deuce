@@ -290,6 +290,7 @@ private fun OverviewTop(s: MatchOverviewState, hero: AnalysingHero, play: (() ->
         }
     }
     live?.pendingLine?.let { PendingLine(it) }
+    CoachSection(s)
 }
 
 /** "18/485 seconds of your video analysed": covered seconds over the known clip length, never a percentage. */
