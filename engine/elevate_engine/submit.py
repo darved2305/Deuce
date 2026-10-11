@@ -16,6 +16,8 @@ from typing import Protocol
 from elevate_engine.log import log
 
 ANALYSIS_ID = re.compile(r"a_[A-Za-z0-9_-]{1,64}")
+MATCH_ID = re.compile(r"m_[A-Za-z0-9_-]{1,64}")
+SESSION_ID = re.compile(r"s_[A-Za-z0-9_-]{1,64}")
 # contracts §4: originals live at orig/{session_id}/source.mp4
 R2_KEY = re.compile(r"orig/s_[A-Za-z0-9_-]{1,64}/source\.mp4")
 # A claim whose spawn never completed (crash between claim and spawn) may be retaken after this.
@@ -37,6 +39,8 @@ class SubmitRequest:
     analysis_id: str
     r2_key: str
     session_spec: dict
+    match_id: str | None = None  # optional in modal.submit.request.v1 since 1.9.0 (HW15)
+    session_id: str | None = None
 
 
 def authorized(header: str | None, token: str) -> bool:
@@ -61,7 +65,13 @@ def parse(body: object) -> SubmitRequest:
         raise ValueError("r2_key must be orig/{session_id}/source.mp4")
     if not isinstance(spec, dict) or not spec.get("sport"):
         raise ValueError("session_spec must be the contracts §2 session body")
-    return SubmitRequest(analysis_id, r2_key, spec)
+    match_id = body.get("match_id")
+    if match_id is not None and (not isinstance(match_id, str) or not MATCH_ID.fullmatch(match_id)):
+        raise ValueError("match_id must look like m_…")
+    sid = body.get("session_id")
+    if sid is not None and (not isinstance(sid, str) or not SESSION_ID.fullmatch(sid)):
+        raise ValueError("session_id must look like s_…")
+    return SubmitRequest(analysis_id, r2_key, spec, match_id, sid)
 
 
 def submit_once(

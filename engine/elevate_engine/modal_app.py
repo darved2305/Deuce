@@ -75,7 +75,13 @@ UPLOADS = "uploads"  # per-analysis copy of the original in elevate-clips, delet
     volumes={MODELS_PATH: models, CLIPS_PATH: clips},
     timeout=3600,
 )
-def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
+def analyze(
+    analysis_id: str,
+    r2_key: str,
+    session_spec: dict,
+    match_id: str | None = None,
+    session_id: str | None = None,
+) -> dict:
     """Whole analysis on CPU, with the windows on parallel T4s (Models.candidates).
 
     analysis.started -> read the original from R2 once (copy into the clips volume so the window
@@ -83,16 +89,18 @@ def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
     overlap, in parallel -> A3 static filter + tracking layer in time order -> per window, in
     order: validate, PUT analysis/{id}/{version}/windows/{n}.json, register the artifact, post
     window.completed. A window is posted once the next one's candidates are in, so tracks that
-    cross the boundary are complete. Any failure posts analysis.failed with a reason.
+    cross the boundary are complete. After the last window: the two G8 track files, then
+    finalize with the measured vision result (only when match_id is known: #77, #79). Any
+    failure posts analysis.failed with a reason.
     """
     import shutil
     import time
 
-    from elevate_engine import pipeline
+    from elevate_engine import finalize, pipeline
     from elevate_engine import window as win
     from elevate_engine.api import InternalApi
     from elevate_engine.log import log
-    from elevate_engine.r2 import R2, WritesDisabled, window_key
+    from elevate_engine.r2 import R2, WritesDisabled, track_key, window_key
     from elevate_engine.sports import BADMINTON
     from elevate_engine.tracknet.run import sample_background
     from elevate_engine.video import duration_ms
@@ -103,7 +111,8 @@ def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
     api.event(analysis_id, {"type": "analysis.started", "engine_version": ENGINE_VERSION})
     rel = f"{UPLOADS}/{analysis_id}/source.mp4"
     local = Path(CLIPS_PATH) / rel
-    posted = []
+    posted, events = [], []
+    finalized = None
     try:
         r2 = R2.from_env()
         if not r2.writes_enabled:  # kill switch (G9): fail before any GPU work
@@ -129,10 +138,11 @@ def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
             art = api.artifact(analysis_id, "window_result", stored["r2_key"], stored["bytes"],
                                stored["sha256"])  # fmt: skip
             api.event(analysis_id, {
-                "type": "window.completed", "window_seq": k,
+                "type": "window.completed", "window_seq": k, "windows_expected": len(plans),
                 "decode_window_us": w["decode_window_us"], "emit_range_us": w["emit_range_us"],
                 "artifact_id": art,
             })  # fmt: skip
+            events.extend(w["events"])
             posted.append({"window_seq": k, "artifact_id": art, "ball_rows": len(w["ball"]),
                            "onsets": len(w["onsets"]), "hits": len(w["events"])})  # fmt: skip
 
@@ -141,7 +151,32 @@ def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
             if len(results) >= 2:  # window k-1 is final once window k is known
                 post(len(results) - 2)
         post(len(results) - 1)
-        _, stats = pipeline.track_windows(results, BADMINTON)
+        rows, stats = pipeline.track_windows(results, BADMINTON)
+
+        def put_track(name: str, kind: str, body: dict) -> str:
+            data = (json.dumps(body) + "\n").encode()
+            stored = r2.put_json(track_key(analysis_id, ENGINE_VERSION, name), data)
+            return api.artifact(analysis_id, kind, stored["r2_key"], stored["bytes"],
+                                stored["sha256"])  # fmt: skip
+
+        artifacts = {
+            "ball_track": put_track("ball", "ball_track", {"analysis_id": analysis_id,
+                                    "engine_version": ENGINE_VERSION, "ball": rows}),
+            # Empty until player tracks land: no rows rather than invented ones.
+            "player_tracks": put_track("players", "player_tracks", {"analysis_id": analysis_id,
+                                       "engine_version": ENGINE_VERSION, "players": []}),
+        }  # fmt: skip
+        if match_id is None:
+            log("finalize.skipped", analysis_id=analysis_id,
+                reason="no match_id in the submit body (API dispatch #82)")  # fmt: skip
+        else:
+            body = finalize.request(
+                analysis_id=analysis_id, match_id=match_id, r2_key=r2_key, sid=session_id,
+                session_spec=session_spec, engine_version=ENGINE_VERSION,
+                models=["tracknet_v3"], artifacts=artifacts, window_events=events,
+                calibration=None,
+            )  # fmt: skip
+            finalized = api.finalize(analysis_id, body)
     except Exception as exc:
         reason = f"{type(exc).__name__}: {exc}"[:200]
         log("analyze.failed", analysis_id=analysis_id, reason=reason, windows_posted=len(posted))
@@ -154,6 +189,7 @@ def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
         shutil.rmtree(local.parent, ignore_errors=True)
         clips.commit()
     result = {"analysis_id": analysis_id, "duration_ms": end, "windows": posted,
+              "hits": len(events), "finalized": finalized,
               "tracker": stats, "total_s": round(time.perf_counter() - started, 1)}  # fmt: skip
     log("analyze.done", **{k: v for k, v in result.items() if k != "windows"},
         windows_posted=len(posted))  # fmt: skip
@@ -175,7 +211,9 @@ async def submit(request: Request):
     raw = await request.body()
 
     def spawn(r) -> str:
-        return analyze.spawn(r.analysis_id, r.r2_key, r.session_spec).object_id
+        return analyze.spawn(
+            r.analysis_id, r.r2_key, r.session_spec, r.match_id, r.session_id
+        ).object_id
 
     # Modal's sync Dict/spawn calls run in a worker thread, off the event loop.
     status, payload = await asyncio.to_thread(

@@ -99,3 +99,12 @@ class InternalApi:
         validate("internal.artifact.response.v1", resp)
         log("api.artifact", analysis_id=analysis_id, kind=kind, artifact_id=resp["artifact_id"])
         return resp["artifact_id"]
+
+    def finalize(self, analysis_id: str, body: dict) -> dict:
+        """POST the vision result once. Validated first: an invalid body makes the API fail the
+        analysis (it appends analysis.failed), so it must never leave the engine."""
+        validate("analysis.finalize.request.v1", body)
+        resp = self._send(analysis_id, "finalize", body)
+        log("api.finalize", analysis_id=analysis_id, state=resp.get("state"),
+            last_seq=resp.get("last_seq"))  # fmt: skip
+        return resp
