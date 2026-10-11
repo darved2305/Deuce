@@ -60,9 +60,12 @@ class SetupReducerTest {
         assertThat(dragged.corners[Corner.FarLeft]).isEqualTo(pt(650, 320))
         assertThat(dragged.corners - Corner.FarLeft).isEqualTo(placed.corners - Corner.FarLeft)
         assertThat(reduce(dragged, SetupAction.Undo).corners).isEqualTo(placed.corners)
-        // Dragged past the picture: pinned to the frame edge.
-        val out = dragged.run(SetupAction.DragStart(Corner.NearLeft), SetupAction.Drag(Corner.NearLeft, pt(-40, 5000)))
-        assertThat(out.corners[Corner.NearLeft]).isEqualTo(pt(0, 1080))
+        // Dragged past the picture: kept as is (court corners may be off-frame) up to the margin.
+        val out = dragged.run(SetupAction.DragStart(Corner.NearLeft), SetupAction.Drag(Corner.NearLeft, pt(-40, 1200)))
+        assertThat(out.corners[Corner.NearLeft]).isEqualTo(pt(-40, 1200))
+        assertThat(out.offFrameCorners).isEqualTo(1)
+        val wild = dragged.run(SetupAction.DragStart(Corner.NearLeft), SetupAction.Drag(Corner.NearLeft, pt(-5000, 5000)))
+        assertThat(wild.corners[Corner.NearLeft]).isEqualTo(pt(-960, 1620))
         // A corner that is not placed cannot be dragged.
         val partial = atCourt().tapAll(court.take(1))
         assertThat(partial.run(SetupAction.DragStart(Corner.FarLeft), SetupAction.Drag(Corner.FarLeft, pt(5, 5)))).isEqualTo(partial)
