@@ -66,3 +66,57 @@ def test_posting_each_window_with_its_neighbours_equals_the_full_assembly():
     full, _ = pipeline.assemble("a_x", plans, ws, BADMINTON)
     for k in range(len(ws)):
         assert pipeline.window_for_posting("a_x", plans, ws, k, BADMINTON) == full[k]
+
+
+def test_window_result_forwards_optional_onsets_and_hit_events():
+    plan = pipeline.plan_windows(0, 100)[0]
+    result = {
+        "emit": list(plan.emit),
+        "t_ms": [0, 50],
+        "camera_motion_px": 0.0,
+        "blur_index": 0.1,
+    }
+    event = {
+        "event_id": "e_test",
+        "type": "hit",
+        "t_ms": 50,
+        "t_sigma_ms": 10,
+        "track_id": "t_test",
+        "image_xy": [12.0, 24.0],
+        "cues": ["trajectory", "audio"],
+        "state": "candidate",
+    }
+
+    window = pipeline.window_result(
+        "a_test",
+        plan,
+        result,
+        [[50, 12.0, 24.0, 0.9, "observed"]],
+        ["tracknet_v3"],
+        [[25, 0.8], [100, 0.5]],
+        [event],
+    )
+
+    assert window["onsets"] == [[25, 0.8]]
+    assert window["events"] == [event]
+    from elevate_engine import window as win
+
+    win.validate(window)
+
+
+def test_real_windows_carry_their_onsets_and_hits_inside_their_own_range():
+    plans = pipeline.plan_windows(31000, 91000)
+    ws = per_window(31000, 91000)
+    # Onsets as Models.candidates measures them: per emitted range, so no duplicates.
+    ws[1]["onsets"] = [[ws[1]["t_ms"][10], 0.7]]
+    full, _ = pipeline.assemble("a_x", plans, ws, BADMINTON)
+    from elevate_engine import window as win
+
+    assert sum(len(w["events"]) for w in full) > 0
+    for w in full:
+        win.validate(w)
+        lo, hi = (v // 1000 for v in w["emit_range_us"])
+        assert all(lo <= e["t_ms"] < hi and e["cues"][0] == "trajectory" for e in w["events"])
+    assert full[1]["onsets"] == ws[1]["onsets"] and full[0]["onsets"] == []
+    for k in range(len(ws)):
+        assert pipeline.window_for_posting("a_x", plans, ws, k, BADMINTON) == full[k]

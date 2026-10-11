@@ -43,7 +43,9 @@ so nobody waits. Changes need all four to agree; bump the schema version; announ
   `analysis_not_found` 404, `conflict` / `idempotency_conflict` / `analysis_run_conflict` 409,
   `upload_too_large` 413, `validation_failed` / `invalid_body` 422, `storage_budget_reached` /
   `daily_upload_limit` / `too_many_part_requests` / `daily_download_limit` 429, `internal` 500,
-  `dispatch_in_flight` / `engine_unavailable` / `uploads_paused` 503 (D-261011-HW6).
+  `dispatch_in_flight` / `engine_unavailable` / `uploads_paused` / `storage_busy` 503; also
+  `upload_parts_invalid` / `upload_not_complete` / `invalid_transition` 409 and `analysis_limit_reached` 429
+  (D-261011-HW6, D-261011-HW13).
 - `GET /v1/health` → `{"status": "ok"}`.
 - RLS: every row carries `owner_id = auth.uid()` (or a share grant); Realtime private channels
   authorised by RLS on `realtime.messages` for the analysis owner.
@@ -120,6 +122,8 @@ one `analysis.completed`.
   on the two window types (the dedupe key is `(type, window_seq)`).
 - `POST /internal/analyses/{id}/artifacts {kind, r2_key, bytes, sha256}` → `{artifact_id}`.
 - `POST /internal/analyses/{id}/finalize {vision_result: <match.v1 without insights>, clip_artifact_ids: []}`.
+  The engine fills `match_id` and `session_ids: [session_id]` from the dispatch request (`modal.submit.request.v1`
+  carries optional `match_id`, `session_id` since 1.9.0); `analysis.artifacts.*` may be `null` (D-261011-HW15).
 
 Event row (`analysis_events`):
 
@@ -242,6 +246,13 @@ moments and comparisons and serves the whole record.
                    "old": "p_me", "new": "p_arjun", "actor": "p_me", "at": "…", "reason": "proposal wrong"}]
 }
 ```
+
+`calibration` is `null` when the match is not calibrated. When present, `H` maps image pixels to court
+metres (row-major 3×3, bottom-right 1); `H_cov` is the 81-number covariance of flattened `H` or `null`;
+`tier` is `A` (residual ≤ 1 px, worst metre std ≤ 0.15 m, ≥ 90 % of court in frame), `B` (≤ 3 px,
+≤ 0.40 m, ≥ 50 %) or `C`. Hit candidates are `events` with `type: "hit"`, `image_xy`, optional
+`player_id` / `track_id`, and no `rally_id` until rallies are segmented. Window player rows carry
+`foot_x_m` / `foot_y_m` as `null` when withheld (D-261011-HW14).
 
 Review estimate enum `IN | OUT | TOO_CLOSE | UNOBSERVED`; `TOO_CLOSE` renders as
 "TOO CLOSE TO CALL". Score changes only from `confirmed_points`. An engine estimate carries

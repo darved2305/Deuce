@@ -61,6 +61,8 @@ data class AnalysisEvent(
     @SerialName("emit_range_us") val emitRangeUs: List<Long>? = null,
     @SerialName("artifact_id") val artifactId: String? = null,
     val reason: String? = null,
+    /** Total windows the engine will emit, on `analysis.started` (contracts 1.8.0); the "N" of "n of N". */
+    @SerialName("windows_expected") val windowsExpected: Int? = null,
 )
 
 /** `analysis.events.page.v1`: `GET /v1/analyses/{id}/events?after_seq=` (contracts §3). */
@@ -157,7 +159,8 @@ data class MatchRecord(
     val format: String,
     val ruleset: MatchRuleset,
     val players: List<MatchPlayer>,
-    val calibration: MatchCalibration,
+    /** Null when the match is not calibrated (contracts 1.8.0). */
+    val calibration: MatchCalibration?,
     val analysis: MatchAnalysis,
     val capabilities: MatchCapabilities,
     val rallies: List<MatchRally>,
@@ -200,8 +203,9 @@ data class MatchAnalysis(
 
 @Serializable
 data class MatchArtifacts(
-    @SerialName("ball_track") val ballTrack: String,
-    @SerialName("player_tracks") val playerTracks: String,
+    /** Null until a whole-match track artifact exists; the window results carry the tracks (contracts 1.9.0). */
+    @SerialName("ball_track") val ballTrack: String?,
+    @SerialName("player_tracks") val playerTracks: String?,
 )
 
 /** Capability tier (target) and status (verified), contracts §0. */

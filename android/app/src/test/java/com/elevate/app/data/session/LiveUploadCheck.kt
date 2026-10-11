@@ -88,7 +88,7 @@ class LiveUploadCheck {
         println("LIVE GET upload: status=${view.upload?.status} bytes=${view.upload?.bytes} part_size=${view.upload?.partSize} part_count=${view.upload?.partCount} completed_at=${view.upload?.completedAt}")
         println("LIVE GET source: bytes=${view.source.bytes} sha256=${view.source.sha256}")
         assertThat(view.upload!!.status).isEqualTo("completed")
-        assertThat(view.upload!!.bytes).isEqualTo(bytes)
+        assertThat(view.upload.bytes).isEqualTo(bytes)
         assertThat(result.confirmedBytes).isEqualTo(bytes)
         work.deleteRecursively()
     }

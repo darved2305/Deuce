@@ -19,16 +19,17 @@ class SetupReducerTest {
 
     private fun SetupState.run(vararg a: SetupAction) = a.fold(this, ::reduce)
     private fun SetupState.tapAll(ps: List<ImagePoint>) = ps.fold(this) { s, p -> reduce(s, SetupAction.Tap(p)) }
-    private fun atCourt() = start().run(SetupAction.Next).also { assertThat(it.step).isEqualTo(Step.Court) }
+    private fun atCourt() = start().also { assertThat(it.step).isEqualTo(Step.Court) }
 
     @Test fun tapsPlaceCornersInContractOrder() {
         var s = atCourt()
         assertThat(s.nextCorner).isEqualTo(Corner.NearLeft)
-        assertThat(s.instruction()).isEqualTo("Tap the near left court corner")
+        assertThat(s.instruction()).isEqualTo("Tap the near-left corner")
         s = s.tapAll(court)
         assertThat(s.corners.keys.toList()).containsExactly(Corner.NearLeft, Corner.NearRight, Corner.FarRight, Corner.FarLeft).inOrder()
         assertThat(s.corners[Corner.FarRight]).isEqualTo(pt(1250, 300))
         assertThat(s.nextCorner).isNull()
+        assertThat(s.instruction()).isEqualTo("Drag a corner to adjust")
         // A fifth tap does not move anything: corners are fine-tuned by dragging.
         assertThat(reduce(s, SetupAction.Tap(pt(10, 10)))).isEqualTo(s)
     }
@@ -59,9 +60,12 @@ class SetupReducerTest {
         assertThat(dragged.corners[Corner.FarLeft]).isEqualTo(pt(650, 320))
         assertThat(dragged.corners - Corner.FarLeft).isEqualTo(placed.corners - Corner.FarLeft)
         assertThat(reduce(dragged, SetupAction.Undo).corners).isEqualTo(placed.corners)
-        // Dragged past the picture: pinned to the frame edge.
-        val out = dragged.run(SetupAction.DragStart(Corner.NearLeft), SetupAction.Drag(Corner.NearLeft, pt(-40, 5000)))
-        assertThat(out.corners[Corner.NearLeft]).isEqualTo(pt(0, 1080))
+        // Dragged past the picture: kept as is (court corners may be off-frame) up to the margin.
+        val out = dragged.run(SetupAction.DragStart(Corner.NearLeft), SetupAction.Drag(Corner.NearLeft, pt(-40, 1200)))
+        assertThat(out.corners[Corner.NearLeft]).isEqualTo(pt(-40, 1200))
+        assertThat(out.offFrameCorners).isEqualTo(1)
+        val wild = dragged.run(SetupAction.DragStart(Corner.NearLeft), SetupAction.Drag(Corner.NearLeft, pt(-5000, 5000)))
+        assertThat(wild.corners[Corner.NearLeft]).isEqualTo(pt(-960, 1620))
         // A corner that is not placed cannot be dragged.
         val partial = atCourt().tapAll(court.take(1))
         assertThat(partial.run(SetupAction.DragStart(Corner.FarLeft), SetupAction.Drag(Corner.FarLeft, pt(5, 5)))).isEqualTo(partial)
@@ -86,7 +90,10 @@ class SetupReducerTest {
         assertThat(s.canNext).isFalse()
         assertThat(s.result()).isNull()
         val done = s.run(SetupAction.Tap(pt(128.04, 150.06)), SetupAction.Next)
-        assertThat(done.step).isEqualTo(Step.Review)
+        // Two screens only: who-is-me is the last step and finishes the flow with a full result.
+        assertThat(done.step).isEqualTo(Step.WhoIsMe)
+        assertThat(done.steps).containsExactly(Step.Court, Step.WhoIsMe).inOrder()
+        assertThat(done.canNext).isTrue()
         val r = done.result()!!
         assertThat(r.sport).isEqualTo(Sport.Badminton)
         assertThat(r.format).isEqualTo(Format.Singles)
@@ -101,7 +108,7 @@ class SetupReducerTest {
         assertThat(r.freePlaySeed).isNull()
         // Next does not run past the last step; Back walks back.
         assertThat(reduce(done, SetupAction.Next)).isEqualTo(done)
-        assertThat(reduce(done, SetupAction.Back).step).isEqualTo(Step.WhoIsMe)
+        assertThat(reduce(done, SetupAction.Back).step).isEqualTo(Step.Court)
     }
 
     @Test fun templateFollowsFormatAndChangingItClearsTheCorners() {
@@ -110,8 +117,8 @@ class SetupReducerTest {
         s = s.run(SetupAction.SelectFormat(Format.Doubles))
         assertThat(s.format).isEqualTo(Format.Doubles)
         assertThat(s.template).isEqualTo("badminton_doubles")
-        // Place corners, go back, switch format: the doubles corners are not singles corners.
-        s = s.run(SetupAction.Next).tapAll(court).run(SetupAction.Back, SetupAction.SelectFormat(Format.Singles))
+        // Place corners, switch format on the same screen: the doubles corners are not singles corners.
+        s = s.tapAll(court).run(SetupAction.SelectFormat(Format.Singles))
         assertThat(s.corners).isEmpty()
         assertThat(s.history).isEmpty()
         assertThat(s.template).isEqualTo("badminton_singles")
@@ -142,17 +149,16 @@ class SetupReducerTest {
         assertThat(s.format).isEqualTo(Format.None)
         assertThat(s.mode).isEqualTo(Mode.FreePlay)
         assertThat(s.template).isNull()
-        assertThat(s.steps).containsExactly(Step.Sport, Step.Ball, Step.WhoIsMe, Step.Review).inOrder()
+        assertThat(s.steps).containsExactly(Step.Ball, Step.WhoIsMe).inOrder()
+        assertThat(s.step).isEqualTo(Step.Ball)
         assertThat(s.run(SetupAction.SelectFormat(Format.Singles)).format).isEqualTo(Format.None)
 
-        s = s.run(SetupAction.Next)
-        assertThat(s.step).isEqualTo(Step.Ball)
         assertThat(s.canNext).isFalse()
         s = s.run(SetupAction.Tap(pt(812, 431)))
         assertThat(s.ball).isEqualTo(pt(812, 431))
         assertThat(s.run(SetupAction.Undo).ball).isNull()
-        s = s.run(SetupAction.Next, SetupAction.Tap(pt(500, 600)), SetupAction.Next)
-        assertThat(s.step).isEqualTo(Step.Review)
+        s = s.run(SetupAction.Next, SetupAction.Tap(pt(500, 600)))
+        assertThat(s.step).isEqualTo(Step.WhoIsMe)
         val r = s.result()!!
         assertThat(r.calibrationInput).isNull()
         assertThat(r.freePlaySeed).isEqualTo(TimedPoint(listOf(812.0, 431.0), 1200))
@@ -163,17 +169,21 @@ class SetupReducerTest {
     @Test fun switchingSportClearsTaps() {
         val rulesets = SetupCatalog.RULESETS + (Sport.FreePlay to Ruleset("free_play", "unpinned-test"))
         val s = start(Sport.FreePlay).copy(rulesets = rulesets)
-            .run(SetupAction.Next).tapAll(court).run(SetupAction.Back, SetupAction.SelectSport(Sport.FreePlay))
+            .tapAll(court).run(SetupAction.SelectSport(Sport.FreePlay))
         assertThat(s.corners).isEmpty()
         val back = s.run(SetupAction.SelectSport(Sport.Badminton))
+        assertThat(back.step).isEqualTo(Step.Court)
         assertThat(back.format).isEqualTo(Format.Singles)
         assertThat(back.mode).isEqualTo(Mode.Match)
     }
 
-    @Test fun tapsOutsideThePictureArePinnedAndSportStepIgnoresTaps() {
-        val s = start()
-        assertThat(reduce(s, SetupAction.Tap(pt(5, 5)))).isEqualTo(s)
+    @Test fun tapsOutsideThePictureArePinnedAndSportIsFixedAfterTheCourt() {
         val who = atCourt().tapAll(court).run(SetupAction.Next, SetupAction.Tap(pt(2000, -3)))
         assertThat(who.me).isEqualTo(pt(1920, 0))
+        // On the second screen, sport, format and mode can no longer change (they are on the first).
+        assertThat(who.run(SetupAction.SelectFormat(Format.Doubles))).isEqualTo(who)
+        assertThat(who.run(SetupAction.SelectMode(Mode.Practice))).isEqualTo(who)
+        // Who-is-me taps do not touch the corners.
+        assertThat(who.corners).isEqualTo(atCourt().tapAll(court).corners)
     }
 }

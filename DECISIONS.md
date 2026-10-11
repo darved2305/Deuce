@@ -743,3 +743,50 @@ Template (copy to the end of the file):
   `research/out/engine-roadmap/roadmap.md`, and `research/out/S1-stabilisation-findings.md`.
   Evidence and acceptance bars are recorded in `docs/plan/13-additional-plan.md`.
 - **PRs:** pending.
+
+## D-261011-HW13 · Error codes from the deployed API (contracts 1.7.1)
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **Decision:** `knownErrorCodes` adds `upload_parts_invalid`, `upload_not_complete`, `invalid_transition`
+  (409), `analysis_limit_reached` (429, the 3-analyses-per-session cap), `storage_busy` (503, the
+  fail-closed budget counter), as emitted by Person 3's #28/#29.
+- **Blast radius:** Person 2 maps them to messages; contracts 1.7.1, additive.
+
+## D-261011-HW14 · Contracts 1.8.0: calibration, hits, foot metres, segments session, window count
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** Answer #65 (Person 3), #66 and #63 (Person 1) so finalize, Track S and Track T proceed.
+- **Decision:**
+  1. `match.v1.calibration` nullable (uncalibrated matches are `null`, never invented).
+  2. `H` maps image px to court m, row-major, h33 = 1; `H_cov` 81 numbers or null; `tier` A|B|C with
+     Person 1's thresholds (A ≤ 1 px, ≤ 0.15 m, ≥ 90 %; B ≤ 3 px, ≤ 0.40 m, ≥ 50 %), marked for review
+     on real taps.
+  3. `POST /v1/sessions` response: multipart (unchanged) or `{upload_mode: "segments", segments:
+     {max_segment_bytes, max_concurrency, url_ttl_s}}`.
+  4. Foot metres live in `window_result.v1` player rows (nullable = withheld); `match.v1` players stay
+     identity records.
+  5. Hits are `match.v1.events` with `type: "hit"`; `rally_id` optional, `player_id` / `track_id`
+     optional.
+  6. Optional `windows_expected` on events (sent on `analysis.started`).
+  7. A match-scope share grant exposes the full `match.v1`, read-only.
+  8. Minimal finalize body: `vision_result` with every array allowed empty, `calibration: null`,
+     `score: {timeline: [], games: []}`, `clip_artifact_ids: []`.
+- **Blast radius:** Person 1 (finalize call, H direction, foot rows, hits as events, windows_expected);
+  Person 3 (match route, segments response, share policies, finalize ingest); Person 2 (readers:
+  nullable calibration and foot, invert H for drawing). Contracts 1.8.0.
+- **PRs:** this PR.
+
+## D-261011-HW15 · Contracts 1.9.0: the engine can build a valid finalize body (#77)
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** Option 2 of #77: the API hands the engine `match_id` and `session_id` at dispatch,
+  so the engine owns the whole `vision_result`; ingest stays validate-and-store.
+- **Decision:**
+  1. `modal.submit.request.v1` adds optional `match_id` and `session_id`. The API sends both from the
+     analysis row it already reads at dispatch. Optional so a running engine is never broken by order
+     of deploys: **deploy the engine first, then the API.**
+  2. `match.v1.analysis.artifacts.ball_track` / `player_tracks` are nullable: `null` until a single
+     whole-match track artifact exists; the per-window `window_result` artifacts are the tracks (G8).
+  3. The engine fills `vision_result.match_id` and `session_ids: [session_id]` from the request,
+     `players: []` until player tracks land, everything else per HW14 item 8.
+- **Blast radius:** Person 1 (read the two fields, call finalize; #79); Person 3 (send the two fields
+  at dispatch, accept null artifacts; #82); Person 2 (Kotlin `MatchArtifacts` nullable, done in this
+  PR). Contracts 1.9.0, additive except the nullable artifact ids.
+- **PRs:** this PR.

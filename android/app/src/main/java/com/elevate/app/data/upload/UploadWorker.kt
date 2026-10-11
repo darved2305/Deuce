@@ -48,7 +48,7 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         when {
             result == null -> Result.success() // nothing saved, or another run owns it
             result.phase == UploadPhase.Completed -> Result.success()
-            result.failure?.code == MultipartUploader.OFFLINE -> Result.retry()
+            result.failure?.retryable == true -> Result.retry()
             else -> Result.failure()
         }
     }

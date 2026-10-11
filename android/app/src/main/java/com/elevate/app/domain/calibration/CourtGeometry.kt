@@ -11,8 +11,15 @@ data class ImagePoint(val x: Double, val y: Double)
  * Maps between a view that shows the upright frame with "fit" scaling (letterboxed, centred) and
  * source image space. [srcW]/[srcH] are the upright source size (rotation already applied).
  */
-data class FitTransform(val viewW: Double, val viewH: Double, val srcW: Double, val srcH: Double) {
-    val scale = min(viewW / srcW, viewH / srcH)
+data class FitTransform(
+    val viewW: Double,
+    val viewH: Double,
+    val srcW: Double,
+    val srcH: Double,
+    /** View px kept free on every side of the fitted picture, so a handle can sit just outside it. */
+    val padding: Double = 0.0,
+) {
+    val scale = min((viewW - 2 * padding) / srcW, (viewH - 2 * padding) / srcH)
     val offsetX = (viewW - srcW * scale) / 2
     val offsetY = (viewH - srcH * scale) / 2
 
@@ -26,6 +33,14 @@ data class FitTransform(val viewW: Double, val viewH: Double, val srcW: Double, 
     /** Like [toSource] but pinned to the frame edge: for dragging a handle past the picture. */
     fun toSourceClamped(vx: Double, vy: Double) =
         ImagePoint(((vx - offsetX) / scale).coerceIn(0.0, srcW), ((vy - offsetY) / scale).coerceIn(0.0, srcH))
+
+    /**
+     * View to source without pinning to the frame, for a corner that is really outside the picture
+     * (a near baseline below the frame). Limited to [margin] times the frame size beyond each edge
+     * so a wild drag cannot fly away.
+     */
+    fun toSourceExtended(vx: Double, vy: Double, margin: Double = CourtGeometry.EXTENDED_MARGIN) =
+        CourtGeometry.clampExtended(ImagePoint((vx - offsetX) / scale, (vy - offsetY) / scale), srcW, srcH, margin)
 
     fun toView(p: ImagePoint) = Pair(offsetX + p.x * scale, offsetY + p.y * scale)
 }
@@ -48,10 +63,22 @@ object CourtGeometry {
     const val MIN_SIDE_PX = 24.0
     /** The court must cover at least this fraction of the frame to be a usable tap calibration. */
     const val MIN_AREA_FRACTION = 0.01
+    /** How far past each frame edge (as a fraction of the frame size) a court corner may be placed. */
+    const val EXTENDED_MARGIN = 0.5
+
+    /** Pins [p] to the frame grown by [margin] of its size on every side. */
+    fun clampExtended(p: ImagePoint, srcW: Double, srcH: Double, margin: Double = EXTENDED_MARGIN) = ImagePoint(
+        p.x.coerceIn(-margin * srcW, (1 + margin) * srcW),
+        p.y.coerceIn(-margin * srcH, (1 + margin) * srcH),
+    )
+
+    /** True when [p] lies outside the picture: contracts §2 allows such `points_px`. */
+    fun isOffFrame(p: ImagePoint, srcW: Double, srcH: Double) = p.x < 0 || p.x > srcW || p.y < 0 || p.y > srcH
 
     /**
      * Checks a tapped quad in contract order before it is sent. Geometry only: it says nothing
      * about whether the lines are really the court's (the engine fits that, `residual_px`).
+     * Corners outside the frame are fine (the near ones often are); the area is the whole quad's.
      */
     fun check(p: Map<Corner, ImagePoint>, srcW: Double, srcH: Double): CourtCheck {
         if (p.size != 4) return CourtCheck.Problem("incomplete", "Place all four corners")

@@ -59,6 +59,9 @@ export const knownErrorCodes = {
   conflict: 409,
   idempotency_conflict: 409,
   analysis_run_conflict: 409,
+  upload_parts_invalid: 409,
+  upload_not_complete: 409,
+  invalid_transition: 409,
   upload_too_large: 413,
   validation_failed: 422,
   invalid_body: 422,
@@ -66,11 +69,13 @@ export const knownErrorCodes = {
   daily_upload_limit: 429,
   too_many_part_requests: 429,
   daily_download_limit: 429,
+  analysis_limit_reached: 429,
   internal: 500,
   segment_gap: 409,
   dispatch_in_flight: 503,
   engine_unavailable: 503,
   uploads_paused: 503,
+  storage_busy: 503,
 } as const;
 
 export const healthResponseSchema = strictObject({
@@ -189,16 +194,29 @@ export const sessionCreateRequestSchema = strictObject({
   }
 });
 
-export const sessionCreateResponseSchema = strictObject({
-  session_id: sessionIdSchema,
-  match_id: matchIdSchema,
-  upload: strictObject({
-    upload_id: z.string(),
-    r2_key: origR2KeySchema,
-    part_size: nonNegativeInteger,
-    max_concurrency: nonNegativeInteger,
+// D-261011-HW14: multipart (unchanged) or segments (chunked upload, contracts §2).
+export const sessionCreateResponseSchema = z.union([
+  strictObject({
+    session_id: sessionIdSchema,
+    match_id: matchIdSchema,
+    upload: strictObject({
+      upload_id: z.string(),
+      r2_key: origR2KeySchema,
+      part_size: nonNegativeInteger,
+      max_concurrency: nonNegativeInteger,
+    }),
   }),
-});
+  strictObject({
+    session_id: sessionIdSchema,
+    match_id: matchIdSchema,
+    upload_mode: z.literal("segments"),
+    segments: strictObject({
+      max_segment_bytes: nonNegativeInteger,
+      max_concurrency: nonNegativeInteger,
+      url_ttl_s: nonNegativeInteger,
+    }),
+  }),
+]);
 
 export const uploadPartsRequestSchema = strictObject({
   part_numbers: z.array(nonNegativeInteger),
@@ -328,6 +346,10 @@ export const analysisCreateResponseSchema = strictObject({
 
 export const modalSubmitRequestSchema = strictObject({
   analysis_id: analysisIdSchema,
+  // D-261011-HW15 (#77): the engine fills vision_result.match_id / session_ids from these. Optional
+  // so an engine deployed before the API keeps accepting requests; finalize needs them.
+  match_id: matchIdSchema.optional(),
+  session_id: sessionIdSchema.optional(),
   // multipart: the original; segments: segment 0 (the engine then polls /internal/.../segments).
   r2_key: z.union([origR2KeySchema, segmentR2KeySchema]),
   session_spec: sessionCreateRequestSchema,
@@ -336,6 +358,8 @@ export const modalSubmitRequestSchema = strictObject({
 // §3 window fields. window_seq is required on window.completed / window.failed: the event
 // dedupe key is (type, window_seq), so a missing window_seq would merge every window into one.
 const windowRangeFields = {
+  // Total windows the engine will emit, on analysis.started, so the app can show "n of N" (#66).
+  windows_expected: nonNegativeInteger.optional(),
   decode_window_us: rangeUsSchema.optional(),
   emit_range_us: rangeUsSchema.optional(),
   artifact_id: artifactIdSchema.optional(),
@@ -443,6 +467,10 @@ const matchPlayerSchema = strictObject({
   identity: z.string(),
 });
 
+// D-261011-HW14: H maps IMAGE pixels -> COURT metres, row-major 3x3, bottom-right = 1 (the app uses
+// its inverse to draw court lines). H_cov: covariance of the flattened H (81 numbers) or null.
+// Tier: A residual <= 1 px, worst metre std <= 0.15 m, >= 90% of court in frame; B <= 3 px, <= 0.40 m,
+// >= 50%; else C (thresholds under review until measured on real taps).
 const calibrationSchema = strictObject({
   calibration_id: calibrationIdSchema,
   plane: surfacePlaneSchema,
@@ -459,10 +487,10 @@ const calibrationSchema = strictObject({
     z.number(),
     z.number(),
   ]),
-  H_cov: z.unknown().nullable(),
+  H_cov: z.array(z.number()).length(81).nullable(),
   residual_px: z.number(),
   visible_fraction: z.number(),
-  tier: z.string(),
+  tier: z.enum(["A", "B", "C"]),
 });
 
 const analysisSummarySchema = strictObject({
@@ -470,9 +498,11 @@ const analysisSummarySchema = strictObject({
   engine_version: z.string(),
   state: analysisStateSchema,
   models: z.array(canonicalModelIdSchema),
+  // D-261011-HW15 (#77): null until a single whole-match track artifact exists; the per-window
+  // window_result artifacts carry the tracks today (G8 allows only window keys).
   artifacts: strictObject({
-    ball_track: artifactIdSchema,
-    player_tracks: artifactIdSchema,
+    ball_track: artifactIdSchema.nullable(),
+    player_tracks: artifactIdSchema.nullable(),
   }),
 });
 
@@ -556,7 +586,9 @@ const matchEventSchema = strictObject({
   type: z.string(),
   t_ms: millisecondsSchema,
   t_sigma_ms: millisecondsSchema,
-  rally_id: rallyIdSchema,
+  rally_id: rallyIdSchema.optional(), // absent before rally segmentation (hit candidates)
+  player_id: playerIdSchema.optional(),
+  track_id: trackIdSchema.optional(),
   plane: surfacePlaneSchema.optional(),
   contact_xy_m: xyMetresSchema.optional(),
   cov_m2: z
@@ -716,7 +748,7 @@ export const matchV1Schema = strictObject({
     version: z.string(),
   }),
   players: z.array(matchPlayerSchema),
-  calibration: calibrationSchema,
+  calibration: calibrationSchema.nullable(), // null = not calibrated (D-261011-HW14)
   analysis: analysisSummarySchema,
   capabilities: capabilitiesSchema,
   rallies: z.array(rallySchema),

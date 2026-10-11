@@ -6,6 +6,10 @@
       "pattern": "^a_[A-Za-z0-9_-]+$",
       "type": "string"
     },
+    "match_id": {
+      "pattern": "^m_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
     "r2_key": {
       "anyOf": [
         {
@@ -17,6 +21,10 @@
           "type": "string"
         }
       ]
+    },
+    "session_id": {
+      "pattern": "^s_[A-Za-z0-9_-]+$",
+      "type": "string"
     },
     "session_spec": {
       "additionalProperties": false,

@@ -64,7 +64,11 @@ object SetupCatalog {
     }
 }
 
-enum class Step { Sport, Court, Ball, WhoIsMe, Review }
+/**
+ * Two screens: the court (sport, format and corners together; free play: the ball), then who is
+ * you. The last step finishes the flow: there is no separate review screen.
+ */
+enum class Step { Court, Ball, WhoIsMe }
 
 sealed interface SetupAction {
     data class SelectSport(val sport: Sport) : SetupAction
@@ -92,7 +96,7 @@ data class SetupState(
     val sport: Sport = Sport.Badminton,
     val format: Format = Format.Singles,
     val mode: Mode = Mode.Match,
-    val step: Step = Step.Sport,
+    val step: Step = Step.Court,
     val corners: Map<Corner, ImagePoint> = emptyMap(),
     /** Undo stack of earlier corner sets, newest last. */
     val history: List<Map<Corner, ImagePoint>> = emptyList(),
@@ -108,21 +112,24 @@ data class SetupState(
 
     /** Free play has no court to tap: the ball step replaces it. */
     val steps: List<Step>
-        get() = if (sport == Sport.FreePlay) listOf(Step.Sport, Step.Ball, Step.WhoIsMe, Step.Review)
-        else listOf(Step.Sport, Step.Court, Step.WhoIsMe, Step.Review)
+        get() = if (sport == Sport.FreePlay) listOf(Step.Ball, Step.WhoIsMe) else listOf(Step.Court, Step.WhoIsMe)
+
+    /** Sport, format and mode are chosen on the first screen only. */
+    val onFirstStep: Boolean get() = step == steps.first()
 
     val nextCorner: Corner? get() = Corner.entries.firstOrNull { it !in corners }
+
+    /** How many placed corners lie outside the picture (their position is an estimate). */
+    val offFrameCorners: Int get() = corners.values.count { CourtGeometry.isOffFrame(it, srcW, srcH) }
 
     val courtCheck: CourtCheck get() = CourtGeometry.check(corners, srcW, srcH)
 
     /** Why Next is off on this step; null when it is on. */
     val blocker: String?
         get() = when (step) {
-            Step.Sport -> if (isEnabled(sport)) null else "${sport.label} isn't analysed in this build"
-            Step.Court -> (courtCheck as? CourtCheck.Problem)?.text
-            Step.Ball -> if (ball == null) "Tap the ball" else null
-            Step.WhoIsMe -> if (me == null) "Tap yourself" else null
-            Step.Review -> if (result() == null) "Setup is incomplete" else null
+            Step.Court -> if (!isEnabled(sport)) "${sport.label} isn't analysed in this build" else (courtCheck as? CourtCheck.Problem)?.text
+            Step.Ball -> if (!isEnabled(sport)) "${sport.label} isn't analysed in this build" else if (ball == null) "Tap the ball" else null
+            Step.WhoIsMe -> if (me == null) "Tap yourself" else if (result() == null) "Setup is incomplete" else null
         }
 
     val canNext: Boolean get() = blocker == null
@@ -132,7 +139,6 @@ data class SetupState(
             Step.Court -> history.isNotEmpty()
             Step.Ball -> ball != null
             Step.WhoIsMe -> me != null
-            else -> false
         }
 
     /** The session inputs this flow produces, or null until every step is complete and valid. */
@@ -169,47 +175,45 @@ data class SetupState(
 /** Pure reducer: every user action on the setup flow. Unknown or disallowed actions change nothing. */
 fun reduce(s: SetupState, a: SetupAction): SetupState = when (a) {
     is SetupAction.SelectSport -> when {
-        s.step != Step.Sport || !s.isEnabled(a.sport) || a.sport == s.sport -> s
+        !s.onFirstStep || !s.isEnabled(a.sport) || a.sport == s.sport -> s
         // The court (and its corners) depend on the sport: start the taps over.
         else -> s.copy(
             sport = a.sport,
+            step = if (a.sport == Sport.FreePlay) Step.Ball else Step.Court,
             format = SetupCatalog.formats(a.sport).first(),
             mode = SetupCatalog.modes(a.sport).first(),
             corners = emptyMap(), history = emptyList(), ball = null,
         )
     }
     is SetupAction.SelectFormat -> when {
-        s.step != Step.Sport || a.format !in SetupCatalog.formats(s.sport) || a.format == s.format -> s
+        !s.onFirstStep || a.format !in SetupCatalog.formats(s.sport) || a.format == s.format -> s
         // Singles and doubles courts have different corners: earlier taps no longer apply.
         else -> s.copy(format = a.format, corners = emptyMap(), history = emptyList())
     }
     is SetupAction.SelectMode ->
-        if (s.step == Step.Sport && a.mode in SetupCatalog.modes(s.sport)) s.copy(mode = a.mode) else s
+        if (s.onFirstStep && a.mode in SetupCatalog.modes(s.sport)) s.copy(mode = a.mode) else s
     is SetupAction.Tap -> {
         val p = clamp(s, a.p)
         when (s.step) {
             Step.Court -> s.nextCorner?.let { c -> s.copy(corners = s.corners + (c to p), history = s.history + listOf(s.corners)) } ?: s
             Step.Ball -> s.copy(ball = p)
             Step.WhoIsMe -> s.copy(me = p)
-            else -> s
         }
     }
     is SetupAction.DragStart ->
         if (s.step == Step.Court && a.corner in s.corners) s.copy(history = s.history + listOf(s.corners)) else s
     is SetupAction.Drag ->
-        if (s.step == Step.Court && a.corner in s.corners) s.copy(corners = s.corners + (a.corner to clamp(s, a.p))) else s
+        if (s.step == Step.Court && a.corner in s.corners) s.copy(corners = s.corners + (a.corner to CourtGeometry.clampExtended(a.p, s.srcW, s.srcH))) else s
     SetupAction.Undo -> when (s.step) {
         Step.Court -> if (s.history.isEmpty()) s else s.copy(corners = s.history.last(), history = s.history.dropLast(1))
         Step.Ball -> s.copy(ball = null)
         Step.WhoIsMe -> s.copy(me = null)
-        else -> s
     }
     SetupAction.Reset -> when (s.step) {
         // Reset is itself one undo step, so a slip of the finger loses nothing.
         Step.Court -> if (s.corners.isEmpty()) s else s.copy(corners = emptyMap(), history = s.history + listOf(s.corners))
         Step.Ball -> s.copy(ball = null)
         Step.WhoIsMe -> s.copy(me = null)
-        else -> s
     }
     SetupAction.Next -> {
         val i = s.steps.indexOf(s.step)
@@ -223,14 +227,12 @@ fun reduce(s: SetupState, a: SetupAction): SetupState = when (a) {
 
 private fun clamp(s: SetupState, p: ImagePoint) = ImagePoint(p.x.coerceIn(0.0, s.srcW), p.y.coerceIn(0.0, s.srcH))
 
-/** Instruction line for the current step. */
+/** Instruction line for the current step (shown on the frame). */
 fun SetupState.instruction(): String = when (step) {
-    Step.Sport -> "What are you playing?"
-    Step.Court -> nextCorner?.let { "Tap the ${it.label.lowercase()} court corner" }
-        ?: "Drag a corner to fine-tune it"
-    Step.Ball -> "Tap the ball"
-    Step.WhoIsMe -> "Tap yourself"
-    Step.Review -> "Check what will be sent"
+    Step.Court -> nextCorner?.let { "Tap the ${it.label.lowercase().replace(' ', '-')} corner" }
+        ?: "Drag a corner to adjust"
+    Step.Ball -> if (ball == null) "Tap the ball" else "Tap again to move it"
+    Step.WhoIsMe -> if (me == null) "Tap yourself" else "Tap again to move it"
 }
 
 /** Which lines bound the tapped court, so the corners match the template. */

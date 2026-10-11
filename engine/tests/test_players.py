@@ -130,7 +130,7 @@ def test_window_rows_project_feet_filter_emit_range_and_validate_schema():
     assert row_stats["rows_emitted"] == 4 and row_stats["feet_withheld"] == 0
 
     q = {"ball_coverage": 0.0, "camera_motion_px": 0.0, "blur_index": 0.1}
-    result = window.build("a_test", 0, (90, 250), (100, 200), [], q, ["dfine_s_coco"], rows)
+    result = window.build("a_test", 0, (90, 250), (100, 200), [], q, ["dfine_s_coco"], players=rows)
     window.validate(result)
 
     plan = pipeline.plan_windows(100, 200)[0]
@@ -140,7 +140,7 @@ def test_window_rows_project_feet_filter_emit_range_and_validate_schema():
         {"emit": [100, 200], "t_ms": [100], "camera_motion_px": 0.0, "blur_index": 0.1},
         [],
         ["dfine_s_coco"],
-        rows,
+        players=rows,
     )
     window.validate(pipeline_result)
     assert pipeline_result["players"] == rows

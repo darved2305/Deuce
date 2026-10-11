@@ -23,12 +23,26 @@
               "additionalProperties": false,
               "properties": {
                 "ball_track": {
-                  "pattern": "^art_[A-Za-z0-9_-]+$",
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "pattern": "^art_[A-Za-z0-9_-]+$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "player_tracks": {
-                  "pattern": "^art_[A-Za-z0-9_-]+$",
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "pattern": "^art_[A-Za-z0-9_-]+$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
               "required": [
@@ -77,91 +91,110 @@
           "type": "object"
         },
         "calibration": {
-          "additionalProperties": false,
-          "properties": {
-            "H": {
-              "items": false,
-              "maxItems": 9,
-              "minItems": 9,
-              "prefixItems": [
-                {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "H": {
+                  "items": false,
+                  "maxItems": 9,
+                  "minItems": 9,
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array"
+                },
+                "H_cov": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "number"
+                      },
+                      "maxItems": 81,
+                      "minItems": 81,
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "calibration_id": {
+                  "pattern": "^cal_[A-Za-z0-9_-]+$",
+                  "type": "string"
+                },
+                "method": {
+                  "type": "string"
+                },
+                "plane": {
+                  "enum": [
+                    "court",
+                    "tabletop",
+                    "floor"
+                  ],
+                  "type": "string"
+                },
+                "residual_px": {
                   "type": "number"
                 },
-                {
-                  "type": "number"
+                "template": {
+                  "type": "string"
                 },
-                {
-                  "type": "number"
+                "tier": {
+                  "enum": [
+                    "A",
+                    "B",
+                    "C"
+                  ],
+                  "type": "string"
                 },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "number"
-                },
-                {
+                "visible_fraction": {
                   "type": "number"
                 }
+              },
+              "required": [
+                "calibration_id",
+                "plane",
+                "template",
+                "method",
+                "H",
+                "H_cov",
+                "residual_px",
+                "visible_fraction",
+                "tier"
               ],
-              "type": "array"
+              "type": "object"
             },
-            "H_cov": {
-              "anyOf": [
-                {},
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "calibration_id": {
-              "pattern": "^cal_[A-Za-z0-9_-]+$",
-              "type": "string"
-            },
-            "method": {
-              "type": "string"
-            },
-            "plane": {
-              "enum": [
-                "court",
-                "tabletop",
-                "floor"
-              ],
-              "type": "string"
-            },
-            "residual_px": {
-              "type": "number"
-            },
-            "template": {
-              "type": "string"
-            },
-            "tier": {
-              "type": "string"
-            },
-            "visible_fraction": {
-              "type": "number"
+            {
+              "type": "null"
             }
-          },
-          "required": [
-            "calibration_id",
-            "plane",
-            "template",
-            "method",
-            "H",
-            "H_cov",
-            "residual_px",
-            "visible_fraction",
-            "tier"
-          ],
-          "type": "object"
+          ]
         },
         "capabilities": {
           "additionalProperties": false,
@@ -599,6 +632,10 @@
                 ],
                 "type": "string"
               },
+              "player_id": {
+                "pattern": "^p_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
               "rally_id": {
                 "pattern": "^r_[A-Za-z0-9_-]+$",
                 "type": "string"
@@ -622,6 +659,10 @@
                 "minimum": 0,
                 "type": "integer"
               },
+              "track_id": {
+                "pattern": "^t_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
               "type": {
                 "type": "string"
               }
@@ -631,7 +672,6 @@
               "type",
               "t_ms",
               "t_sigma_ms",
-              "rally_id",
               "cues",
               "state",
               "evidence"
