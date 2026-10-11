@@ -22,6 +22,11 @@ def _observed_rows(trail: Sequence[Sequence]) -> list[list]:
     return [unique[t] for t in sorted(unique)]
 
 
+def shuttle_track_id(analysis_id: str) -> str:
+    """The track id window events use for the shuttle trail of one analysis (not a player)."""
+    return "t_" + hashlib.sha256(f"{analysis_id}:shuttle-trail".encode()).hexdigest()[:16]
+
+
 def detect_direction_changes(
     trail: Sequence[Sequence],
     *,
@@ -152,8 +157,7 @@ def hit_candidates(
             matched_turns[ti] = pi
             matched_peaks.add(pi)
 
-    track_hash = hashlib.sha256(f"{analysis_id}:shuttle-trail".encode()).hexdigest()[:16]
-    track_id = f"t_{track_hash}"
+    track_id = shuttle_track_id(analysis_id)
     candidates = []
 
     def add_candidate(t_ms: int, sigma_ms: int, xy: Sequence[float], cues: list[str]) -> None:
