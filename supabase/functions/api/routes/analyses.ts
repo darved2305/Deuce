@@ -6,6 +6,7 @@ import {
   analysisCreateResponseSchema,
   analysisEventsPageSchema,
   analysisGetResponseSchema,
+  analysisIdSchema,
   errorEnvelopeSchema,
 } from "../lib/contracts_vendor/index.ts";
 import { ApiFailure } from "../lib/errors.ts";
@@ -21,7 +22,7 @@ import { isTerminal } from "../lib/state.ts";
 const ENDPOINT = "POST /v1/analyses";
 const CreateBody = analysisCreateRequestSchema;
 const CreateResponse = analysisCreateResponseSchema;
-const AnalysisId = z.string().regex(/^a_[A-Za-z0-9_-]+$/);
+const AnalysisId = analysisIdSchema;
 const GetResponse = analysisGetResponseSchema;
 const EventsResponse = analysisEventsPageSchema;
 
@@ -40,6 +41,10 @@ const createRun = createRoute({
     202: {
       description: "new dispatch or an existing run still queued",
       content: { "application/json": { schema: CreateResponse } },
+    },
+    403: {
+      description: "read-only developer keys cannot dispatch analyses",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
     },
     429: {
       description: "session has reached its analysis run limit",
@@ -304,9 +309,13 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
   api.openapi(getRun, async (c) => {
     const { id } = c.req.valid("param");
     const jwt = (c.req.header("Authorization") ?? "").slice("Bearer ".length);
-    const res = await c.var.deps.user(jwt).from("analysis_runs").select(
-      "id,session_id,match_id,state,engine_version,last_seq,failure_reason,created_at,updated_at,finalized_at",
-    ).eq("id", id).maybeSingle();
+    const columns =
+      "id,session_id,match_id,state,engine_version,last_seq,failure_reason,created_at,updated_at,finalized_at";
+    const res = c.var.readOnly
+      ? await c.var.deps.admin().from("analysis_runs").select(columns)
+        .eq("id", id).eq("owner_id", c.var.userId).maybeSingle()
+      : await c.var.deps.user(jwt).from("analysis_runs").select(columns)
+        .eq("id", id).maybeSingle();
     if (res.error) throw res.error;
     if (!res.data) throw new ApiFailure(404, "not_found", "analysis not found");
     const { id: analysisId, ...rest } = res.data as Record<string, unknown> & {
