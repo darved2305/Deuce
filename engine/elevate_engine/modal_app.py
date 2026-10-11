@@ -14,6 +14,7 @@ Submit endpoint (contracts §3; needs Modal Secret `elevate-submit` with MODAL_S
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import modal
@@ -397,8 +398,12 @@ def fetch_weights(force: bool = False) -> list[dict]:
     image=gpu_image,
     volumes={MODELS_PATH: models, CLIPS_PATH: clips},
     timeout=1800,
-    cpu=4,
-    max_containers=10,  # caps parallel windows (cost stays predictable under the $30 limit)
+    # Cost (#155): measured per 60 s of h13g with identical output: cpu=4 / 10 containers / 60 s
+    # idle $0.158; cpu=2 / 4 containers / 2 s idle $0.097. Fewer containers each take several
+    # windows in a row, so a cold start (image + weights) is paid once, not per window.
+    cpu=2,
+    max_containers=4,
+    scaledown_window=2,
 )
 class Models:
     @modal.enter()

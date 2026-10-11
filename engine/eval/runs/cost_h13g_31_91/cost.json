@@ -1,0 +1,37 @@
+{
+  "clip": "h13g_singles.mp4 31-91 s (60 s), run_clip with players + calibration",
+  "billing": "Modal Workspace.billing.report per app id, hourly",
+  "A_baseline": {
+    "config": "cpu=4, max_containers=10, scaledown_window=60 (default)",
+    "app": "ap-xPO0wdB6JDbar3256tLjO4",
+    "T4": 0.1172,
+    "CPU": 0.0378,
+    "Memory": 0.0028,
+    "total_usd": 0.1579
+  },
+  "B": {
+    "config": "cpu=2, max_containers=10, scaledown_window=2",
+    "app": "ap-f1D8hCE2lRVn6UvTSZ3GBQ",
+    "T4": 0.1331,
+    "CPU": 0.0219,
+    "Memory": 0.003,
+    "total_usd": 0.158,
+    "wall_s": 662,
+    "note": "shared GPUs with two other runs"
+  },
+  "C_chosen": {
+    "config": "cpu=2, max_containers=4, scaledown_window=2",
+    "app": "ap-YgRIqul3lAnS2ZmRmgvnKh",
+    "T4": 0.0814,
+    "CPU": 0.0136,
+    "Memory": 0.0017,
+    "total_usd": 0.0967,
+    "wall_s": 324,
+    "note": "ran ~1 min into the next billing hour; that minute not yet billed"
+  },
+  "output": "B and C windows identical (1863 ball rows, 38 events), same as the production runs",
+  "per_match_484_5s_usd": {
+    "A": 1.27,
+    "C": 0.78
+  }
+}
