@@ -6,6 +6,7 @@ import { env } from "./env.ts";
 import { defaultHook, notFound, onError } from "./errors.ts";
 import { registerAnalyses } from "../routes/analyses.ts";
 import { registerArtifacts } from "../routes/artifacts.ts";
+import { registerCorrections } from "../routes/corrections.ts";
 import { registerHealth } from "../routes/health.ts";
 import { registerInternal } from "../routes/internal.ts";
 import { registerSessions } from "../routes/sessions.ts";
@@ -21,6 +22,7 @@ export function createApp(deps: Deps = defaultDeps()): Hono {
   registerHealth(api);
   registerAnalyses(api);
   registerArtifacts(api);
+  registerCorrections(api);
   registerSessions(api);
   registerInternal(api);
   // Internal routes (Modal only) are not part of the public document.
