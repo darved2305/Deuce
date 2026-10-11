@@ -66,6 +66,21 @@ class SetupViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * A still that is not a frame of a stored video: the live camera view of Record live, captured
+     * before recording starts. [srcW] x [srcH] is the recording's upright size, so taps land in the
+     * same pixel space as the recorded video (contracts §0). [frameMs] is 0: the still stands for
+     * the first frame of the recording.
+     */
+    fun loadStill(bitmap: android.graphics.Bitmap, srcW: Int, srcH: Int, key: Long) {
+        val k = Uri.EMPTY to key
+        if (loaded == k) return
+        loaded = k
+        job?.cancel()
+        _frame.value = SetupFrame.Ready(bitmap.asImageBitmap(), srcW, srcH, 0L, exact = true)
+        _state.value = SetupState(srcW = srcW.toDouble(), srcH = srcH.toDouble(), frameMs = 0L)
+    }
+
     fun dispatch(a: SetupAction) {
         _state.update { s -> s?.let { reduce(it, a) } }
     }

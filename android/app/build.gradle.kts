@@ -80,6 +80,13 @@ dependencies {
     // user-initiated data transfer job (android/UPLOAD_CLIENT.md).
     implementation(libs.androidx.work.runtime)
 
+    // Record live (ui/record, data/record): CameraX, all five modules on one version (view = PreviewView).
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.video)
+    implementation(libs.androidx.camera.view)
+
     // All Media3 modules on one version (android/AGENTS.md). effect = OverlayEffect pipeline.
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.effect)

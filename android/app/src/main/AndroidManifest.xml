@@ -14,6 +14,13 @@
     <!-- Upload progress notification (runtime permission on API 33+; the app asks before uploading). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Record live: the camera, and the microphone because the sound of each shot helps find the hits.
+         Not required: the app still imports and analyses videos from the gallery without a camera. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
     <!-- Voice coach: Android 11+ needs this to find the phone's text to speech engine. -->
     <queries>
         <intent>

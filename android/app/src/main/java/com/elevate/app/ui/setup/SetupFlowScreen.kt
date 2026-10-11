@@ -119,6 +119,34 @@ fun SetupFlowScreen(
     // every grabbed frame bitmap (up to 1920 px, ~8 MB) alive until the activity died.
     val vm: SetupViewModel = viewModel(key = "setup")
     LaunchedEffect(uri, frameUs) { vm.load(uri, facts, frameUs) }
+    SetupFlowBody(vm, onCancel, onDone)
+}
+
+/**
+ * The same flow on a still that is not part of a stored video: the live camera view captured by
+ * Record live ([bitmap] is already the recording's size, [srcW] x [srcH]). [stillKey] changes when
+ * a new still is captured.
+ */
+@Composable
+fun SetupFlowScreen(
+    bitmap: android.graphics.Bitmap,
+    srcW: Int,
+    srcH: Int,
+    stillKey: Long,
+    onCancel: () -> Unit,
+    onDone: (SetupResult) -> Unit,
+) {
+    val vm: SetupViewModel = viewModel(key = "setup")
+    LaunchedEffect(stillKey) { vm.loadStill(bitmap, srcW, srcH, stillKey) }
+    SetupFlowBody(vm, onCancel, onDone)
+}
+
+@Composable
+private fun SetupFlowBody(
+    vm: SetupViewModel,
+    onCancel: () -> Unit,
+    onDone: (SetupResult) -> Unit,
+) {
     val frame by vm.frame.collectAsStateWithLifecycle()
     val state by vm.state.collectAsStateWithLifecycle()
 
