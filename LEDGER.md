@@ -113,3 +113,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T03:35Z | #142 | @HetanshWaghela | p4 | android: shuttle cue at the freeze (ring, direction arrow, short tail) in ReadLa | none | 1.10.0 | ``` |
 | 2026-10-11T03:37Z | #143 | @HetanshWaghela | p4 | android: hold any button to see what it does, plus decluttering and polish | none | 1.10.0 | ``` |
 | 2026-10-11T03:44Z | #144 | @HetanshWaghela | p4 | android: bug-audit fixes (restart title, background pause, deep-link race, Refle | none | 1.10.0 | ``` |
+| 2026-10-11T04:17Z | #145 | @HetanshWaghela | p4 | android: premium polish (radius and type scale, motion, skeletons, haptics, game | none | 1.10.0 | ``` |

@@ -1,5 +1,6 @@
 package com.elevate.app.ui.setup
 
+import com.elevate.app.ui.components.ElevateRadius
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
@@ -523,7 +524,7 @@ private fun CornersSection(s: SetupState, dispatch: (SetupAction) -> Unit, dragg
 @Composable
 private fun CornerChip(k: Corner, placed: Boolean, active: Boolean) {
     val c = Elevate.colors
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(ElevateRadius.Inner)
     Row(
         Modifier
             .fillMaxWidth()

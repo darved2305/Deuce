@@ -1,5 +1,6 @@
 package com.elevate.app.ui.overview
 
+import com.elevate.app.ui.components.ElevateRadius
 import com.elevate.app.ui.components.Explanations
 import com.elevate.app.ui.components.ExplainBox
 import androidx.compose.foundation.Canvas
@@ -129,7 +130,7 @@ internal fun LiveRallyList(rows: List<LiveRallyRow>, onOpenRally: (rallyId: Stri
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEach { r ->
             ExplainBox(Explanations.Rally, Modifier.fillMaxWidth()) { Row(
-                Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RoundedCornerShape(16.dp)).background(c.surface)
+                Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RoundedCornerShape(ElevateRadius.Inner)).background(c.surface)
                     .clickable(role = Role.Button, onClickLabel = "Play from ${clock(r.startMs)}") { onOpenRally(r.rallyId, r.startMs, r.endMs) }
                     .semantics(mergeDescendants = true) { contentDescription = "${r.label}, engine candidates, not confirmed" }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
