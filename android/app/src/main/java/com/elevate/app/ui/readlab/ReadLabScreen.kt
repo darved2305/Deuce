@@ -26,6 +26,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -46,6 +47,9 @@ import com.elevate.app.playback.PlayerController
 import com.elevate.app.ui.ReplayViewModel
 import com.elevate.app.ui.Screen
 import com.elevate.app.ui.components.ElevateCard
+import com.elevate.app.ui.components.ElevateIcons
+import com.elevate.app.ui.components.PopIn
+import com.elevate.app.ui.components.StateMessage
 import com.elevate.app.ui.components.ElevateHeader
 import com.elevate.app.ui.components.PeachPage
 import com.elevate.app.ui.components.PrimaryButton
@@ -138,10 +142,9 @@ fun ReadLabScreen(
             Column(Modifier.fillMaxSize()) {
                 ElevateHeader("ReadLab", onBack = onBack, subtitle = "Train your read on your own match")
                 when {
-                    session == null || session.drills.isEmpty() -> Column(Modifier.padding(horizontal = ScreenGutter)) {
+                    session == null || session.drills.isEmpty() -> Column(Modifier.padding(horizontal = ScreenGutter), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(ReadLabText.HEADER, style = MaterialTheme.typography.titleMedium, color = Elevate.colors.ink)
-                        Spacer(Modifier.height(8.dp))
-                        Text(ReadLabText.EMPTY, style = MaterialTheme.typography.bodyMedium)
+                        StateMessage(ElevateIcons.Empty, ReadLabText.EMPTY, actionLabel = "Back to the match", onAction = onBack)
                     }
                     session.finished -> SummaryView(session, onRestart, onBack)
                     landscape -> Row(Modifier.fillMaxSize().padding(horizontal = ScreenGutter), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -215,7 +218,7 @@ private fun Answer(s: ReadLabSession, onPick: (ZoneId) -> Unit, onAnotherLook: (
             )
         }
     }
-    if (grade != null) Reveal(drill, attempt, grade)
+    if (grade != null) key(drill.hitEventId) { PopIn { Reveal(drill, attempt, grade) } }
     if (!locked && attempt.canRevealMore) {
         SecondaryButton("Another look (a later frame)", onAnotherLook, Modifier.fillMaxWidth())
     }

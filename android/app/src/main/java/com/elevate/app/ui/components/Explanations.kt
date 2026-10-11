@@ -107,12 +107,26 @@ object Explanations {
     val StageUpload = Explanation("Upload", "The video is sent securely to the engine. It can resume if the connection drops.")
     val StageAnalyse = Explanation("Analysis", "The engine tracks the shuttle and finds each hit, in pieces side by side.")
 
+    // Your game (player profile).
+    val YourGame = Explanation("Your game", "A summary of every match analysed on this phone: totals, where shots land, style and training. It is built only from saved results.")
+    val StyleDeepHitter = Explanation("Deep hitter", "At least 55% of landings fell in the back row of the court, from at least 15 landings. The evidence shows the exact count.")
+    val StyleNetPlayer = Explanation("Net player", "At least 40% of landings fell in the front row near the net, from at least 15 landings. The evidence shows the exact count.")
+    val StyleRallyBuilder = Explanation("Rally builder", "The typical (median) rally has 7 or more hits, from at least 4 rally candidates across your matches.")
+    val StyleShortRallies = Explanation("Short rallies", "The typical (median) rally has 3 hits or fewer, from at least 4 rally candidates across your matches.")
+    val StyleFastExchanges = Explanation("Fast exchanges", "The typical time between hits inside a rally is under 1.0 second, from at least 6 gaps across your matches.")
+    val PlacementHeat = Explanation("Landing map", "Each box is the share of landings in that part of the court, seen from the hitter. Counts are shown as n of N landings.")
+    val Trends = Explanation("Trends", "One value per match, oldest to newest. A line appears once at least 2 matches have that value.")
+    val TrainingStats = Explanation("Training", "Your best Reflex score per match and your ReadLab exact reads. Saved on this phone only.")
+    val FocusAreas = Explanation("Strength and focus", "A pattern is listed only when it shows up in at least 2 matches with enough data. It says how many.")
+
     /** Every entry, for the tests and for any help screen. */
     val all: List<Explanation> by lazy {
         listOf(
             CourtCorners, OffFrameCorner, ThisIsMe, Analyse, LiveTrail, Hit, Landing, Rally, Estimate, CoachReport,
             ReadLab, Relaxed, ZonePicker, Reflex, ShuttleCue, Listen, Share, CourtQuality, InPieces, UploadResumes,
             Sport, Format, AddMatch, Cloud, Ball, Magnifier, TrailToggle, CourtToggle, Speed, Analysing, StageVideo, StageUpload, StageAnalyse,
+            YourGame, StyleDeepHitter, StyleNetPlayer, StyleRallyBuilder, StyleShortRallies, StyleFastExchanges,
+            PlacementHeat, Trends, TrainingStats, FocusAreas,
         )
     }
 }

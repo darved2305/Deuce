@@ -89,7 +89,7 @@ fun ExplainHintBanner(modifier: Modifier = Modifier) {
     androidx.compose.foundation.layout.Row(
         modifier
             .fillMaxWidth()
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(ElevateRadius.Inner))
             .background(c.lavender)
             .padding(start = 16.dp),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,

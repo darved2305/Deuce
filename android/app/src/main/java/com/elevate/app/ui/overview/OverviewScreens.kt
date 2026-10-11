@@ -14,7 +14,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
+import com.elevate.app.domain.coach.LandingEvidence
+import com.elevate.app.ui.components.SkeletonList
+import com.elevate.app.ui.components.StateMessage
+import com.elevate.app.ui.components.rememberHaptics
+import com.elevate.app.ui.components.rememberReduceMotion
+import com.elevate.app.ui.components.tabTransition
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -60,6 +68,7 @@ import com.elevate.app.domain.analysis.AnalysisUiState
 import com.elevate.app.ui.components.CircleButton
 import com.elevate.app.ui.components.ElevateCard
 import com.elevate.app.ui.components.ElevateHeader
+import com.elevate.app.ui.components.ElevateRadius
 import com.elevate.app.ui.components.ElevateIcons
 import com.elevate.app.ui.components.Headline
 import com.elevate.app.ui.components.PeachPage
@@ -150,8 +159,12 @@ private fun ColumnScope.AnalysingBody(flow: AnalysingFlowState, onOpenResults: (
         }
     }
     flow.notice?.let { line ->
-        ElevateCard(tint = if (stopped) c.errorSurface else c.lavender) {
-            Text(line, style = MaterialTheme.typography.bodyMedium, color = c.ink)
+        if (stopped) {
+            StateMessage(ElevateIcons.Warning, line, isError = true)
+        } else {
+            ElevateCard(tint = c.lavender) {
+                Text(line, style = MaterialTheme.typography.bodyMedium, color = c.ink)
+            }
         }
     }
     when (flow.action) {
@@ -209,7 +222,7 @@ private fun HeroVideo(hero: AnalysingHero, onPlay: (() -> Unit)?, modifier: Modi
     val t = hero.thumbnail ?: return
     if (t is ThumbnailState.Unavailable) return
     val tap = if (compact && onPlay != null) Modifier.clickable(onClickLabel = "Play the first rally", role = Role.Button, onClick = onPlay) else Modifier
-    VideoCard(modifier.aspectRatio(16f / 9f).then(tap), corner = if (compact) 16.dp else 24.dp) {
+    VideoCard(modifier.aspectRatio(16f / 9f).then(tap), corner = if (compact) ElevateRadius.Inner else ElevateRadius.Card) {
         when (t) {
             is ThumbnailState.Ready -> Image(
                 t.image,
@@ -267,8 +280,11 @@ fun MatchOverviewScreen(
                 ?: state.referenceRange?.let { ref -> { onOpenRally(REFERENCE_RALLY_ID, ref.first, ref.last) } }
     }
     var tabIndex by rememberSaveable { mutableIntStateOf(OverviewTab.Coach.ordinal) }
-    val tabs: @Composable () -> Unit = { OverviewTabRow(tabIndex) { tabIndex = it } }
-    val body: @Composable (Modifier) -> Unit = { m -> OverviewTabBody(OverviewTab.entries[tabIndex], state, onOpenRally, m) }
+    // The coach suggestions stagger in once per visit to the overview, not on every tab switch.
+    val coachIntroPlayed = rememberSaveable { mutableStateOf(false) }
+    val haptics = rememberHaptics()
+    val tabs: @Composable () -> Unit = { OverviewTabRow(tabIndex) { haptics.tick(); tabIndex = it } }
+    val body: @Composable (Modifier) -> Unit = { m -> OverviewTabBody(OverviewTab.entries[tabIndex], state, onOpenRally, coachIntroPlayed, m) }
     val ctas: @Composable () -> Unit = { TrainingButtons(readLabDrills, onTrainRead, reflexRounds, onReflex) }
     PeachPage {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -329,16 +345,23 @@ private fun OverviewTabRow(selected: Int, onSelect: (Int) -> Unit) {
 
 /** One tab's content, scrolling on its own so the hero and the tab row never move. */
 @Composable
-private fun OverviewTabBody(tab: OverviewTab, s: MatchOverviewState, onOpenRally: (String, Long, Long) -> Unit, modifier: Modifier) {
-    key(tab) {
+private fun OverviewTabBody(tab: OverviewTab, s: MatchOverviewState, onOpenRally: (String, Long, Long) -> Unit, coachIntroPlayed: MutableState<Boolean>, modifier: Modifier) {
+    val reduce = rememberReduceMotion()
+    AnimatedContent(targetState = tab, transitionSpec = { tabTransition(reduce) }, modifier = modifier, label = "overview-tab") { current ->
+        // Nothing has arrived yet: placeholders in the shape of the report, not a blank page.
+        val loading = s.analysis == null && s.live == null && s.matchProblem == null &&
+            s.hitTimeline.hits.isEmpty() && s.landings == LandingEvidence.NONE &&
+            s.referenceDetail == null && s.rallies is RalliesState.NotAvailable
         Column(
-            modifier.verticalScroll(rememberScrollState()).padding(top = 12.dp, bottom = 24.dp),
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 12.dp, bottom = 24.dp),
             verticalArrangement = ScreenSpacing,
         ) {
-            when (tab) {
+            if (loading) {
+                SkeletonList(cards = 3)
+            } else when (current) {
                 OverviewTab.Coach -> {
                     OverviewProgress(s)
-                    CoachSection(s)
+                    CoachSection(s, coachIntroPlayed)
                 }
                 OverviewTab.Rallies -> {
                     OverviewRallies(s, onOpenRally)
@@ -449,7 +472,7 @@ private fun OverviewCourt(s: MatchOverviewState) {
             if (ct.chip != null) Spacer(Modifier.height(10.dp))
             MiniCourt(ct, Modifier.fillMaxWidth())
         }
-        is CourtState.NotApplicable -> Text(ct.reason, style = MaterialTheme.typography.bodyMedium)
+        is CourtState.NotApplicable -> StateMessage(ElevateIcons.Empty, ct.reason)
     }
 }
 
@@ -478,7 +501,7 @@ private fun OverviewRallies(s: MatchOverviewState, onOpenRally: (String, Long, L
             } else {
                 SectionTitle("Rallies")
                 val empty = if (live?.windowsComplete == true) "No rally candidates in the windows" else AnalysingFlow.ralliesEmpty(s.analysis)
-                Text(empty, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
+                StateMessage(ElevateIcons.Empty, empty)
             }
         }
         is RalliesState.FromHits -> {

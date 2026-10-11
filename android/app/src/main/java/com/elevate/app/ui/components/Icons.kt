@@ -63,4 +63,22 @@ object ElevateIcons {
         moveTo(4f, 7f); lineTo(20f, 7f); moveTo(4f, 17f); lineTo(20f, 17f)
         moveTo(9f, 4f); lineTo(9f, 10f); moveTo(15f, 14f); lineTo(15f, 20f)
     }
+    /** Streak flame (filled). */
+    val Flame = icon("flame", filled = true) {
+        moveTo(12f, 2f); curveTo(13f, 6f, 18f, 8.5f, 18f, 14f); curveTo(18f, 18f, 15.3f, 21f, 12f, 21f)
+        curveTo(8.7f, 21f, 6f, 18f, 6f, 14.5f); curveTo(6f, 12.5f, 7f, 11f, 8.2f, 9.8f)
+        curveTo(8.3f, 11.4f, 9.2f, 12.4f, 10f, 12.6f); curveTo(9.6f, 8.5f, 10.6f, 4.8f, 12f, 2f); close()
+    }
+    /** Something went wrong (triangle with a bar). */
+    val Warning = icon("warning") {
+        moveTo(12f, 3.5f); lineTo(21.5f, 20f); lineTo(2.5f, 20f); close()
+        moveTo(12f, 10f); lineTo(12f, 14f); moveTo(12f, 17f); lineTo(12.01f, 17f)
+    }
+    /** Nothing here yet (a ring with a dash). */
+    val Empty = icon("empty") {
+        moveTo(12f, 3f); arcTo(9f, 9f, 0f, true, true, 11.99f, 3f); close()
+        moveTo(8f, 12f); lineTo(16f, 12f)
+    }
+    /** A wrong pick. */
+    val Close = icon("close") { moveTo(6f, 6f); lineTo(18f, 18f); moveTo(18f, 6f); lineTo(6f, 18f) }
 }

@@ -91,6 +91,9 @@ sealed interface Screen {
         val courtVisible: Boolean = true,
     ) : Screen
 
+    /** "Your game": the profile over every analysed match on this phone. Back returns to Import. */
+    data object Profile : Screen
+
     enum class Panel { None, Analysing, Overview, ReadLab, Reflex }
 
     /** Real states only: each step changes on a server answer, never on a timer. */
@@ -904,6 +907,11 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     fun setOverlayVisible(visible: Boolean) {
         controller.setOverlayVisible(visible)
         _screen.update { s -> if (s is Screen.Replay) s.copy(overlayVisible = visible) else s }
+    }
+
+    /** Opens "Your game" from Home. */
+    fun openProfile() {
+        if (_screen.value is Screen.Import) _screen.value = Screen.Profile
     }
 
     fun back() {

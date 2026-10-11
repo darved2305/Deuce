@@ -6,7 +6,10 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.runtime.Composable
+import com.elevate.app.ui.components.panelTransition
+import com.elevate.app.ui.components.rememberReduceMotion
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -132,6 +135,7 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
             opening = s.opening, error = s.error, onChoose = pickVideo, backend = backend,
             matches = matches.map { com.elevate.app.ui.screens.matchCardOf(it, thumbs[it.analysisId]) },
             onOpenMatch = vm::openHistory,
+            onOpenProfile = vm::openProfile,
         ) {
             // The pill only while something is actually running; a finished run is the history card.
             val running = when (val p = pipeline) {
@@ -142,6 +146,7 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
             }
             if (running) PipelineStatus(pipelineUi)
         }
+        is Screen.Profile -> com.elevate.app.ui.profile.ProfileRoute(onBack = vm::back)
         is Screen.Replay -> {
             if (s.setupAtUs != null && openFacts != null) {
                 // Confirming the setup starts the upload + analysis and opens the Analysing screen at once.
@@ -233,6 +238,25 @@ private fun AnalysisPanels(
     upload: UploadProgress,
     ovm: OverviewViewModel?,
     hero: ReplayViewModel.PipelineHero,
+    analysedFacts: SourceFacts?,
+) {
+    // Analysing, Overview, ReadLab and Reflex cross-fade into each other (snap when motion is reduced).
+    val reduce = rememberReduceMotion()
+    AnimatedContent(targetState = panel, transitionSpec = { panelTransition(reduce) }, label = "analysis-panel") { shown ->
+        AnalysisPanel(vm, shown, pipeline, step, upload, ovm, hero, analysedFacts)
+    }
+}
+
+@UnstableApi
+@Composable
+private fun AnalysisPanel(
+    vm: ReplayViewModel,
+    panel: Screen.Panel,
+    pipeline: Screen.Pipeline,
+    step: String?,
+    upload: UploadProgress,
+    ovm: OverviewViewModel?,
+    hero: ReplayViewModel.PipelineHero,
     /** Facts of the open video when it is the analysed file; ReadLab freezes frames of that file only. */
     analysedFacts: SourceFacts?,
 ) {
@@ -249,6 +273,7 @@ private fun AnalysisPanels(
             if (w != null && h != null && w > 0 && h > 0) com.elevate.app.ui.readlab.CueSource(ball, w, h) else null
         }
         if (panel == Screen.Panel.ReadLab) {
+            com.elevate.app.ui.profile.RecordReadLabResult(vm.readLab, match?.matchId)
             com.elevate.app.ui.readlab.ReadLabRoute(vm, drills, cueSource, onBack = { vm.showPanel(Screen.Panel.Overview) })
             return
         }

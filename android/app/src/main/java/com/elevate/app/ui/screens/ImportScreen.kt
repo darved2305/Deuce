@@ -1,5 +1,6 @@
 package com.elevate.app.ui.screens
 
+import com.elevate.app.ui.components.ElevateRadius
 import com.elevate.app.data.history.cardTimeMs
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -60,6 +61,7 @@ import com.elevate.app.ui.components.PeachPage
 import com.elevate.app.ui.components.PrimaryButton
 import com.elevate.app.ui.components.ScreenGutter
 import com.elevate.app.ui.components.SectionTitle
+import com.elevate.app.ui.components.StateMessage
 import com.elevate.app.ui.theme.Elevate
 
 @Composable
@@ -72,6 +74,8 @@ fun ImportScreen(
     matches: List<MatchCard> = emptyList(),
     /** Called with the analysisId of the tapped match. */
     onOpenMatch: (String) -> Unit = {},
+    /** Opens "Your game" (the profile); null hides the avatar. */
+    onOpenProfile: (() -> Unit)? = null,
     /** Upload / analysis status of an earlier pick, shown under the main card. Last, so callers can pass it as a trailing lambda. */
     status: @Composable () -> Unit = {},
 ) {
@@ -83,7 +87,7 @@ fun ImportScreen(
                 .safeDrawingPadding()
                 .verticalScroll(rememberScrollState()),
         ) {
-            ElevateHeader(title = "Elevate")
+            ElevateHeader(title = "Elevate", trailing = onOpenProfile?.let { open -> { com.elevate.app.ui.profile.ProfileAvatarButton(open) } })
             Column(Modifier.padding(horizontal = ScreenGutter)) {
                 Spacer(Modifier.height(16.dp))
                 if (matches.isEmpty()) {
@@ -98,7 +102,7 @@ fun ImportScreen(
                 ElevateCard(tint = c.peachDeep.copy(alpha = 0.6f)) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                         Box(
-                            Modifier.size(60.dp).clip(RoundedCornerShape(18.dp)).background(Color.White),
+                            Modifier.size(60.dp).clip(RoundedCornerShape(ElevateRadius.Inner)).background(Color.White),
                             contentAlignment = Alignment.Center,
                         ) { Icon(ElevateIcons.Film, contentDescription = null, tint = c.orange) }
                         Spacer(Modifier.size(16.dp))
@@ -131,16 +135,9 @@ fun ImportScreen(
 
                 if (error != null) {
                     Spacer(Modifier.height(16.dp))
-                    Text(
-                        error,
-                        color = c.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(c.errorSurface)
-                            .padding(horizontal = 20.dp, vertical = 16.dp)
-                            .semantics { liveRegion = LiveRegionMode.Polite },
+                    StateMessage(
+                        ElevateIcons.Warning, error, isError = true,
+                        actionLabel = "Choose another video", onAction = onChoose,
                     )
                 }
 
@@ -249,7 +246,7 @@ private fun MatchRow(card: MatchCard, onOpen: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.width(112.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(14.dp)).background(c.court),
+                Modifier.width(112.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(ElevateRadius.Inner)).background(c.court),
                 contentAlignment = Alignment.Center,
             ) {
                 val image = card.thumbnail
@@ -298,7 +295,7 @@ private fun Tip(icon: ImageVector, title: String, body: String) {
     val c = Elevate.colors
     Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(c.lavender),
+            Modifier.size(48.dp).clip(RoundedCornerShape(ElevateRadius.Inner)).background(c.lavender),
             contentAlignment = Alignment.Center,
         ) { Icon(icon, contentDescription = null, tint = c.lavenderInk, modifier = Modifier.size(22.dp)) }
         Spacer(Modifier.size(16.dp))
