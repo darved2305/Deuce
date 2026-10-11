@@ -169,6 +169,8 @@ fun DecideCourt(
                 label(measurer, if (freeze.yours) "You" else "Hitter", it + Offset(0f, 14.dp.toPx()), Color.White)
             }
             val origin = hitterAt ?: map.toPx(widthM / 2, if (freeze.side == CourtSide.NEAR) 1.2 else CourtModel.LENGTH_M - 1.2)
+            // Position not seen: still say which side is hitting (the side is known from the shot), never a dot.
+            if (hitterAt == null) label(measurer, if (freeze.yours) "You hit from this side" else "Hitter's side", origin, Color.White)
             // Aim line while dragging.
             if (outcome == null && shown != null) {
                 val a = map.toPx(shown.first, shown.second)

@@ -1,5 +1,7 @@
 package com.elevate.app.ui.decide
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -233,12 +235,16 @@ private fun DecideScreen(
                     }
                     else -> Column(Modifier.fillMaxSize().padding(horizontal = ScreenGutter).padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Hud(session, f, onBack)
-                        Clip(session, controller, Modifier.fillMaxWidth(0.7f).align(Alignment.CenterHorizontally))
-                        Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Clip(session, controller, Modifier.fillMaxWidth(0.62f).align(Alignment.CenterHorizontally))
+                        // Court centred on its own; the brief / result reads full width underneath (no cramped column).
+                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                             DecideCourt(f, aim, session.outcome, !session.committed, onAim, onCommit, Modifier.fillMaxHeight())
-                            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Panel(session, f, onNext, onReplayClip)
-                            }
+                        }
+                        Column(
+                            Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Panel(session, f, onNext, onReplayClip)
                         }
                     }
                 }
@@ -293,7 +299,7 @@ private fun Clip(s: DecideSession, controller: PlayerController, modifier: Modif
         val player by controller.playerFlow.collectAsState()
         ContentFrame(player = player, modifier = Modifier.fillMaxSize().semantics { contentDescription = "Your match video" })
         VideoChip(
-            if (s.committed) "The real clip" else "Frozen before the hit",
+            if (s.committed) "▶ What was really played" else "Frozen just before the hit",
             Modifier.align(Alignment.TopStart).padding(8.dp),
         )
     }
@@ -315,8 +321,14 @@ private fun Panel(s: DecideSession, f: Freeze, onNext: () -> Unit, onReplayClip:
     if (o == null) {
         ExplainBox(Explanations.DecideReticle, Modifier.fillMaxWidth()) {
             Column {
-                Text("Where would you hit it?", style = MaterialTheme.typography.titleMedium, color = c.ink)
-                Text("Drag the aim point onto the court. Let go to commit.", style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
+                Text(
+                    if (f.yours) "Your shot. Where do you send it?" else "Be the hitter. Where do you send it?",
+                    style = MaterialTheme.typography.titleLarge, color = c.ink,
+                )
+                Spacer(Modifier.height(6.dp))
+                DecideStep(1, if (f.defenderSeen) "Spot the opponent (purple)" else "Picture where the opponent is")
+                DecideStep(2, "Drag your aim into open court")
+                DecideStep(3, "Let go, then watch what was really played")
             }
         }
         ExplainBox(Explanations.DecideDefender, Modifier.fillMaxWidth()) {
@@ -332,6 +344,19 @@ private fun Panel(s: DecideSession, f: Freeze, onNext: () -> Unit, onReplayClip:
     }
     androidx.compose.animation.AnimatedVisibility(visible = true, enter = popIn(reduce)) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Your aim vs what you really did.
+            ExplainBox(Explanations.DecideCompare, Modifier.fillMaxWidth()) {
+                ElevateCard {
+                    CompareRow("You aimed", c.orange, choiceText(o))
+                    Spacer(Modifier.height(6.dp))
+                    CompareRow("Really played", Color(0xFF3B6FD4), realText(f))
+                    Text("The video above now plays the real shot.", style = MaterialTheme.typography.labelMedium, color = c.inkMuted, modifier = Modifier.padding(top = 6.dp))
+                    if (o.beatReal) {
+                        Spacer(Modifier.height(8.dp))
+                        Text("You beat your shot: yours was more open", style = MaterialTheme.typography.labelLarge, color = c.mintInk)
+                    }
+                }
+            }
             // Legality.
             val (legalText, legalTint) = when (o.decision) {
                 is Decision.Legal -> "Lands in" to c.mint
@@ -365,18 +390,6 @@ private fun Panel(s: DecideSession, f: Freeze, onNext: () -> Unit, onReplayClip:
                             Text("No court verdict", style = MaterialTheme.typography.titleMedium, color = c.ink)
                             Text("Defender position not seen at this frame", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
                         }
-                    }
-                }
-            }
-            // Your aim vs what you really did.
-            ExplainBox(Explanations.DecideCompare, Modifier.fillMaxWidth()) {
-                ElevateCard {
-                    CompareRow("Your choice", c.orange, choiceText(o))
-                    Spacer(Modifier.height(6.dp))
-                    CompareRow("What you played", Color(0xFF3B6FD4), realText(f))
-                    if (o.beatReal) {
-                        Spacer(Modifier.height(8.dp))
-                        Text("You beat your shot: yours was more open", style = MaterialTheme.typography.labelLarge, color = c.mintInk)
                     }
                 }
             }
@@ -479,5 +492,18 @@ private fun StatTile(label: String, value: String, modifier: Modifier) {
     Column(modifier.clip(RoundedCornerShape(20.dp)).background(c.surface).padding(16.dp)) {
         Text(value, style = MaterialTheme.typography.headlineSmall, color = c.ink, maxLines = 1)
         Text(label, style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+    }
+}
+
+/** One numbered step of the Decide brief. */
+@Composable
+private fun DecideStep(n: Int, text: String) {
+    val c = Elevate.colors
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+        Box(Modifier.size(22.dp).clip(CircleShape).background(c.orange), contentAlignment = Alignment.Center) {
+            Text("$n", style = MaterialTheme.typography.labelMedium, color = Color.White)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = c.ink)
     }
 }
