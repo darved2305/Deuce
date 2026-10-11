@@ -18,10 +18,8 @@ from elevate_engine.log import log
 ANALYSIS_ID = re.compile(r"a_[A-Za-z0-9_-]{1,64}")
 MATCH_ID = re.compile(r"m_[A-Za-z0-9_-]{1,64}")
 SESSION_ID = re.compile(r"s_[A-Za-z0-9_-]{1,64}")
-# contracts §4: originals and recorded segments have distinct key shapes.
-R2_KEY = re.compile(
-    r"(?:orig/s_[A-Za-z0-9_-]{1,64}/source\.mp4|seg/s_[A-Za-z0-9_-]{1,64}/[0-9]+\.mp4)"
-)
+# contracts §2/§4: an original, or segment 0 of a segment upload (the engine then polls the rest).
+R2_KEY = re.compile(r"(?:orig/s_[A-Za-z0-9_-]{1,64}/source\.mp4|seg/s_[A-Za-z0-9_-]{1,64}/0\.mp4)")
 # A claim whose spawn never completed (crash between claim and spawn) may be retaken after this.
 STALE_CLAIM_S = 60.0
 
@@ -64,9 +62,7 @@ def parse(body: object) -> SubmitRequest:
     if not isinstance(analysis_id, str) or not ANALYSIS_ID.fullmatch(analysis_id):
         raise ValueError("analysis_id must look like a_…")
     if not isinstance(r2_key, str) or not R2_KEY.fullmatch(r2_key):
-        raise ValueError(
-            "r2_key must be orig/{session_id}/source.mp4 or seg/{session_id}/{seq}.mp4"
-        )
+        raise ValueError("r2_key must be orig/{session_id}/source.mp4 or seg/{session_id}/0.mp4")
     if not isinstance(spec, dict) or not spec.get("sport"):
         raise ValueError("session_spec must be the contracts §2 session body")
     match_id = body.get("match_id")

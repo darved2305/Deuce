@@ -267,7 +267,7 @@ def join(paths: Sequence[str | Path], manifests: Sequence[Mapping], out: str | P
     output_path.unlink(missing_ok=True)
     baseline_us = manifests[0]["pts_start_us"]
     templates: dict[tuple[str, int], object] = {}
-    last_dts: dict[int, int | None] = {}
+    last_dts: dict[int, Fraction] = {}
     try:
         with av.open(str(output_path), mode="w", format="mp4") as target:
             pieces = enumerate(zip(paths, manifests, strict=True))
@@ -308,7 +308,9 @@ def join(paths: Sequence[str | Path], manifests: Sequence[Mapping], out: str | P
                         if packet.dts is not None:
                             packet.dts += shift_ticks
                         packet.stream = output_stream
-                        stamp = packet.dts if packet.dts is not None else packet.pts
+                        tick = packet.dts if packet.dts is not None else packet.pts
+                        # pieces may use different timescales: compare in exact seconds
+                        stamp = None if tick is None else tick * packet_time_base
                         prev = last_dts.get(output_stream.index)
                         if stamp is not None and prev is not None and stamp <= prev:
                             if input_stream.type == "audio":

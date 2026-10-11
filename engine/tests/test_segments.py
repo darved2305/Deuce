@@ -173,7 +173,7 @@ def test_submit_accepts_segment_keys():
     assert parse({"analysis_id": "a_1", "r2_key": "seg/s_1/0.mp4", "session_spec": spec}).r2_key
     assert parse({"analysis_id": "a_1", "r2_key": "seg/s_1/0.mp4", "session_spec": spec,
                   "session_id": "s_1"}).session_id == "s_1"  # fmt: skip
-    for bad in ("seg/s_1/x.mp4", "seg/s_1/0.mov", "segs/s_1/0.mp4"):
+    for bad in ("seg/s_1/x.mp4", "seg/s_1/0.mov", "segs/s_1/0.mp4", "seg/s_1/3.mp4"):
         with pytest.raises(ValueError):
             parse({"analysis_id": "a_1", "r2_key": bad, "session_spec": spec})
 
