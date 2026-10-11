@@ -27,5 +27,14 @@
     "realtime_factor": 3.26
   },
   "contact_sheet": "PYTHONPATH=. uv run python eval/contact_sheet.py h13g_singles.mp4 <ball rows of all windows> out.jpg --times <each hit t_ms floored to 20 ms>",
-  "visual_check": "Hand-checked on the contact sheet, no hit labels exist yet: about 26 of 32 are racket contacts; 3 are floor bounces (49900, 68580, 73000 ms); 2 are unclear mid-air (57520, 71252 ms). Not a metric."
+  "visual_check": "Hand-checked on the contact sheet, no hit labels exist yet: about 26 of 32 are racket contacts; 3 are floor bounces (49900, 68580, 73000 ms); 2 are unclear mid-air (57520, 71252 ms). Not a metric.",
+  "engine_commit": "c4f48a6 (p1/hits-live; same engine code as this commit)",
+  "before_after": {
+    "rule_on_main_044182d": 44,
+    "this_rule": 32,
+    "only_old_rule": "17: ~12 false (apexes 32980, 47380, 47700, 59400, 79280; floor 50000; gap-spanning times with no shuttle at a player), 2 same hit at a shifted time (34680 vs 34760), ~3 possibly real contacts lost (43960, 69640, 85140)",
+    "only_new_rule": "5: 4 racket contacts at better times (32800, 34760, 47980, 63640), 1 floor bounce (49900)",
+    "method": "both rules run on the same tracked rows and onsets from this run; judged by eye on contact sheets of real frames; no hit labels exist, not a metric"
+  },
+  "follow_up": "Strongest onsets lag trajectory turns by ~110-140 ms on this clip (e.g. 34760->34880, 40280->40415): measure the audio/video offset before widening tolerance or trusting fused times."
 }
