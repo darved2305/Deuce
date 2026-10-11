@@ -6,6 +6,7 @@ import { env } from "./env.ts";
 import { defaultHook, notFound, onError } from "./errors.ts";
 import { registerAnalyses } from "../routes/analyses.ts";
 import { registerArtifacts } from "../routes/artifacts.ts";
+import { registerCorrections } from "../routes/corrections.ts";
 import { registerHealth } from "../routes/health.ts";
 import { registerInternal } from "../routes/internal.ts";
 import { registerMatches } from "../routes/matches.ts";
@@ -15,8 +16,12 @@ import { registerSessions } from "../routes/sessions.ts";
 export function createApp(deps: Deps = defaultDeps()): Hono {
   const api = new OpenAPIHono<AppEnv>({ defaultHook });
   api.use("*", async (c, next) => {
-    c.set("deps", deps);
-    await next();
+    try {
+      c.set("deps", deps);
+      await next();
+    } catch (err) {
+      return onError(err, c);
+    }
   });
   api.use("/internal/*", internalAuth);
   api.use("/v1/*", userAuth);
@@ -25,6 +30,7 @@ export function createApp(deps: Deps = defaultDeps()): Hono {
   registerArtifacts(api);
   registerMatches(api);
   registerReviews(api);
+  registerCorrections(api);
   registerSessions(api);
   registerInternal(api);
   // Internal routes (Modal only) are not part of the public document.
@@ -39,7 +45,15 @@ export function createApp(deps: Deps = defaultDeps()): Hono {
     );
     return c.json({ ...doc, paths }, 200);
   });
-  const root = new Hono().route("/api", api);
+  const root = new Hono();
+  root.use("*", async (c, next) => {
+    try {
+      await next();
+    } catch (err) {
+      return onError(err, c);
+    }
+  });
+  root.route("/api", api);
   root.notFound(notFound);
   root.onError(onError);
   return root;

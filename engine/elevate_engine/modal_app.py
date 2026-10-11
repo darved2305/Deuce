@@ -234,6 +234,7 @@ def analyze(
     result = {"analysis_id": analysis_id, "duration_ms": end, "windows": posted,
               "hits": len(events), "finalized": finalized,
               "player_track_ids": live_players.track_ids,
+              "players_failed": getattr(live_players, "failed", None),
               "tracker": stats, "total_s": round(time.perf_counter() - started, 1)}  # fmt: skip
     log("analyze.done", **{k: v for k, v in result.items() if k != "windows"},
         windows_posted=len(posted))  # fmt: skip

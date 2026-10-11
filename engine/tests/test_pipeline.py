@@ -198,3 +198,20 @@ def test_real_windows_carry_their_onsets_and_hits_inside_their_own_range():
     assert full[1]["onsets"] == ws[1]["onsets"] and full[0]["onsets"] == []
     for k in range(len(ws)):
         assert pipeline.window_for_posting("a_x", plans, ws, k, BADMINTON) == full[k]
+
+
+def test_a_player_path_error_never_fails_the_windows():
+    class Broken:
+        def feed_windows(self, results):
+            raise ValueError("zero-area box")
+
+    plans = pipeline.plan_windows(31000, 49000)
+    ws = per_window(31000, 49000)
+    broken = Broken()
+    out = [pipeline.window_for_posting("a_x", plans, ws, k, BADMINTON, players=broken)
+           for k in range(len(ws))]  # fmt: skip
+    from elevate_engine import window as win
+
+    assert broken.failed.startswith("ValueError") and all(w["players"] == [] for w in out)
+    for w in out:
+        win.validate(w)

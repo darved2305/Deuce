@@ -27,7 +27,12 @@ from dataclasses import dataclass
 
 from elevate_engine import landings
 from elevate_engine import window as win
-from elevate_engine.hits import hit_candidates, shuttle_track_id
+from elevate_engine.hits import (
+    detect_direction_changes,
+    estimate_av_offset_ms,
+    hit_candidates,
+    shuttle_track_id,
+)
 from elevate_engine.players import LivePlayers
 from elevate_engine.sports import TrackingConfig
 from elevate_engine.tracking import track
@@ -129,7 +134,11 @@ def window_result(
 
 
 def window_hits(
-    analysis_id: str, k: int, rows: Sequence[list], results: Sequence[dict]
+    analysis_id: str,
+    k: int,
+    rows: Sequence[list],
+    results: Sequence[dict],
+    emit: tuple[int, int] | None = None,
 ) -> tuple[list[list], list[dict]]:
     """Audio onsets, candidate hits and candidate landings for window k, from tracked rows and
     the onsets of the given windows (k and its neighbours), so a turn near a boundary still finds
@@ -137,9 +146,14 @@ def window_hits(
     window.build keeps only those inside window k's emitted range. A result without an
     "onsets" key (no audio measured) gives trajectory-only candidates."""
     onsets_ = sorted(o for res in results for o in res.get("onsets", []))
-    landed = landings.detect_landings(rows, known_until_ms=max(r["emit"][1] for r in results))
+    lo, hi = results[0]["emit"][0], results[-1]["emit"][1]
+    span_rows = [r for r in rows if lo <= r[0] < hi]
+    offset = estimate_av_offset_ms(detect_direction_changes(span_rows), onsets_)
+    landed = landings.detect_landings(span_rows, known_until_ms=hi)
     landing_events = landings.window_events(landed, analysis_id, k, shuttle_track_id(analysis_id))
-    events = hit_candidates(rows, onsets_, analysis_id, k) + landing_events
+    hits = hit_candidates(span_rows, onsets_, analysis_id, k, onset_offset_ms=offset,
+                          owner_range=emit)  # fmt: skip
+    events = hits + landing_events
     return onsets_, sorted(events, key=lambda e: (e["t_ms"], e["event_id"]))
 
 
@@ -154,13 +168,24 @@ def window_for_posting(
     rows with ids that stay the same across windows (call k in increasing order)."""
     lo, hi = max(0, k - 1), min(len(results), k + 2)
     rows, _ = track_windows(results[lo:hi], cfg)
-    onsets_, events = window_hits(analysis_id, k, rows, results[lo:hi])
-    player_rows: list[list] = []
-    if players is not None:
-        players.feed_windows(results[:hi])
-        player_rows, _ = players.rows(plans[k].emit)
+    onsets_, events = window_hits(analysis_id, k, rows, results[lo:hi], plans[k].emit)
+    player_rows = _player_rows(players, results[:hi], plans[k].emit)
     return window_result(analysis_id, plans[k], results[k], rows, models, onsets_, events,
                          player_rows)  # fmt: skip
+
+
+def _player_rows(players: LivePlayers | None, fed: Sequence[dict], emit) -> list[list]:
+    """Window rows from the live tracker. A player-path error never fails the analysis: the
+    tracker is marked failed (players.failed, logged by analyze) and later windows carry no
+    player rows instead of guessed ones."""
+    if players is None or getattr(players, "failed", None):
+        return []
+    try:
+        players.feed_windows(fed)
+        return players.rows(emit)[0]
+    except Exception as exc:  # noqa: BLE001 - isolate the optional player stage
+        players.failed = f"{type(exc).__name__}: {exc}"[:200]
+        return []
 
 
 def assemble(
@@ -176,12 +201,11 @@ def assemble(
     Returns (windows, tracker stats)."""
     rows, stats = track_windows(per_window, cfg)
     windows = []
-    for plan, res in zip(plans, per_window, strict=True):
-        player_rows: list[list] = []
-        if players is not None:  # as posted: window k's ids are committed once k+1 is fed
-            players.feed_windows(per_window[: plan.seq + 2])
-            player_rows, _ = players.rows(plan.emit)
+    for i, (plan, res) in enumerate(zip(plans, per_window, strict=True)):
+        # as posted: window k's player ids are committed once k+1 is fed
+        player_rows = _player_rows(players, per_window[: i + 2], plan.emit)
         windows.append(window_result(analysis_id, plan, res, rows, models,
-                                     *window_hits(analysis_id, plan.seq, rows, per_window),
+                                     *window_hits(analysis_id, plan.seq, rows,
+                                                  per_window[max(0, i - 1):i + 2], plan.emit),
                                      player_rows))  # fmt: skip
     return windows, stats
