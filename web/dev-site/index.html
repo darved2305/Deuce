@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Elevate for Developers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f8f6; --surface:#ffffff; --ink:#0f1412; --muted:#5d6762; --line:#e2e6e3;
+  --accent:#0d8a63; --accent-ink:#ffffff; --code-bg:#0f1412; --code-ink:#dfe7e2;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{ --bg:#0c0f0e; --surface:#131816; --ink:#eef2ef; --muted:#97a39d; --line:#232b28;
+    --accent:#2fc08f; --accent-ink:#06120d; --code-bg:#070908; --code-ink:#dfe7e2; color-scheme:dark; }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 "Space Grotesk",system-ui,sans-serif;padding-inline:20px}
+img{max-width:100%;display:block}
+a{color:inherit}
+.wrap{max-width:1080px;margin:0 auto}
+nav{display:flex;align-items:center;justify-content:space-between;padding-block:22px;gap:16px}
+.logo{font-weight:700;letter-spacing:-.02em;font-size:18px;display:flex;align-items:center;gap:8px;text-decoration:none}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--accent)}
+nav ul{display:flex;gap:22px;list-style:none;margin:0;padding:0;font-size:14px;color:var(--muted)}
+nav ul a{text-decoration:none}
+nav ul a:hover{color:var(--ink)}
+.hero{padding-block:72px 48px;display:grid;gap:22px}
+.eyebrow{font:500 12px/1 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(40px,7vw,76px);line-height:1.02;letter-spacing:-.04em;margin:0;font-weight:600;text-wrap:balance;max-width:14ch}
+.lede{font-size:19px;color:var(--muted);max-width:56ch;margin:0}
+.cta{display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:999px;font-weight:500;font-size:15px;text-decoration:none;border:1px solid var(--line)}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.gallery{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding-block:8px 56px}
+.shot{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--surface)}
+.shot img{aspect-ratio:16/10;object-fit:cover;width:100%}
+.shot span{position:absolute;left:10px;bottom:10px;font:500 11px/1 "JetBrains Mono",monospace;background:rgba(15,20,18,.72);color:#fff;padding:6px 8px;border-radius:6px}
+section{padding-block:56px;border-top:1px solid var(--line)}
+h2{font-size:clamp(26px,3.6vw,36px);letter-spacing:-.03em;margin:0 0 10px;font-weight:600;text-wrap:balance}
+.sub{color:var(--muted);margin:0 0 32px;max-width:60ch}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;display:grid;gap:10px;align-content:start}
+.card h3{margin:0;font-size:18px;letter-spacing:-.01em}
+.card p{margin:0;color:var(--muted);font-size:15px}
+.tag{font:500 11px/1 "JetBrains Mono",monospace;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
+pre{margin:0;background:var(--code-bg);color:var(--code-ink);border-radius:14px;padding:18px 20px;overflow-x:auto;font:13px/1.65 "JetBrains Mono",ui-monospace,monospace}
+pre .c{color:#7c8a84} pre .k{color:#5fd3a6} pre .s{color:#f2c879}
+.tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.tabs button{font:500 13px "Space Grotesk",sans-serif;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.stat b{display:block;font-size:34px;letter-spacing:-.03em;font-weight:600;font-variant-numeric:tabular-nums}
+.stat small{color:var(--muted);font-size:14px}
+.record{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+footer{padding-block:36px 48px;border-top:1px solid var(--line);color:var(--muted);font-size:14px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+@media (max-width:860px){.gallery{grid-template-columns:repeat(2,1fr)}.grid3,.record{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}nav ul{display:none}}
+@media (prefers-reduced-motion:no-preference){.shot img{transition:transform .5s ease}.shot:hover img{transform:scale(1.04)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a class="logo" href="#"><span class="dot" aria-hidden="true"></span>elevate</a>
+    <ul>
+      <li><a href="docs.html">API docs</a></li>
+      <li><a href="#sdk">SDK</a></li>
+      <li><a href="#mcp">MCP</a></li>
+      <li><a href="https://github.com/darved2305/ggw_elevate">GitHub</a></li>
+    </ul>
+  </nav>
+
+  <header class="hero">
+    <span class="eyebrow">Racket-sports intelligence · developer platform</span>
+    <h1>Every rally, as structured data.</h1>
+    <p class="lede">Elevate turns one phone video of a badminton match into a match record: shuttle trail, hits, landings in court metres, players and the score. Read it from a REST API, a typed SDK, or straight from Claude through MCP.</p>
+    <div class="cta">
+      <a class="btn primary" href="docs.html">Read the API docs</a>
+      <a class="btn" href="https://github.com/darved2305/ggw_elevate">View on GitHub</a>
+    </div>
+  </header>
+
+  <div class="gallery" aria-label="Frames from real matches analysed by Elevate">
+    <figure class="shot"><img src="img/court1.jpg" alt="Indoor badminton court, players mid-rally" loading="lazy"><span>81 windows · 238 hits</span></figure>
+    <figure class="shot"><img src="img/court2.jpg" alt="Badminton singles match from behind the baseline" loading="lazy"><span>tier B court · σ 0.19 m</span></figure>
+    <figure class="shot"><img src="img/court3.jpg" alt="Badminton players at the net" loading="lazy"><span>2 players · stable ids</span></figure>
+    <figure class="shot"><img src="img/court4.jpg" alt="Badminton rally filmed on a phone" loading="lazy"><span>landing · candidate</span></figure>
+  </div>
+
+  <section>
+    <div class="stats">
+      <div class="stat"><b>6 s</b><small>windows streamed as they finish</small></div>
+      <div class="stat"><b>100%</b><small>shuttle precision on 196 hand-labelled frames</small></div>
+      <div class="stat"><b>±1 cm</b><small>app and engine court mapping agree</small></div>
+      <div class="stat"><b>45/45</b><small>BWF scoring vectors pass everywhere</small></div>
+    </div>
+  </section>
+
+  <section id="api">
+    <h2>One match record, three ways in.</h2>
+    <p class="sub">Every number carries its confidence and the frames that prove it. Anything the footage can't support is withheld, not guessed.</p>
+    <div class="grid3">
+      <article class="card"><span class="tag">REST</span><h3>Elevate API</h3><p>Sessions, resumable and segmented uploads, live analysis events, the full <code>match.v1</code> record, corrections, shot comparisons and developer keys. <a href="docs.html">Full reference</a>.</p></article>
+      <article class="card" id="sdk"><span class="tag">TypeScript</span><h3>@elevate/sdk</h3><p>A typed client generated from the spec, so every field matches the contract the engine writes.</p></article>
+      <article class="card" id="mcp"><span class="tag">MCP</span><h3>Read-only MCP server</h3><p>Four tools for Claude and other clients: match summary, moments, rallies, capabilities. Checked against 12 MCP clients.</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Start in a minute.</h2>
+    <p class="sub">Create a read-only developer key, then fetch a match.</p>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="t-curl" aria-selected="true" data-p="p-curl">curl</button>
+      <button role="tab" id="t-ts" aria-selected="false" data-p="p-ts">TypeScript</button>
+      <button role="tab" id="t-mcp" aria-selected="false" data-p="p-mcp">MCP</button>
+    </div>
+    <pre id="p-curl"><span class="c"># read a finished match</span>
+curl https://zpwxjjsugujmihhkmfjx.supabase.co/functions/v1/api/v1/matches/m_7f8db800… \
+  -H <span class="s">"X-API-Key: $ELEVATE_API_KEY"</span></pre>
+    <pre id="p-ts" hidden><span class="k">import</span> { DefaultApi, Configuration } <span class="k">from</span> <span class="s">"@elevate/sdk"</span>;
+
+<span class="k">const</span> api = <span class="k">new</span> DefaultApi(<span class="k">new</span> Configuration({ apiKey: process.env.ELEVATE_API_KEY }));
+<span class="k">const</span> match = <span class="k">await</span> api.v1MatchesIdGet({ id: <span class="s">"m_7f8db800…"</span> });
+console.log(match.events.filter(e =&gt; e.type === <span class="s">"landing"</span>));</pre>
+    <pre id="p-mcp" hidden><span class="c">// claude_desktop_config.json</span>
+{ <span class="s">"mcpServers"</span>: { <span class="s">"elevate"</span>: {
+    <span class="s">"command"</span>: <span class="s">"npx"</span>, <span class="s">"args"</span>: [<span class="s">"tsx"</span>, <span class="s">"mcp/src/index.ts"</span>],
+    <span class="s">"env"</span>: { <span class="s">"ELEVATE_API_KEY"</span>: <span class="s">"…"</span> } } } }</pre>
+  </section>
+
+  <section>
+    <div class="record">
+      <div>
+        <h2>What's in a match record.</h2>
+        <p class="sub">Hits come from the shuttle's turn plus the sound of the racket. Landings are projected to court metres through the four corners you tap. Players keep the same id for the whole match.</p>
+      </div>
+<pre><span class="k">"events"</span>: [{
+  <span class="k">"type"</span>: <span class="s">"landing"</span>,
+  <span class="k">"t_ms"</span>: 49960, <span class="k">"t_sigma_ms"</span>: 10,
+  <span class="k">"contact_xy_m"</span>: [-0.29, 2.58],
+  <span class="k">"cov_m2"</span>: [[0.0004, 0], [0, 0.0045]],
+  <span class="k">"plane"</span>: <span class="s">"court"</span>,
+  <span class="k">"state"</span>: <span class="s">"candidate"</span>,
+  <span class="k">"evidence"</span>: [{ <span class="k">"t_ms"</span>: 49960 }]
+}]</pre>
+    </div>
+  </section>
+
+  <footer>
+    <span>Elevate · built at Elevate 1.0 hackathon</span>
+    <span>Real footage, real engine output. No synthetic data.</span>
+  </footer>
+</div>
+<script>
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>{x.setAttribute('aria-selected',x===b);document.getElementById(x.dataset.p).hidden=x!==b;});
+}));
+</script>
+</body>
+</html>
