@@ -185,7 +185,7 @@ Deno.test("GET match returns internal when the RPC result violates match.v1", as
   assert.equal((await res.json()).error.code, "internal");
 });
 
-Deno.test("GET match appears in the public OpenAPI document", async () => {
+Deno.test("GET and DELETE match appear in the public OpenAPI document", async () => {
   const t = build(() => null);
   const res = await t.app.fetch(
     new Request("http://localhost/api/v1/openapi.json"),
@@ -193,4 +193,138 @@ Deno.test("GET match appears in the public OpenAPI document", async () => {
   assert.equal(res.status, 200, await res.clone().text());
   const doc = await res.json();
   assert.ok(doc.paths["/v1/matches/{id}"].get);
+  assert.ok(doc.paths["/v1/matches/{id}"].delete);
+  assert.equal(
+    doc.paths["/v1/matches/{id}"].delete.responses["202"].content,
+    undefined,
+  );
+});
+
+function buildDeleteMatch(
+  matchId = "m_delete",
+  options: { ownsMatch?: boolean; failOnKey?: string } = {},
+) {
+  const adminCalls: Call[] = [];
+  const order: string[] = [];
+  const tasks: Promise<unknown>[] = [];
+  const user: Handler = (call) => {
+    if (call.kind === "from" && call.table === "matches") {
+      assert.deepEqual(call.filters, { id: matchId, owner_id: "u1" });
+      return ok(options.ownsMatch === false ? null : { id: matchId });
+    }
+    return ok(null);
+  };
+  const admin: Handler = (call) => {
+    if (call.kind !== "from") return ok(null);
+    if (call.table === "sessions" && call.op === "select") {
+      return ok([{ id: "s_1" }]);
+    }
+    if (call.table === "uploads" && call.op === "select") {
+      assert.deepEqual(call.filters["session_id in"], ["s_1"]);
+      return ok([{ session_id: "s_1", r2_key: "orig/s_1/source.mp4" }]);
+    }
+    if (call.table === "artifacts" && call.op === "select") {
+      return ok([
+        { analysis_id: "a_1", r2_key: "analysis/a_1/0.3.0/windows/0.json" },
+        { analysis_id: "a_1", r2_key: `clips/${matchId}/c_1.mp4` },
+        { analysis_id: "a_1", r2_key: `clips/${matchId}/c_1.jpg` },
+      ]);
+    }
+    if (call.table === "matches" && call.op === "delete") {
+      order.push("row");
+    }
+    return ok(null);
+  };
+  const r2 = {
+    createMultipart: () => Promise.resolve("upload"),
+    completeMultipart: () => Promise.resolve(),
+    abortMultipart: () => Promise.resolve(),
+    head: () => Promise.resolve(null),
+    deleteObject: (key: string) => {
+      order.push(`object:${key}`);
+      return key === options.failOnKey
+        ? Promise.reject(new Error("R2 delete failed"))
+        : Promise.resolve();
+    },
+    presignPart: () => Promise.resolve("url"),
+    presignGet: () => Promise.resolve("url"),
+  };
+  const app = makeApp(
+    user,
+    admin,
+    undefined,
+    [],
+    adminCalls,
+    r2,
+    (task) => {
+      tasks.push(task);
+    },
+  );
+  return { app, adminCalls, order, tasks };
+}
+
+function deleteMatch(
+  app: ReturnType<typeof buildDeleteMatch>["app"],
+  matchId: string,
+) {
+  return app.fetch(
+    new Request(`http://localhost/api/v1/matches/${matchId}`, {
+      method: "DELETE",
+      headers: { Authorization: "Bearer jwt" },
+    }),
+  );
+}
+
+Deno.test("DELETE match removes known R2 objects before deleting the row", async () => {
+  const t = buildDeleteMatch();
+  const res = await deleteMatch(t.app, "m_delete");
+  assert.equal(res.status, 202, await res.clone().text());
+  assert.equal(await res.text(), "");
+  const task = t.tasks[0];
+  assert.ok(task);
+  await task;
+  assert.deepEqual(
+    t.order.filter((entry) => entry.startsWith("object:")).sort(),
+    [
+      "object:orig/s_1/source.mp4",
+      "object:analysis/a_1/0.3.0/windows/0.json",
+      "object:clips/m_delete/c_1.mp4",
+      "object:clips/m_delete/c_1.jpg",
+    ].sort(),
+  );
+  assert.equal(t.order.at(-1), "row");
+  const rowDelete = t.adminCalls.find((call) =>
+    call.kind === "from" && call.table === "matches" && call.op === "delete"
+  );
+  assert.ok(rowDelete);
+  if (rowDelete.kind === "from") {
+    assert.deepEqual(rowDelete.filters, { id: "m_delete", owner_id: "u1" });
+  }
+});
+
+Deno.test("DELETE match hides non-owned rows and schedules no cleanup", async () => {
+  const t = buildDeleteMatch("m_hidden", { ownsMatch: false });
+  const res = await deleteMatch(t.app, "m_hidden");
+  assert.equal(res.status, 404);
+  const body = await res.json();
+  assert.deepEqual(body.error, {
+    code: "not_found",
+    message: "match not found",
+  });
+  conforms("error.envelope.v1", body);
+  assert.equal(t.adminCalls.length, 0);
+  assert.equal(t.tasks.length, 0);
+  assert.deepEqual(t.order, []);
+});
+
+Deno.test("DELETE match keeps the row when asynchronous R2 cleanup fails", async () => {
+  const t = buildDeleteMatch("m_delete", {
+    failOnKey: "orig/s_1/source.mp4",
+  });
+  const res = await deleteMatch(t.app, "m_delete");
+  assert.equal(res.status, 202);
+  const task = t.tasks[0];
+  assert.ok(task);
+  await task;
+  assert.equal(t.order.includes("row"), false);
 });
