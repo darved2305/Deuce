@@ -96,10 +96,6 @@ export function fakeClient(handler: Handler, log: Call[] = []): SupabaseClient {
         state.filters[`${k}>`] = v;
         return chain;
       },
-      is: (k: string, v: unknown) => {
-        state.filters[`${k}.is`] = v;
-        return chain;
-      },
       in: (k: string, values: readonly unknown[]) => {
         state.filters[`${k} in`] = values;
         return chain;
