@@ -30,6 +30,7 @@ const EventsResponse = analysisEventsPageSchema;
 const createRun = createRoute({
   method: "post",
   path: "/v1/analyses",
+  operationId: "createAnalysis",
   request: {
     headers: z.object({ "idempotency-key": z.string().min(1).max(255) }),
     body: { content: { "application/json": { schema: CreateBody } } },
@@ -61,6 +62,7 @@ const createRun = createRoute({
 const getRun = createRoute({
   method: "get",
   path: "/v1/analyses/{id}",
+  operationId: "getAnalysis",
   request: { params: z.object({ id: AnalysisId }) },
   responses: {
     200: {
@@ -73,6 +75,7 @@ const getRun = createRoute({
 const getEvents = createRoute({
   method: "get",
   path: "/v1/analyses/{id}/events",
+  operationId: "listAnalysisEvents",
   request: {
     params: z.object({ id: AnalysisId }),
     query: z.object({

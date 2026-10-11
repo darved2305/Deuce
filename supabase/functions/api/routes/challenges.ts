@@ -42,6 +42,7 @@ const errors = {
 const createChallenge = createRoute({
   method: "post",
   path: "/v1/challenges",
+  operationId: "createChallenge",
   request: {
     headers: IdemHeader,
     body: {
@@ -60,6 +61,7 @@ const createChallenge = createRoute({
 const acceptChallenge = createRoute({
   method: "post",
   path: "/v1/challenges/{id}/accept",
+  operationId: "acceptChallenge",
   request: {
     params: z.object({ id: challengeIdSchema }),
     body: {
@@ -80,6 +82,7 @@ const acceptChallenge = createRoute({
 const postEntry = createRoute({
   method: "post",
   path: "/v1/challenges/{id}/entries",
+  operationId: "createChallengeEntry",
   request: {
     params: z.object({ id: challengeIdSchema }),
     body: {
@@ -98,6 +101,7 @@ const postEntry = createRoute({
 const getChallenge = createRoute({
   method: "get",
   path: "/v1/challenges/{id}",
+  operationId: "getChallenge",
   request: { params: z.object({ id: challengeIdSchema }) },
   responses: {
     200: {
@@ -111,6 +115,7 @@ const getChallenge = createRoute({
 const getFriends = createRoute({
   method: "get",
   path: "/v1/friends",
+  operationId: "listFriends",
   responses: {
     200: {
       description: "people the caller has exchanged challenges with",

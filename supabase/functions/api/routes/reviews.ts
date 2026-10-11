@@ -26,6 +26,7 @@ const ConfirmResponse = confirmedPointSchema;
 const confirmReview = createRoute({
   method: "post",
   path: "/v1/matches/{id}/reviews/{rvid}/confirm",
+  operationId: "confirmReview",
   request: {
     params: z.object({ id: matchIdSchema, rvid: reviewIdSchema }),
     headers: z.object({ "idempotency-key": z.string().min(1).max(255) }),

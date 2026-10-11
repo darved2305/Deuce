@@ -17,6 +17,7 @@ const ArtifactResponse = z.strictObject({
 const getArtifact = createRoute({
   method: "get",
   path: "/v1/artifacts/{id}",
+  operationId: "getArtifact",
   request: { params: z.object({ id: ArtifactId }) },
   responses: {
     200: {

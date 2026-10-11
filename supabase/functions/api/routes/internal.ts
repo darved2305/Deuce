@@ -34,6 +34,7 @@ const Params = z.object({ id: z.string().regex(/^a_[A-Za-z0-9_-]+$/) });
 const postEvent = createRoute({
   method: "post",
   path: "/internal/analyses/{id}/events",
+  operationId: "appendAnalysisEvent",
   request: {
     params: Params,
     body: {
@@ -51,6 +52,7 @@ const postEvent = createRoute({
 const postArtifact = createRoute({
   method: "post",
   path: "/internal/analyses/{id}/artifacts",
+  operationId: "registerAnalysisArtifact",
   request: {
     params: Params,
     body: {
@@ -72,6 +74,7 @@ const postArtifact = createRoute({
 const getSegments = createRoute({
   method: "get",
   path: "/internal/analyses/{id}/segments",
+  operationId: "listAnalysisSegments",
   request: {
     params: Params,
     query: z.object({
@@ -98,6 +101,7 @@ const finalizeResponseSchema = z.object({
 const postFinalize = createRoute({
   method: "post",
   path: "/internal/analyses/{id}/finalize",
+  operationId: "finalizeAnalysis",
   request: {
     params: Params,
     body: {
