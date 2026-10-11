@@ -156,11 +156,6 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     /** null while the first health check runs. */
     val backend: StateFlow<BackendStatus?> = _backend.asStateFlow()
 
-    init {
-        refreshBackend()
-        restorePipeline()
-    }
-
     fun refreshBackend() {
         viewModelScope.launch { _backend.value = repository.backendStatus() }
     }
@@ -169,6 +164,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     fun onPicked(uri: Uri?) {
         if (uri == null) return
         openJob?.cancel()
+        clearLiveHits()
         _screen.value = Screen.Import(opening = true)
         openJob = viewModelScope.launch {
             val info = try {
@@ -182,6 +178,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             }
             controller.open(uri, withOverlay = !info.isHdr)
             pendingSeekMs?.let { controller.pause(); controller.seekTo(it); pendingSeekMs = null }
+            // Opened from history with the Analysing/Overview panel on top: don't play sound behind it.
+            if (_panel.value != Screen.Panel.None) controller.pause()
             // open() may rebuild the player (SDR↔HDR), which resets the effect list; add the court
             // overlay beside the trail on every overlay-capable player (setVideoEffects may run
             // after prepare — media3 1.11.1 ExoPlayer doc). On HDR the pipeline has no overlays.
@@ -251,6 +249,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     fun finishSetup(result: SetupResult) {
         val court = (_screen.value as? Screen.Replay)?.let { courtCalibration(it, result) }
         courtOverlay.setCalibration(court)
+        // The screen's toggle is reset to on below; an earlier "off" must not leave the lines hidden.
+        courtOverlay.visible = court != null
         _screen.update { s ->
             if (s is Screen.Replay) {
                 s.copy(setupAtUs = null, setup = result, court = court, courtVisible = court != null)
@@ -369,6 +369,11 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     val uploadRuntime: UploadRuntime by lazy { UploadRuntime.get(getApplication()) }
 
+    /** Upload progress; a fixed Idle on a build without cloud config, where [uploadRuntime] throws. */
+    val uploadProgress: StateFlow<UploadProgress> by lazy {
+        if (UploadRuntime.isConfigured) uploadRuntime.coordinator.progress else MutableStateFlow(UploadProgress.Idle).asStateFlow()
+    }
+
     val analysisClient: AnalysisClient by lazy {
         HttpAnalysisClient(BuildConfig.API_BASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY, tokenProvider = { uploadRuntime.auth.accessToken() })
     }
@@ -433,13 +438,18 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             )
             _pipeline.value = Screen.Pipeline.Started(e.analysisId, e.sessionId, e.matchId, dispatched = true, state = e.lastState ?: "queued")
             uri?.let { onPicked(it) }
-            _panel.value = if (e.status() == com.elevate.app.data.history.HistoryStatus.Analysing) Screen.Panel.Analysing else Screen.Panel.Overview
+            showPanel(if (e.status() == com.elevate.app.data.history.HistoryStatus.Analysing) Screen.Panel.Analysing else Screen.Panel.Overview)
         }
     }
 
     /** Live hit candidates for the open file (same sha256 as the analysed one), drawn on the video. */
     private val _liveHitsMs = MutableStateFlow<List<Long>>(emptyList())
     val liveHitsMs: StateFlow<List<Long>> = _liveHitsMs.asStateFlow()
+
+    private fun clearLiveHits() {
+        controller.setHits(emptyList())
+        _liveHitsMs.value = emptyList()
+    }
 
     fun onLiveHits(hits: List<com.elevate.app.domain.analysis.HitCandidate>) {
         val s = _screen.value as? Screen.Replay ?: return
@@ -456,7 +466,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
      * runs. Tapping it should call `showPanel(Screen.Panel.Analysing)` (= PipelineUi.onOpenAnalysis).
      */
     val pipelinePill: StateFlow<String?> by lazy {
-        combine(_pipeline, _pipelineStep, uploadRuntime.coordinator.progress, _lastAnalysis) { p, step, up, a ->
+        combine(_pipeline, _pipelineStep, uploadProgress, _lastAnalysis) { p, step, up, a ->
             AnalysingFlow.pill(p, step, up, a)
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     }
@@ -538,7 +548,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         pipelineTitle = s.title
         _hero.value = heroFrom(s, facts, setup)
         _lastAnalysis.value = null
-        _panel.value = Screen.Panel.Analysing
+        showPanel(Screen.Panel.Analysing)
         if (!UploadRuntime.isConfigured) {
             _pipeline.value = Screen.Pipeline.Failed("setup", "Elevate cloud is not configured in this build")
             return
@@ -667,6 +677,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Retry after a failure: resumes the saved upload (accepted parts are kept), or redoes the analysis start. */
     fun retryPipeline() {
+        // A cancel that failed (offline) is retried as a cancel, never turned into a resumed upload.
+        if ((_pipeline.value as? Screen.Pipeline.Failed)?.stage == "cancel") { cancelUpload(); return }
         val cur = runCatching { uploadRuntime.coordinator.current() }.getOrNull()
         if (cur == null || cur.phase == UploadPhase.Aborted) {
             // Nothing saved to resume (e.g. it failed before the upload existed): start from the top.
@@ -685,14 +697,27 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         pipelineJob?.cancel()
         viewModelScope.launch {
             UploadScheduler.stop(getApplication())
-            uploadRuntime.coordinator.cancel()
             _pipelineStep.value = null
+            try {
+                uploadRuntime.coordinator.cancel()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Offline or a server error on abort: the saved upload is kept (retry resumes it).
+                // Uncaught here, this exception crashed the app from viewModelScope.
+                _pipeline.value = Screen.Pipeline.Failed("cancel", "The upload could not be cancelled: ${e.message ?: e.javaClass.simpleName}")
+                return@launch
+            }
             _pipeline.value = Screen.Pipeline.Idle
             _panel.value = Screen.Panel.None
         }
     }
 
-    fun showPanel(panel: Screen.Panel) { _panel.value = panel }
+    fun showPanel(panel: Screen.Panel) {
+        // The Analysing / Overview panels replace the video screen: no sound from a video nobody sees.
+        if (panel != Screen.Panel.None) controller.pause()
+        _panel.value = panel
+    }
 
     /** From the overview: back to the player at the rally start. */
     /** Seek target for a video that is still opening (rally tapped while another screen was showing). */
@@ -740,7 +765,18 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         controller.player.stop()
         controller.player.clearMediaItems()
         controller.setTrack(null)
+        clearLiveHits()
+        pendingSeekMs = null
         _screen.value = Screen.Import()
+    }
+
+    // Last in the class body: restorePipeline's IO block reads `uploadRuntime` from another thread,
+    // and its lazy delegate (like every property below the old first init block) is only assigned
+    // once the constructor reaches its declaration. Started earlier, the read raced the constructor,
+    // hit an NPE inside runCatching and silently skipped restoring the saved upload.
+    init {
+        refreshBackend()
+        restorePipeline()
     }
 
     override fun onCleared() {

@@ -56,7 +56,8 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
     val screen by vm.screen.collectAsStateWithLifecycle()
     val playback by vm.controller.state.collectAsStateWithLifecycle()
     val backend by vm.backend.collectAsStateWithLifecycle()
-    val upload by vm.uploadRuntime.coordinator.progress.collectAsStateWithLifecycle()
+    // Not vm.uploadRuntime directly: building it throws on a build without cloud config.
+    val upload by vm.uploadProgress.collectAsStateWithLifecycle()
     val pipeline by vm.pipeline.collectAsStateWithLifecycle()
     val panel by vm.panel.collectAsStateWithLifecycle()
     val step by vm.pipelineStep.collectAsStateWithLifecycle()

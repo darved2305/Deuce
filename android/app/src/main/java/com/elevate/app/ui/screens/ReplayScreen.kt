@@ -449,20 +449,35 @@ private fun LiveRow(live: Screen.LiveOffer?, onShowLive: (Boolean) -> Unit) {
     val c = Elevate.colors
     val t = live.track
     val range = "${"%.1f".format(Locale.ROOT, t.rangeStartUs / 1e6)}–${"%.1f".format(Locale.ROOT, t.rangeEndUs / 1e6)} s"
-    val kind = if (t.provenance.state == "candidate") "shuttle candidates" else "shuttle"
+    val text = liveRowText(t.provenance.state == "candidate", live.framesWithBall, t.framesInRange)
     CompactRow(
         icon = ElevateIcons.Bolt,
-        title = "Live engine · $kind",
+        title = text.title,
         bg = c.mint,
         iconTint = c.mintInk,
         value = "${live.framesWithBall}/${t.framesInRange}",
-        valueDescription = "shuttle on ${live.framesWithBall} of ${t.framesInRange} frames",
+        valueDescription = text.spoken,
         toggle = live.shown to onShowLive,
         toggleLabel = "Live engine trail",
     ) {
         DetailText("Your upload, analysed by the engine ${live.engineVersion} · $range so far")
-        DetailText("Shuttle on ${live.framesWithBall} of ${t.framesInRange} frames · more appear as windows finish")
+        DetailText(text.detail)
     }
+}
+
+/**
+ * Live row wording. Candidate rows are not observations (D-007): they read "a candidate on N of M
+ * frames", never "shuttle on", so a trail of unconfirmed candidates does not claim the shuttle was seen.
+ */
+internal data class LiveRowText(val title: String, val spoken: String, val detail: String)
+
+internal fun liveRowText(candidates: Boolean, frames: Int, framesInRange: Int): LiveRowText {
+    val count = if (candidates) "a candidate on $frames of $framesInRange frames" else "shuttle on $frames of $framesInRange frames"
+    return LiveRowText(
+        title = if (candidates) "Live engine · shuttle candidates" else "Live engine · shuttle",
+        spoken = count,
+        detail = "${count.replaceFirstChar { it.uppercase() }} · more appear as windows finish",
+    )
 }
 
 /** What the file itself says: measured facts, then any finding. Nothing here is a model output. */
