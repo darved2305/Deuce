@@ -103,3 +103,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T02:58Z | #122 | @HetanshWaghela | p4 | android: a new video never reopens an old unfinished upload (stale-upload hijack | none | 1.10.0 | ``` |
 | 2026-10-11T02:58Z | #127 | @HetanshWaghela | p4 | android: ReadLab, train your read on your own match | none (D-007 labelling) | 1.10.0 | ``` |
 | 2026-10-11T02:59Z | #128 | @HetanshWaghela | p4 | android: demo polish (no stale pill, pinned Analyse, coach copy, Back goes home, | none | 1.10.0 | ``` |
+| 2026-10-11T03:02Z | #131 | @nikhilpravinpise | p3 | db: fix migration version clash (segments -> 20261011152200) (#130) | none | 1.10.0 | ``` |
