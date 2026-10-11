@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(35);
+SELECT plan(41);
 
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password,
   email_confirmed_at, created_at, updated_at)
@@ -216,6 +216,27 @@ SELECT is((SELECT image_xy FROM public.vision_events WHERE match_id = 'm_hit'
 SELECT is((SELECT rally_id FROM public.vision_events WHERE match_id = 'm_hit'
   AND id = 'e_hit'), NULL::text, 'finalize permits a hit without a rally id');
 
+RESET ROLE;
+SELECT ok(has_function_privilege(
+  'service_role', 'public.get_match_v1_for_owner(text,uuid)', 'EXECUTE'),
+  'service_role can execute the owner-pinned match reader');
+SELECT ok(not has_function_privilege(
+  'authenticated', 'public.get_match_v1_for_owner(text,uuid)', 'EXECUTE'),
+  'authenticated cannot execute the owner-pinned match reader');
+SELECT ok(not has_function_privilege(
+  'anon', 'public.get_match_v1_for_owner(text,uuid)', 'EXECUTE'),
+  'anon cannot execute the owner-pinned match reader');
+SELECT ok((SELECT prosecdef FROM pg_proc
+  WHERE oid = 'public.get_match_v1_for_owner(text,uuid)'::regprocedure),
+  'the owner-pinned match reader is security definer');
+SET LOCAL ROLE service_role;
+SELECT is(public.get_match_v1_for_owner(
+  'm_read', '11111111-1111-1111-1111-111111111111'::uuid)->>'match_id',
+  'm_read', 'owner-pinned match reader returns the owner''s match');
+SELECT is(public.get_match_v1_for_owner(
+  'm_read', '22222222-2222-2222-2222-222222222222'::uuid), NULL::jsonb,
+  'another owner receives no match.v1');
+RESET ROLE;
 SELECT *
 FROM finish();
 ROLLBACK;

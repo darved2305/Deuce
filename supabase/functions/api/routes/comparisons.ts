@@ -11,6 +11,7 @@ import { ApiFailure } from "../lib/errors.ts";
 const getComparisons = createRoute({
   method: "get",
   path: "/v1/matches/{mid}/shots/{shot_id}/comparisons",
+  operationId: "getShotComparisons",
   request: {
     params: z.object({ mid: matchIdSchema, shot_id: shotIdSchema }),
     query: z.object({
@@ -47,26 +48,40 @@ export function registerComparisons(api: OpenAPIHono<AppEnv>): void {
     const { mid, shot_id } = c.req.valid("param");
     const { scope, limit } = c.req.valid("query");
     const jwt = (c.req.header("Authorization") ?? "").slice("Bearer ".length);
-    const user = c.var.deps.user(jwt);
-    const match = await user.from("matches").select("id,owner_id")
-      .eq("id", mid).maybeSingle();
+    const reader = c.var.readOnly ? c.var.deps.admin() : c.var.deps.user(jwt);
+    const matchQuery = reader.from("matches").select("id,owner_id")
+      .eq("id", mid);
+    const match = c.var.readOnly
+      ? await matchQuery.eq("owner_id", c.var.userId).maybeSingle()
+      : await matchQuery.maybeSingle();
     if (match.error) throw match.error;
     const matchRow = match.data as { id: string; owner_id: string } | null;
     if (!matchRow || matchRow.owner_id !== c.var.userId) {
       throw new ApiFailure(404, "not_found", "match not found");
     }
 
-    const shot = await user.from("shots").select("id")
-      .eq("match_id", mid).eq("id", shot_id).maybeSingle();
+    const shotQuery = reader.from("shots").select("id")
+      .eq("match_id", mid).eq("id", shot_id);
+    const shot = c.var.readOnly
+      ? await shotQuery.eq("owner_id", c.var.userId).maybeSingle()
+      : await shotQuery.maybeSingle();
     if (shot.error) throw shot.error;
     if (!shot.data) throw new ApiFailure(404, "not_found", "shot not found");
 
-    const result = await user.rpc("compare_shot", {
-      p_match_id: mid,
-      p_shot_id: shot_id,
-      p_scope: scope,
-      p_limit: Math.min(limit, 5),
-    });
+    const result = c.var.readOnly
+      ? await reader.rpc("compare_shot_for_owner", {
+        p_owner: c.var.userId,
+        p_match_id: mid,
+        p_shot_id: shot_id,
+        p_scope: scope,
+        p_limit: Math.min(limit, 5),
+      })
+      : await reader.rpc("compare_shot", {
+        p_match_id: mid,
+        p_shot_id: shot_id,
+        p_scope: scope,
+        p_limit: Math.min(limit, 5),
+      });
     if (result.error) throw result.error;
     const body = comparisonsResponseSchema.parse({
       query_shot_id: shot_id,

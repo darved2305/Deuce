@@ -30,6 +30,7 @@ const EventsResponse = analysisEventsPageSchema;
 const createRun = createRoute({
   method: "post",
   path: "/v1/analyses",
+  operationId: "createAnalysis",
   request: {
     headers: z.object({ "idempotency-key": z.string().min(1).max(255) }),
     body: { content: { "application/json": { schema: CreateBody } } },
@@ -61,6 +62,7 @@ const createRun = createRoute({
 const getRun = createRoute({
   method: "get",
   path: "/v1/analyses/{id}",
+  operationId: "getAnalysis",
   request: { params: z.object({ id: AnalysisId }) },
   responses: {
     200: {
@@ -73,6 +75,7 @@ const getRun = createRoute({
 const getEvents = createRoute({
   method: "get",
   path: "/v1/analyses/{id}/events",
+  operationId: "listAnalysisEvents",
   request: {
     params: z.object({ id: AnalysisId }),
     query: z.object({
@@ -356,7 +359,14 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
     const { id } = c.req.valid("param");
     const { after_seq, limit } = c.req.valid("query");
     const jwt = (c.req.header("Authorization") ?? "").slice("Bearer ".length);
-    const out = await listEvents(c.var.deps.user(jwt), id, after_seq, limit);
+    const reader = c.var.readOnly ? c.var.deps.admin() : c.var.deps.user(jwt);
+    const out = await listEvents(
+      reader,
+      id,
+      after_seq,
+      limit,
+      c.var.readOnly ? c.var.userId : undefined,
+    );
     return c.json(EventsResponse.parse(out), 200);
   });
 }

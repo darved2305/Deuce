@@ -12,6 +12,7 @@ import type { R2 } from "../lib/r2.ts";
 const getMatch = createRoute({
   method: "get",
   path: "/v1/matches/{id}",
+  operationId: "getMatch",
   request: { params: z.object({ id: matchIdSchema }) },
   responses: {
     200: {
@@ -39,6 +40,7 @@ const R2_DELETE_RETRY_MS = [250, 500] as const;
 const deleteMatch = createRoute({
   method: "delete",
   path: "/v1/matches/{id}",
+  operationId: "deleteMatch",
   request: { params: z.object({ id: matchIdSchema }) },
   responses: {
     202: {
@@ -112,15 +114,30 @@ export function registerMatches(api: OpenAPIHono<AppEnv>): void {
     const jwt = (c.req.header("Authorization") ?? "").slice(
       "Bearer ".length,
     );
-    const user = c.var.deps.user(jwt);
-    const result = await user.rpc("get_match_v1", { p_match_id: id });
+    const result = c.var.readOnly
+      ? await (async () => {
+        const admin = c.var.deps.admin();
+        const owned = await admin.from("matches").select("id")
+          .eq("id", id).eq("owner_id", c.var.userId).maybeSingle();
+        if (owned.error) throw owned.error;
+        if (!owned.data) {
+          throw new ApiFailure(404, "not_found", "match not found");
+        }
+        return await admin.rpc("get_match_v1_for_owner", {
+          p_match_id: id,
+          p_owner: c.var.userId,
+        });
+      })()
+      : await c.var.deps.user(jwt).rpc("get_match_v1", { p_match_id: id });
     if (result.error) throw result.error;
     if (result.data == null) {
-      const visible = await user.from("matches").select("id").eq("id", id)
-        .maybeSingle();
-      if (visible.error) throw visible.error;
-      if (!visible.data) {
-        throw new ApiFailure(404, "not_found", "match not found");
+      if (!c.var.readOnly) {
+        const visible = await c.var.deps.user(jwt).from("matches")
+          .select("id").eq("id", id).maybeSingle();
+        if (visible.error) throw visible.error;
+        if (!visible.data) {
+          throw new ApiFailure(404, "not_found", "match not found");
+        }
       }
       throw new ApiFailure(409, "conflict", "analysis not complete");
     }

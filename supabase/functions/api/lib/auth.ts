@@ -34,7 +34,9 @@ export async function sha256Hex(value: string): Promise<string> {
 
 // Paths include the function name: the root app mounts the API at /api (lib/app.ts).
 const PUBLIC_PATHS = new Set(["/api/v1/health", "/api/v1/openapi.json"]);
-const API_KEY_READ_PATH = /^\/api\/v1\/analyses\/a_[A-Za-z0-9_-]+$/;
+// Challenge reads run as the caller under RLS across several accounts (D-261011-HW31); a developer
+// key is owner-only with no share visibility, so those routes reject keys outright.
+const KEY_UNSUPPORTED_PREFIXES = ["/api/v1/challenges"];
 
 export const internalAuth = createMiddleware<AppEnv>(async (c, next) => {
   const token = c.req.header("X-Internal-Token");
@@ -46,7 +48,44 @@ export const internalAuth = createMiddleware<AppEnv>(async (c, next) => {
 });
 
 export const userAuth = createMiddleware<AppEnv>(async (c, next) => {
-  if (PUBLIC_PATHS.has(c.req.path)) return await next();
+  if (
+    PUBLIC_PATHS.has(c.req.path) &&
+    (c.req.method === "GET" || c.req.header("X-API-Key") === undefined)
+  ) return await next();
+
+  const key = c.req.header("X-API-Key");
+  if (key !== undefined) {
+    if (!/^k_[A-Za-z0-9_-]{43}$/.test(key)) {
+      return fail(c, 401, "unauthorized", "unauthorized");
+    }
+    const { data, error } = await c.var.deps.admin().from("developer_keys")
+      .select("owner_id,scope")
+      .eq("key_hash", await sha256Hex(key))
+      .is("revoked_at", null)
+      .maybeSingle();
+    if (error) throw error;
+    const developerKey = data as { owner_id: string; scope: string } | null;
+    if (!developerKey || developerKey.scope !== "read") {
+      return fail(c, 401, "unauthorized", "unauthorized");
+    }
+
+    c.set("userId", developerKey.owner_id);
+    c.set("isAnonymous", false);
+    c.set("readOnly", true);
+    if (
+      c.req.method !== "GET" ||
+      KEY_UNSUPPORTED_PREFIXES.some((p) => c.req.path.startsWith(p))
+    ) {
+      return fail(
+        c,
+        403,
+        "read_only_key",
+        "API key does not support this route",
+      );
+    }
+    return await next();
+  }
+
   const header = c.req.header("Authorization") ?? "";
   if (header.startsWith("Bearer ")) {
     const claims = await c.var.deps.verifyJwt(header.slice("Bearer ".length));
@@ -56,27 +95,5 @@ export const userAuth = createMiddleware<AppEnv>(async (c, next) => {
     c.set("readOnly", false);
     return await next();
   }
-
-  const key = c.req.header("X-API-Key") ?? "";
-  if (!/^k_[A-Za-z0-9_-]{43}$/.test(key)) {
-    return fail(c, 401, "unauthorized", "unauthorized");
-  }
-  const { data, error } = await c.var.deps.admin().from("developer_keys")
-    .select("owner_id,scope")
-    .eq("key_hash", await sha256Hex(key))
-    .is("revoked_at", null)
-    .maybeSingle();
-  if (error) throw error;
-  const developerKey = data as { owner_id: string; scope: string } | null;
-  if (!developerKey || developerKey.scope !== "read") {
-    return fail(c, 401, "unauthorized", "unauthorized");
-  }
-
-  c.set("userId", developerKey.owner_id);
-  c.set("isAnonymous", false);
-  c.set("readOnly", true);
-  if (c.req.method !== "GET" || !API_KEY_READ_PATH.test(c.req.path)) {
-    return fail(c, 403, "read_only_key", "API key does not support this route");
-  }
-  return await next();
+  return fail(c, 401, "unauthorized", "unauthorized");
 });

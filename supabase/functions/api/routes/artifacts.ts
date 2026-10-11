@@ -17,6 +17,7 @@ const ArtifactResponse = z.strictObject({
 const getArtifact = createRoute({
   method: "get",
   path: "/v1/artifacts/{id}",
+  operationId: "getArtifact",
   request: { params: z.object({ id: ArtifactId }) },
   responses: {
     200: {
@@ -67,11 +68,16 @@ export function registerArtifacts(api: OpenAPIHono<AppEnv>): void {
       "Bearer ".length,
     );
     const deps = c.var.deps;
-    const user = deps.user(jwt);
-    const owned = await user.from("artifacts")
-      .select("id,r2_key,match_id")
-      .eq("id", id)
-      .maybeSingle();
+    const owned = c.var.readOnly
+      ? await deps.admin().from("artifacts")
+        .select("id,r2_key,match_id")
+        .eq("id", id)
+        .eq("owner_id", c.var.userId)
+        .maybeSingle()
+      : await deps.user(jwt).from("artifacts")
+        .select("id,r2_key,match_id")
+        .eq("id", id)
+        .maybeSingle();
     if (owned.error) throw owned.error;
     const artifact = owned.data as ArtifactRow | null;
     if (!artifact) {

@@ -34,6 +34,7 @@ type CorrectionRow = {
 const createCorrection = createRoute({
   method: "post",
   path: "/v1/matches/{id}/corrections",
+  operationId: "createCorrection",
   request: {
     params: z.object({ id: matchIdSchema }),
     headers: IdemHeader,

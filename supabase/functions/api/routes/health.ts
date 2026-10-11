@@ -5,6 +5,7 @@ import { healthResponseSchema } from "../lib/contracts_vendor/index.ts";
 const healthRoute = createRoute({
   method: "get",
   path: "/v1/health",
+  operationId: "getHealth",
   responses: {
     200: {
       description: "liveness",

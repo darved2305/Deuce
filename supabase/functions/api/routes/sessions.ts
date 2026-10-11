@@ -69,6 +69,7 @@ const abortedResponse = () =>
 const createSession = createRoute({
   method: "post",
   path: "/v1/sessions",
+  operationId: "createSession",
   request: {
     headers: IdemHeader,
     body: {
@@ -92,6 +93,7 @@ const createSession = createRoute({
 const getSession = createRoute({
   method: "get",
   path: "/v1/sessions/{id}",
+  operationId: "getSession",
   request: { params: z.object({ id: SessionId }) },
   responses: {
     200: {
@@ -106,6 +108,7 @@ const getSession = createRoute({
 const uploadParts = createRoute({
   method: "post",
   path: "/v1/sessions/{id}/upload/parts",
+  operationId: "createUploadParts",
   request: {
     params: z.object({ id: SessionId }),
     body: {
@@ -130,6 +133,7 @@ const uploadParts = createRoute({
 const uploadComplete = createRoute({
   method: "post",
   path: "/v1/sessions/{id}/upload/complete",
+  operationId: "completeUpload",
   request: {
     params: z.object({ id: SessionId }),
     body: {
@@ -157,6 +161,7 @@ const uploadComplete = createRoute({
 const uploadAbort = createRoute({
   method: "post",
   path: "/v1/sessions/{id}/upload/abort",
+  operationId: "abortUpload",
   request: { params: z.object({ id: SessionId }) },
   responses: {
     200: {
@@ -171,6 +176,7 @@ const uploadAbort = createRoute({
 const registerSegment = createRoute({
   method: "post",
   path: "/v1/sessions/{id}/segments",
+  operationId: "registerSegment",
   request: {
     params: z.object({ id: SessionId }),
     body: {
@@ -206,8 +212,12 @@ const registerSegment = createRoute({
 const completeSegment = createRoute({
   method: "post",
   path: "/v1/sessions/{id}/segments/{seq}/complete",
+  operationId: "completeSegment",
   request: {
-    params: z.object({ id: SessionId, seq: z.coerce.number().int().min(0) }),
+    params: z.object({
+      id: SessionId,
+      seq: z.string().transform(Number).pipe(z.number().int().min(0)),
+    }),
   },
   responses: {
     200: {
@@ -612,15 +622,29 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
 
   api.openapi(getSession, async (c) => {
     const { id } = c.req.valid("param");
-    const user = c.var.deps.user(jwtOf(c));
-    const s = await user.from("sessions")
+    const reader = c.var.readOnly
+      ? c.var.deps.admin()
+      : c.var.deps.user(jwtOf(c));
+    const sessionQuery = reader.from("sessions")
       .select("id,match_id,mode,upload_mode,source,created_at")
-      .eq("id", id).maybeSingle();
-    if (s.error) throw s.error;
-    if (!s.data) throw new ApiFailure(404, "not_found", "session not found");
-    const u = await user.from("uploads").select(UPLOAD_COLS)
-      .eq("session_id", id).maybeSingle();
-    if (u.error) throw u.error;
+      .eq("id", id);
+    const s = await (c.var.readOnly
+      ? sessionQuery.eq("owner_id", c.var.userId)
+      : sessionQuery).maybeSingle();
+    if (s.error) {
+      throw s.error;
+    }
+    if (!s.data) {
+      throw new ApiFailure(404, "not_found", "session not found");
+    }
+    const uploadQuery = reader.from("uploads").select(UPLOAD_COLS)
+      .eq("session_id", id);
+    const u = await (c.var.readOnly
+      ? uploadQuery.eq("owner_id", c.var.userId)
+      : uploadQuery).maybeSingle();
+    if (u.error) {
+      throw u.error;
+    }
     const row = s.data as Record<string, unknown> & { id: string };
     const up = u.data as UploadRow | null;
     return c.json(

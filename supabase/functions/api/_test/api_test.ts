@@ -25,7 +25,7 @@ Deno.test("GET /v1/openapi.json -> 3.0.4 doc with /v1 paths only", async () => {
   assert.equal(doc.openapi, "3.0.4");
   assert.equal(
     doc.info.description,
-    "X-API-Key is read-only and currently supports only GET /v1/analyses/{id}.",
+    "X-API-Key is read-only and supports owner-scoped GET routes; share grants do not apply.",
   );
   assert.ok(doc.paths["/v1/health"], "doc has /v1/health");
   assert.ok(doc.paths["/v1/developer-keys"].post.responses["201"]);
@@ -50,6 +50,95 @@ Deno.test("GET /v1/openapi.json -> 3.0.4 doc with /v1 paths only", async () => {
     "https://test.supabase.co/functions/v1/api",
   );
 });
+
+Deno.test(
+  "OpenAPI operations have unique camelCase IDs and required path parameters",
+  async () => {
+    type OpenApiParameter = {
+      in: string;
+      name: string;
+      required?: boolean;
+    };
+    type OpenApiOperation = {
+      operationId?: unknown;
+      parameters?: OpenApiParameter[];
+    };
+    type OpenApiPathItem = {
+      parameters?: OpenApiParameter[];
+      [method: string]: unknown;
+    };
+
+    const res = await root.fetch(
+      new Request("http://localhost/api/v1/openapi.json"),
+    );
+    assert.equal(res.status, 200);
+    const document = await res.json() as {
+      paths: Record<string, OpenApiPathItem>;
+    };
+    const methods = new Set([
+      "get",
+      "put",
+      "post",
+      "delete",
+      "options",
+      "head",
+      "patch",
+      "trace",
+    ]);
+    const operationIds = new Set<string>();
+    const issues: string[] = [];
+    let operationCount = 0;
+
+    for (const [path, pathItem] of Object.entries(document.paths)) {
+      const templateParams = [...path.matchAll(/\{([^}]+)\}/g)].map((m) =>
+        m[1]
+      );
+      for (const [method, rawOperation] of Object.entries(pathItem)) {
+        if (!methods.has(method)) continue;
+        operationCount++;
+        const operation = rawOperation as OpenApiOperation;
+        const operationId = operation.operationId;
+        if (typeof operationId !== "string" || operationId.length === 0) {
+          issues.push(`${method.toUpperCase()} ${path} has no operationId`);
+        } else {
+          if (!/^[a-z][A-Za-z0-9]*$/.test(operationId)) {
+            issues.push(
+              `${method.toUpperCase()} ${path} has a non-camelCase operationId`,
+            );
+          }
+          if (operationIds.has(operationId)) {
+            issues.push(`duplicate operationId ${operationId}`);
+          }
+          operationIds.add(operationId);
+        }
+
+        const parameters = [
+          ...(pathItem.parameters ?? []),
+          ...(operation.parameters ?? []),
+        ];
+        for (const name of templateParams) {
+          const isRequiredPathParameter = parameters.some((parameter) =>
+            parameter.in === "path" && parameter.name === name &&
+            parameter.required === true
+          );
+          if (!isRequiredPathParameter) {
+            issues.push(
+              `${method.toUpperCase()} ${path} needs required path parameter ${name}`,
+            );
+          }
+        }
+      }
+    }
+
+    if (operationCount === 0) issues.push("OpenAPI document has no operations");
+    console.log(
+      `OpenAPI operationIds (${operationIds.size}): ${
+        [...operationIds].sort().join(", ")
+      }`,
+    );
+    assert.deepEqual(issues, [], issues.join("\n"));
+  },
+);
 
 Deno.test("unknown route -> 404 envelope", async () => {
   const res = await root.fetch(new Request("http://localhost/api/nope"));
