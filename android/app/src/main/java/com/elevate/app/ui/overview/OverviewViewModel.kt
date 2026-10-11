@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -75,6 +76,32 @@ class OverviewViewModel(
 
     /** The served `match.v1` once loaded (landings and calibration for the replay screen). */
     val matchRecord: StateFlow<MatchRecord?> = match.asStateFlow()
+
+    private val tacticsCourt = MutableStateFlow<Pair<String, com.elevate.app.domain.calibration.Homography>?>(null)
+    private val tacticsWho = MutableStateFlow<Triple<Long, Double, Double>?>(null)
+    private val tacticsSwap = MutableStateFlow(false)
+
+    /** The court from this phone's setup taps (template + image→court), for live landings. */
+    fun setTacticsCourt(template: String?, h: com.elevate.app.domain.calibration.Homography?) {
+        tacticsCourt.value = if (template != null && h != null) template to h else null
+    }
+
+    /** The setup "who are you" tap (source time, image x, y). */
+    fun setWhoIsMe(tMs: Long, x: Double, y: Double) { tacticsWho.value = Triple(tMs, x, y) }
+
+    fun swapYou() { tacticsSwap.value = !tacticsSwap.value }
+
+    /**
+     * Readability, opponent scout, ghost base and point autopsy, recomputed on every new window
+     * (live) and from match.v1 once it is served. Null until a court template is known.
+     */
+    val tactics: StateFlow<com.elevate.app.domain.tactics.TacticsView?> =
+        combine(
+            combine(match, this.sync.hits, this.sync.liveLandings) { m, h, l -> Triple(m, h, l) },
+            this.sync.players, tacticsCourt, tacticsWho, tacticsSwap,
+        ) { (m, h, l), players, court, who, swap ->
+            com.elevate.app.domain.tactics.TacticsInputs.view(m, h, l, players, court?.first, court?.second, who, swap)
+        }.flowOn(kotlinx.coroutines.Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Whether the server hands out window results yet (404 = route not deployed). */
     val artifactAccess: StateFlow<com.elevate.app.data.analysis.ArtifactAccess> = this.sync.artifactAccess

@@ -93,6 +93,10 @@ class WindowResultStore(
         val hits: List<HitCandidate> = emptyList(),
         /** Player foot rows with metres (withheld ones are not kept), inside [emitUs]. */
         val feet: List<FootSample> = emptyList(),
+        /** Full player rows (box + feet) inside [emitUs], for telling who hit each shot. */
+        val players: List<com.elevate.app.domain.tactics.PlayerRow> = emptyList(),
+        /** `type: "landing"` events inside [emitUs]: image point only (metres arrive at finalize). */
+        val landings: List<LiveLanding> = emptyList(),
     )
 
     data class Row(val tUs: Long, val x: Float, val y: Float, val conf: Float, val state: Byte)
@@ -115,6 +119,15 @@ class WindowResultStore(
 
     /** Real foot positions (court metres) of every stored window, by time. */
     fun feet(): List<FootSample> = windows.values.flatMap { it.feet }.sortedBy { it.tMs }
+
+    /** Player rows (box + feet) of every stored window, by time. */
+    fun players(): List<com.elevate.app.domain.tactics.PlayerRow> = windows.values.flatMap { it.players }.sortedBy { it.tMs }
+
+    /** Landing candidates of every stored window, by time. */
+    fun landings(): List<LiveLanding> = windows.values.flatMap { it.landings }.sortedBy { it.tMs }
+
+    /** A landing candidate from a live window, in source pixels. */
+    data class LiveLanding(val eventId: String, val tMs: Long, val imageXy: Pair<Double, Double>, val state: String)
 
     val rejectedRows: Int get() = windows.values.sumOf { it.rejected }
     val droppedOutsideEmit: Int get() = windows.values.sumOf { it.droppedOutsideEmit }
@@ -168,6 +181,9 @@ class WindowResultStore(
         hits.sortBy { it.tMs }
         val players = result.players.count { p -> (p.getOrNull(0) as? JsonPrimitive)?.longOrNull?.let { it * 1000 in emit } == true }
         val feet = result.players.mapNotNull { parseFoot(it) }.filter { it.tMs * 1000 in emit }.sortedBy { it.tMs }
+        val playerRows = result.players.mapNotNull { parsePlayer(it) }.filter { it.tMs * 1000 in emit }
+        val landings = result.events.filter { it.type == "landing" && it.tMs * 1000 in emit && it.imageXy.size == 2 && it.imageXy.all(Double::isFinite) }
+            .distinctBy { it.eventId }.map { LiveLanding(it.eventId, it.tMs, it.imageXy[0] to it.imageXy[1], it.state) }
         val w = Window(
             windowSeq = result.windowSeq,
             engineVersion = engineVersion,
@@ -181,6 +197,8 @@ class WindowResultStore(
             ballCoverage = result.quality.ballCoverage,
             hits = hits,
             feet = feet,
+            players = playerRows,
+            landings = landings,
         )
         windows[result.windowSeq] = w
         failed.remove(result.windowSeq)
@@ -233,6 +251,21 @@ class WindowResultStore(
         val t = (r[0] as? JsonPrimitive)?.takeUnless { it.isString }?.longOrNull?.takeIf { it >= 0 } ?: return null
         val track = (r[1] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
         return FootSample(t, track, num(6) ?: return null, num(7) ?: return null)
+    }
+
+    /** `[t_ms, track_id, x1, y1, x2, y2, foot_x_m|null, foot_y_m|null, conf]`; null when malformed. */
+    private fun parsePlayer(r: JsonArray): com.elevate.app.domain.tactics.PlayerRow? {
+        if (r.size != 9) return null
+        fun num(i: Int) = (r[i] as? JsonPrimitive)?.takeUnless { it.isString }?.doubleOrNull?.takeIf { it.isFinite() }
+        val t = (r[0] as? JsonPrimitive)?.takeUnless { it.isString }?.longOrNull?.takeIf { it >= 0 } ?: return null
+        val id = (r[1] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+        val fx = num(6)
+        val fy = num(7)
+        val both = fx != null && fy != null
+        return com.elevate.app.domain.tactics.PlayerRow(
+            t, id, num(2) ?: return null, num(3) ?: return null, num(4) ?: return null, num(5) ?: return null,
+            if (both) fx else null, if (both) fy else null,
+        )
     }
 
     private fun parseRow(r: JsonArray, reject: (String) -> Unit): Row? {
