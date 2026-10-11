@@ -7,6 +7,7 @@ import type * as ContractVendor from "../../supabase/functions/api/lib/contracts
 import * as z from "zod/v4";
 import {
   countHits,
+  eventSummary,
   filterMoments,
   landingZones,
   rallyDetail,
@@ -97,6 +98,16 @@ export const compareMomentInput = z.object({
   shot_id: shotIdSchema,
   scope: z.enum(["own", "shared", "reference"]).default("own"),
   limit: z.number().int().min(1).max(5).default(5),
+});
+
+export const listEventsInput = z.object({
+  match_id: matchIdSchema,
+  type: z.string().min(1).max(40).optional().describe(
+    "Keep only this event type, for example hit or landing.",
+  ),
+  state: z.enum(["observed", "candidate", "inferred", "user"]).optional()
+    .describe("Keep only events with this provenance state."),
+  limit: z.number().int().min(1).max(100).default(20),
 });
 
 export const getAnalysisProgressInput = z.object({
@@ -317,6 +328,7 @@ export function summarizeMatch(value: unknown) {
       }
       : null,
     rally_count: match.rallies.length,
+    events: eventSummary(match.events, { limit: 0 }).counts,
     capability_tiers: Object.fromEntries(
       Object.entries(match.capabilities).map(([name, capability]) => [
         name,
@@ -404,6 +416,26 @@ export function createServer(): McpServer {
         }
         return detail;
       }),
+  );
+
+  server.registerTool(
+    "list_events",
+    {
+      title: "List events",
+      annotations: READ_ONLY,
+      description:
+        "The engine's detections on the match timeline (hits, landings) with their provenance state (observed, candidate, inferred, user), time and time uncertainty. Returns counts per type and state over the whole match plus the first events in time order. Candidates are not confirmed facts: say so when quoting them.",
+      inputSchema: listEventsInput,
+    },
+    ({ match_id, type, state, limit }) =>
+      handleTool("list_events", async () => ({
+        match_id,
+        ...eventSummary((await getMatch(match_id)).events, {
+          type,
+          state,
+          limit,
+        }),
+      })),
   );
 
   server.registerTool(

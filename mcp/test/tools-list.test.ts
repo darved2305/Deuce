@@ -152,6 +152,7 @@ test("stdio server lists tools and validates capability responses", async (t) =>
       "get_landing_zones",
       "get_match_summary",
       "get_rally",
+      "list_events",
       "rewatch_picks",
     ]);
     t.diagnostic(`tools/list: ${names.join(", ")}`);
