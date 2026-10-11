@@ -47,6 +47,9 @@ import uploadCompleteResponse from "../../../../packages/contracts/schemas/uploa
 import confirmedPoint from "../../../../packages/contracts/schemas/confirmed.point.v1.schema.json" with {
   type: "json",
 };
+import comparisonsResponse from "../../../../packages/contracts/schemas/comparisons.response.v1.schema.json" with {
+  type: "json",
+};
 import reviewConfirmRequest from "../../../../packages/contracts/schemas/review.confirm.request.v1.schema.json" with {
   type: "json",
 };
@@ -72,6 +75,7 @@ const schemas: Record<string, Schema> = {
   "analysis.events.page.v1": analysisEventsPage as Schema,
   "analysis.get.response.v1": analysisGetResponse as Schema,
   "confirmed.point.v1": confirmedPoint as Schema,
+  "comparisons.response.v1": comparisonsResponse as Schema,
   "error.envelope.v1": errorEnvelope as Schema,
   "health.response.v1": healthResponse as Schema,
   "internal.artifact.request.v1": internalArtifactRequest as Schema,
