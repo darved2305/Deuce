@@ -318,3 +318,16 @@ test("1.8.0: uncalibrated match, hits as events, withheld feet, segments session
   delete (fin.vision_result as any).insights;
   assert.equal(zodAccepts("analysis.finalize.request.v1", fin), true, "minimal finalize body");
 });
+
+test("1.9.0 (#77): the engine can build finalize from what dispatch hands it", () => {
+  const m = example("match.v1");
+  const sub = { analysis_id: "a_doc", r2_key: "orig/s_doc/source.mp4", session_spec: example("session.create.request.v1") };
+  assert.equal(zodAccepts("modal.submit.request.v1", { ...sub, match_id: "m_doc", session_id: "s_doc" }), true, "ids at dispatch");
+  assert.equal(jsonAccepts("modal.submit.request.v1", { ...sub, match_id: "m_doc", session_id: "s_doc" }), true);
+  assert.equal(zodAccepts("modal.submit.request.v1", sub), true, "old engine request still valid");
+  assert.equal(zodAccepts("modal.submit.request.v1", { ...sub, match_id: "x_doc" }), false, "typed match id");
+  const fin = { vision_result: { ...m, players: [], calibration: null, analysis: { ...m.analysis, artifacts: { ball_track: null, player_tracks: null } }, rallies: [], shots: [], events: [], reviews: [], confirmed_points: [], score: { timeline: [], games: [] }, metrics: [], moments: [], clips: [], corrections: [] }, clip_artifact_ids: [] };
+  delete (fin.vision_result as any).insights;
+  assert.equal(zodAccepts("analysis.finalize.request.v1", fin), true, "no players, no whole-match tracks");
+  assert.equal(jsonAccepts("analysis.finalize.request.v1", fin), true);
+});

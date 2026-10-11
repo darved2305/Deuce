@@ -346,6 +346,10 @@ export const analysisCreateResponseSchema = strictObject({
 
 export const modalSubmitRequestSchema = strictObject({
   analysis_id: analysisIdSchema,
+  // D-261011-HW15 (#77): the engine fills vision_result.match_id / session_ids from these. Optional
+  // so an engine deployed before the API keeps accepting requests; finalize needs them.
+  match_id: matchIdSchema.optional(),
+  session_id: sessionIdSchema.optional(),
   // multipart: the original; segments: segment 0 (the engine then polls /internal/.../segments).
   r2_key: z.union([origR2KeySchema, segmentR2KeySchema]),
   session_spec: sessionCreateRequestSchema,
@@ -494,9 +498,11 @@ const analysisSummarySchema = strictObject({
   engine_version: z.string(),
   state: analysisStateSchema,
   models: z.array(canonicalModelIdSchema),
+  // D-261011-HW15 (#77): null until a single whole-match track artifact exists; the per-window
+  // window_result artifacts carry the tracks today (G8 allows only window keys).
   artifacts: strictObject({
-    ball_track: artifactIdSchema,
-    player_tracks: artifactIdSchema,
+    ball_track: artifactIdSchema.nullable(),
+    player_tracks: artifactIdSchema.nullable(),
   }),
 });
 
