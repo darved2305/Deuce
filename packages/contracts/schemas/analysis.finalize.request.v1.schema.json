@@ -23,12 +23,26 @@
               "additionalProperties": false,
               "properties": {
                 "ball_track": {
-                  "pattern": "^art_[A-Za-z0-9_-]+$",
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "pattern": "^art_[A-Za-z0-9_-]+$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "player_tracks": {
-                  "pattern": "^art_[A-Za-z0-9_-]+$",
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "pattern": "^art_[A-Za-z0-9_-]+$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
               "required": [

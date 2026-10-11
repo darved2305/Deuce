@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.0
+
+Issue #77 (D-261011-HW15): `modal.submit.request.v1` adds optional `match_id` and `session_id` so the
+engine can build `vision_result`; `match.v1.analysis.artifacts.ball_track` / `player_tracks` are
+nullable (null until a whole-match track artifact exists).
+
 ## 1.8.0
 
 Issues #65, #66, #63 (D-261011-HW14): `match.v1.calibration` nullable; calibration `H` is image px ->
