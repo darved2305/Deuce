@@ -158,6 +158,40 @@ export async function takePartUrls(
   }
 }
 
+export async function takeSegmentUrl(
+  admin: SupabaseClient,
+  sessionId: string,
+  seq: number,
+  ownerId: string,
+): Promise<void> {
+  const res = await admin.rpc("r2_take_segment_url", {
+    p_session: sessionId,
+    p_owner: ownerId,
+    p_seq: seq,
+    p_limit: BUDGET.partUrlsPerPart,
+  });
+  if (res.error) {
+    if (res.error.code === "P0002") {
+      throw new ApiFailure(404, "not_found", "segment not found");
+    }
+    if (
+      res.error.code === "P0001" && res.error.message === "segment_completed"
+    ) {
+      throw new ApiFailure(409, "conflict", "segment is already completed");
+    }
+    throw new ApiFailure(503, "storage_busy", "R2 usage could not be recorded");
+  }
+  if (res.data === null || res.data === undefined) {
+    throw new ApiFailure(
+      429,
+      "too_many_part_requests",
+      "too many segment URL requests for this upload",
+      undefined,
+      PART_URL_TTL_S,
+    );
+  }
+}
+
 // Fail closed so unaccounted R2 operations cannot continue after a counter failure.
 export async function addUsage(
   admin: SupabaseClient,

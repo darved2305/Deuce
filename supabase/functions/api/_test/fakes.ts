@@ -48,6 +48,10 @@ export function fakeClient(handler: Handler, log: Call[] = []): SupabaseClient {
         state.filters[`${k}>`] = v;
         return chain;
       },
+      is: (k: string, v: unknown) => {
+        state.filters[`${k}.is`] = v;
+        return chain;
+      },
       order: () => chain,
       limit: (n: number) => {
         state.filters["limit"] = n;

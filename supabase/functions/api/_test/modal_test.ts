@@ -107,3 +107,13 @@ Deno.test("modal invalid ids fail fast without calling", async () => {
   );
   assert.equal(s.calls(), 0);
 });
+
+Deno.test("modal accepts a segment object key", async () => {
+  const s = setup([() => jsonRes(200, { modal_call_id: "fc-segment" })]);
+  const out = await submitToModal(
+    { ...body, r2_key: "seg/s_1/0.mp4" },
+    s.deps,
+  );
+  assert.equal(out.modal_call_id, "fc-segment");
+  assert.equal(s.calls(), 1);
+});

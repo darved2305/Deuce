@@ -20,7 +20,8 @@ export class ModalRejected extends ModalUnavailable {
 }
 
 const ANALYSIS_ID = /^a_[A-Za-z0-9_-]{1,64}$/;
-const R2_KEY = /^orig\/s_[A-Za-z0-9_-]{1,64}\/source\.mp4$/;
+const R2_KEY =
+  /^(?:orig\/s_[A-Za-z0-9_-]{1,64}\/source\.mp4|seg\/s_[A-Za-z0-9_-]+\/\d+\.mp4)$/;
 const BACKOFF_MS = [500, 1000, 2000];
 const TIMEOUT_MS = 30_000;
 

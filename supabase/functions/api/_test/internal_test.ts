@@ -1,15 +1,23 @@
 import assert from "node:assert/strict";
 import { fieldsToRpc, rowToWire } from "../lib/events.ts";
 import { type Call, type Handler, makeApp, ok, type Res } from "./fakes.ts";
+import { conforms } from "./jsonschema.ts";
 
 function build(
-  o: { append?: Res; existing?: unknown; insert?: Res[]; ingest?: Res } = {},
+  o: {
+    append?: Res;
+    existing?: unknown;
+    insert?: Res[];
+    ingest?: Res;
+    segments?: unknown[];
+  } = {},
 ) {
   const log: Call[] = [];
   let storedEvent: Record<string, unknown> | null = null;
   let existingCalls = 0;
   let currentRun = {
     id: "a_1",
+    session_id: "s_1",
     match_id: "m_1",
     owner_id: "u1",
     state: "processing",
@@ -55,6 +63,9 @@ function build(
     if (c.kind === "from" && c.table === "analysis_runs") {
       return ok(c.filters.id === "a_missing" ? null : currentRun);
     }
+    if (c.kind === "from" && c.table === "segments") {
+      return ok(o.segments ?? []);
+    }
     if (c.kind === "from" && c.table === "artifacts") {
       if (c.op === "select") {
         existingCalls++;
@@ -95,6 +106,31 @@ function call(
     }),
   );
 }
+
+function getSegments(
+  app: ReturnType<typeof build>["app"],
+  query = "",
+  token: string | null = "tok",
+) {
+  return app.fetch(
+    new Request(
+      `http://localhost/api/internal/analyses/a_1/segments${query}`,
+      { headers: token ? { "X-Internal-Token": token } : {} },
+    ),
+  );
+}
+
+const segmentRow = (seq: number, completed: boolean, final = false) => ({
+  seq,
+  pts_start_us: seq * 1_000_000,
+  pts_end_us: (seq + 1) * 1_000_000,
+  starts_on_sync_sample: true,
+  bytes: 100,
+  sha256: "a".repeat(64),
+  final,
+  r2_key: `seg/s_1/${seq}.mp4`,
+  completed_at: completed ? "2026-10-11T10:00:00Z" : null,
+});
 
 const finalizeBody = {
   vision_result: {
@@ -156,6 +192,27 @@ Deno.test("internal routes need the right token", async () => {
   assert.equal((await call(t.app, "events", {}, "bad")).status, 401);
   assert.equal((await call(t.app, "artifacts", {}, "bad")).status, 401);
   assert.equal((await call(t.app, "finalize", {}, "bad")).status, 401);
+});
+
+Deno.test("internal segments requires the token and returns only the completed prefix", async () => {
+  const t = build({
+    segments: [
+      segmentRow(0, true),
+      segmentRow(1, true),
+      segmentRow(2, false),
+      segmentRow(3, true, true),
+    ],
+  });
+  assert.equal((await getSegments(t.app, "?after_seq=0", null)).status, 401);
+  const res = await getSegments(t.app, "?after_seq=0");
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  conforms("internal.segments.page.v1", body);
+  assert.deepEqual(
+    body.segments.map((segment: { seq: number }) => segment.seq),
+    [1],
+  );
+  assert.equal(body.final_seq, 3);
 });
 
 Deno.test("finalize bad body -> 422 and marks the run failed", async () => {

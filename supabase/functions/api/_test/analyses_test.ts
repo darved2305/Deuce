@@ -7,12 +7,14 @@ import {
   ok,
   type Res,
 } from "./fakes.ts";
+import { conforms } from "./jsonschema.ts";
 
 const RUN = { id: "a_1", state: "uploaded" };
 
 type Opts = {
   session?: unknown;
   upload?: unknown;
+  segment?: unknown;
   idem?: Res;
   run?: Res;
   runs?: Res;
@@ -31,7 +33,9 @@ function build(o: Opts = {}) {
   let modalCalls = 0;
   const user: Handler = (c) => {
     if (c.kind === "from" && c.table === "sessions") {
-      return ok("session" in o ? o.session : { id: "s_1" });
+      return ok(
+        "session" in o ? o.session : { id: "s_1", upload_mode: "multipart" },
+      );
     }
     if (c.kind === "from" && c.table === "uploads") {
       return ok(
@@ -39,6 +43,9 @@ function build(o: Opts = {}) {
           ? o.upload
           : { r2_key: "orig/s_1/source.mp4", status: "completed" },
       );
+    }
+    if (c.kind === "from" && c.table === "segments") {
+      return ok("segment" in o ? o.segment : null);
     }
     if (c.kind === "from" && c.table === "analysis_runs") {
       return ok({ id: "a_1", state: "partial" });
@@ -78,14 +85,16 @@ function build(o: Opts = {}) {
     }
     return ok(null);
   };
-  const fetchImpl = (() => {
+  const modalBodies: unknown[] = [];
+  const fetchImpl = ((_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.body) modalBodies.push(JSON.parse(String(init.body)));
     const r = (o.modal ?? [() => jsonRes(200, { modal_call_id: "fc-1" })])[
       modalCalls++
     ];
     return Promise.resolve(r());
   }) as typeof fetch;
   const app = makeApp(user, admin, fetchImpl, sleeps, log);
-  return { app, log, sleeps, modalCalls: () => modalCalls };
+  return { app, log, sleeps, modalCalls: () => modalCalls, modalBodies };
 }
 
 function post(app: ReturnType<typeof build>["app"], headers: HeadersInit = {
@@ -432,6 +441,24 @@ Deno.test("upload not complete -> 409; no upload row -> 409", async () => {
     assert.equal(res.status, 409);
     assert.equal((await res.json()).error.code, "conflict");
   }
+});
+
+Deno.test("completed segment 0 enables analysis and dispatches its seg key", async () => {
+  const t = build({
+    session: { id: "s_1", upload_mode: "segments" },
+    segment: {
+      r2_key: "seg/s_1/0.mp4",
+      completed_at: "2026-10-11T10:00:00Z",
+    },
+  });
+  const res = await post(t.app);
+  assert.equal(res.status, 202);
+  conforms("analysis.create.response.v1", await res.json());
+  assert.equal(
+    (t.modalBodies[0] as { r2_key: string }).r2_key,
+    "seg/s_1/0.mp4",
+  );
+  assert.ok(!t.log.some((c) => c.kind === "from" && c.table === "uploads"));
 });
 
 Deno.test("session not visible to caller (other owner) -> 404", async () => {

@@ -14,8 +14,9 @@ values
   ('m_b1', '11111111-1111-1111-1111-111111111111', 'badminton', 'singles', 'bwf_singles', 'v1'),
   ('m_b1_share', '11111111-1111-1111-1111-111111111111', 'badminton', 'singles', 'bwf_singles', 'v1'),
   ('m_b1_ok', '11111111-1111-1111-1111-111111111111', 'badminton', 'singles', 'bwf_singles', 'v1');
-insert into public.sessions (id, match_id, owner_id, mode, source)
-values ('s_b1', 'm_b1', '11111111-1111-1111-1111-111111111111', 'match', '{}'::jsonb);
+insert into public.sessions (id, match_id, owner_id, mode, source, who_is_me)
+values ('s_b1', 'm_b1', '11111111-1111-1111-1111-111111111111', 'match', '{}'::jsonb,
+        '{"image_xy":[0.5,0.5],"t_ms":0}'::jsonb);
 insert into public.analysis_runs (id, session_id, match_id, owner_id, idempotency_key)
 values ('a_b1', 's_b1', 'm_b1', '11111111-1111-1111-1111-111111111111', 'b1');
 

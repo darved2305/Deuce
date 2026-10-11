@@ -127,22 +127,36 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
     const admin = deps.admin();
     const ownerId = c.var.userId;
 
-    const session = await user.from("sessions").select("id")
+    const session = await user.from("sessions").select("id,upload_mode")
       .eq("id", session_id).maybeSingle();
     if (session.error) throw session.error;
     if (!session.data) {
       throw new ApiFailure(404, "not_found", "session not found");
     }
-    const upload = await user.from("uploads").select("r2_key,status")
-      .eq("session_id", session_id).maybeSingle();
-    if (upload.error) throw upload.error;
-    const up = upload.data as { r2_key: string; status: string } | null;
-    if (!up || up.status !== "completed") {
-      throw new ApiFailure(
-        409,
-        "conflict",
-        "upload is not complete",
-      );
+    const uploadMode = (session.data as { upload_mode: string }).upload_mode;
+    let r2Key: string;
+    if (uploadMode === "segments") {
+      const segment = await user.from("segments")
+        .select("r2_key,completed_at")
+        .eq("session_id", session_id).eq("seq", 0).maybeSingle();
+      if (segment.error) throw segment.error;
+      const first = segment.data as {
+        r2_key: string;
+        completed_at: string | null;
+      } | null;
+      if (!first || !first.completed_at) {
+        throw new ApiFailure(409, "conflict", "upload is not complete");
+      }
+      r2Key = first.r2_key;
+    } else {
+      const upload = await user.from("uploads").select("r2_key,status")
+        .eq("session_id", session_id).maybeSingle();
+      if (upload.error) throw upload.error;
+      const up = upload.data as { r2_key: string; status: string } | null;
+      if (!up || up.status !== "completed") {
+        throw new ApiFailure(409, "conflict", "upload is not complete");
+      }
+      r2Key = up.r2_key;
     }
 
     const hash = await canonicalHash({ session_id });
@@ -237,7 +251,7 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
       admin,
       run,
       session_id,
-      up.r2_key,
+      r2Key,
       deps.modal(),
     );
     if (dispatchResult.kind === "invalid") {

@@ -4,6 +4,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppEnv } from "../lib/auth.ts";
 import {
   errorEnvelopeSchema,
+  segmentCompleteResponseSchema,
+  segmentManifestSchema,
+  segmentRegisterRequestSchema,
+  segmentRegisterResponseSchema,
   sessionCreateRequestSchema,
   sessionCreateResponseSchema,
   sessionGetResponseSchema,
@@ -22,35 +26,37 @@ import {
   assertWritesAllowed,
   BUDGET,
   takePartUrls,
+  takeSegmentUrl,
 } from "../lib/budget.ts";
 
 const ENDPOINT = "POST /v1/sessions";
 export const PART_SIZE = 8 * 1024 * 1024;
 export const MAX_PARTS_PER_CALL = 50;
 const MAX_CONCURRENCY = 2;
+const MAX_SEGMENT_BYTES = BUDGET.maxVideoBytes;
 
 const SessionId = z.string().regex(/^s_[A-Za-z0-9_-]+$/);
 const IdemHeader = z.object({
   "idempotency-key": z.string().min(1).max(255),
 });
 
-function partUrlExpiresAt(signedUrl: string): string {
+function urlExpiresAt(signedUrl: string, expectedTtl: number): string {
   const url = new URL(signedUrl);
   const issued = url.searchParams.get("X-Amz-Date") ?? "";
   const ttl = url.searchParams.get("X-Amz-Expires");
   const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(
     issued,
   );
-  if (ttl !== String(PART_URL_TTL_S) || !match) {
-    throw new Error("presigned part URL has invalid expiry metadata");
+  if (ttl !== String(expectedTtl) || !match) {
+    throw new Error("presigned URL has invalid expiry metadata");
   }
   const issuedAtMs = Date.parse(
     `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}Z`,
   );
   if (!Number.isFinite(issuedAtMs)) {
-    throw new Error("presigned part URL has an invalid issue time");
+    throw new Error("presigned URL has an invalid issue time");
   }
-  return new Date(issuedAtMs + PART_URL_TTL_S * 1000).toISOString();
+  return new Date(issuedAtMs + expectedTtl * 1000).toISOString();
 }
 
 const completedResponse = (bytes: number) =>
@@ -71,13 +77,13 @@ const createSession = createRoute({
   },
   responses: {
     201: {
-      description: "session, match and R2 multipart upload created",
+      description: "session and match created with the selected upload mode",
       content: {
         "application/json": { schema: sessionCreateResponseSchema },
       },
     },
     422: {
-      description: "invalid request or segments upload is not available",
+      description: "invalid request",
       content: { "application/json": { schema: errorEnvelopeSchema } },
     },
   },
@@ -162,6 +168,65 @@ const uploadAbort = createRoute({
   },
 });
 
+const registerSegment = createRoute({
+  method: "post",
+  path: "/v1/sessions/{id}/segments",
+  request: {
+    params: z.object({ id: SessionId }),
+    body: {
+      content: { "application/json": { schema: segmentRegisterRequestSchema } },
+    },
+  },
+  responses: {
+    200: {
+      description: "segment registered with a presigned PUT URL",
+      content: {
+        "application/json": { schema: segmentRegisterResponseSchema },
+      },
+    },
+    409: {
+      description: "sequence gap or conflicting segment registration",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
+    413: {
+      description: "segment bytes exceed the G1 cap",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
+    429: {
+      description: "segment URL or storage budget reached",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
+    503: {
+      description: "uploads paused or usage could not be recorded",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
+  },
+});
+
+const completeSegment = createRoute({
+  method: "post",
+  path: "/v1/sessions/{id}/segments/{seq}/complete",
+  request: {
+    params: z.object({ id: SessionId, seq: z.coerce.number().int().min(0) }),
+  },
+  responses: {
+    200: {
+      description: "verified segment manifest (idempotent)",
+      content: {
+        "application/json": { schema: segmentCompleteResponseSchema },
+      },
+    },
+    409: {
+      description: "segment object is missing or has the wrong size",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
+    503: {
+      description: "R2 usage could not be recorded",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
+  },
+});
+
 type UploadRow = {
   session_id: string;
   r2_key: string;
@@ -172,6 +237,23 @@ type UploadRow = {
   completed_at: string | null;
 };
 
+type SegmentRow = {
+  session_id: string;
+  owner_id: string;
+  seq: number | string;
+  pts_start_us: number | string;
+  pts_end_us: number | string;
+  starts_on_sync_sample: boolean;
+  bytes: number | string;
+  sha256: string;
+  final: boolean;
+  r2_key: string;
+  url_requests: number;
+  completed_at: string | null;
+};
+
+const SEGMENT_COLS =
+  "session_id,owner_id,seq,pts_start_us,pts_end_us,starts_on_sync_sample,bytes,sha256,final,r2_key,url_requests,completed_at";
 const UPLOAD_COLS =
   "session_id,r2_key,r2_upload_id,part_size,bytes,status,completed_at";
 
@@ -206,6 +288,29 @@ async function rollback(
   if (res.error) console.error("session rollback failed", res.error.code);
 }
 
+function segmentManifest(row: SegmentRow) {
+  return segmentManifestSchema.parse({
+    seq: Number(row.seq),
+    pts_start_us: Number(row.pts_start_us),
+    pts_end_us: Number(row.pts_end_us),
+    starts_on_sync_sample: row.starts_on_sync_sample,
+    bytes: Number(row.bytes),
+    sha256: row.sha256,
+    final: row.final,
+    r2_key: row.r2_key,
+  });
+}
+
+function completedSegment(row: SegmentRow) {
+  if (!row.completed_at) {
+    throw new ApiFailure(409, "conflict", "segment is not completed");
+  }
+  return segmentCompleteResponseSchema.parse({
+    ...segmentManifest(row),
+    completed_at: row.completed_at,
+  });
+}
+
 function templateMismatch(result: unknown, c: Context): Response | undefined {
   const r = result as {
     success: boolean;
@@ -230,11 +335,11 @@ function templateMismatch(result: unknown, c: Context): Response | undefined {
 }
 
 async function createUploadRecords(
-  deps: { user: SupabaseClient; admin: SupabaseClient; r2: R2 },
+  deps: { user: SupabaseClient; admin: SupabaseClient; r2: () => R2 },
   ownerId: string,
   body: z.infer<typeof sessionCreateRequestSchema>,
 ): Promise<z.infer<typeof sessionCreateResponseSchema>> {
-  const { user, admin, r2 } = deps;
+  const { user, admin } = deps;
   const match = await user.from("matches").insert({
     owner_id: ownerId,
     sport: body.sport,
@@ -258,7 +363,20 @@ async function createUploadRecords(
     }).select("id").single();
     if (session.error) throw session.error;
     const sessionId = (session.data as { id: string }).id;
+    if (body.upload_mode === "segments") {
+      return sessionCreateResponseSchema.parse({
+        session_id: sessionId,
+        match_id: matchId,
+        upload_mode: "segments",
+        segments: {
+          max_segment_bytes: MAX_SEGMENT_BYTES,
+          max_concurrency: MAX_CONCURRENCY,
+          url_ttl_s: PART_URL_TTL_S,
+        },
+      });
+    }
     // Person 1's Modal submit rejects any other key.
+    const r2 = deps.r2();
     const r2Key = `orig/${sessionId}/source.mp4`;
     const uploadId = await r2.createMultipart(r2Key);
     await addUsage(admin, 1, 0); // CreateMultipartUpload is Class A
@@ -278,7 +396,7 @@ async function createUploadRecords(
       );
       throw ins.error;
     }
-    return {
+    return sessionCreateResponseSchema.parse({
       session_id: sessionId,
       match_id: matchId,
       upload: {
@@ -287,7 +405,7 @@ async function createUploadRecords(
         part_size: PART_SIZE,
         max_concurrency: MAX_CONCURRENCY,
       },
-    } as z.infer<typeof sessionCreateResponseSchema>;
+    });
   } catch (err) {
     await rollback(admin, matchId, ownerId);
     throw err;
@@ -300,15 +418,6 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     const body = c.req.valid("json");
     const key = c.req.valid("header")["idempotency-key"];
     const ownerId = c.var.userId;
-
-    if (body.upload_mode === "segments") {
-      throw new ApiFailure(
-        422,
-        "validation_failed",
-        "segments upload not available yet",
-        "segments upload not available yet",
-      );
-    }
 
     if (body.source.bytes > BUDGET.maxVideoBytes) {
       throw new ApiFailure(
@@ -346,7 +455,7 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     const snap = await assertWritesAllowed(admin, ownerId);
     assertCanCreateUpload(snap, body.source.bytes);
     const out = await createUploadRecords(
-      { user: deps.user(jwtOf(c)), admin, r2: deps.r2() },
+      { user: deps.user(jwtOf(c)), admin, r2: deps.r2 },
       ownerId,
       body,
     );
@@ -358,6 +467,148 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     return c.json(out, 201);
     // The hook may answer with an error Response; its declared type only allows the 201 body.
   }, templateMismatch as never);
+
+  api.openapi(registerSegment, async (c) => {
+    const { id } = c.req.valid("param");
+    const body = c.req.valid("json");
+    if (body.bytes > MAX_SEGMENT_BYTES) {
+      throw new ApiFailure(
+        413,
+        "upload_too_large",
+        `segment exceeds ${MAX_SEGMENT_BYTES} bytes`,
+      );
+    }
+    const deps = c.var.deps;
+    const user = deps.user(jwtOf(c));
+    const session = await user.from("sessions").select("id,upload_mode")
+      .eq("id", id).maybeSingle();
+    if (session.error) throw session.error;
+    if (!session.data) {
+      throw new ApiFailure(404, "not_found", "session not found");
+    }
+    if ((session.data as { upload_mode: string }).upload_mode !== "segments") {
+      throw new ApiFailure(409, "conflict", "session does not use segments");
+    }
+
+    const admin = deps.admin();
+    await assertWritesAllowed(admin, c.var.userId);
+    const registered = await admin.rpc("register_segment", {
+      p_session_id: id,
+      p_owner_id: c.var.userId,
+      p_seq: body.seq,
+      p_pts_start_us: body.pts_start_us,
+      p_pts_end_us: body.pts_end_us,
+      p_starts_on_sync_sample: body.starts_on_sync_sample,
+      p_bytes: body.bytes,
+      p_sha256: body.sha256,
+      p_final: body.final,
+    });
+    if (registered.error) {
+      const message = registered.error.message;
+      if (registered.error.code === "P0002") {
+        throw new ApiFailure(404, "not_found", "session not found");
+      }
+      if (message === "segment_gap") {
+        throw new ApiFailure(
+          409,
+          "segment_gap",
+          "segments must be registered without gaps",
+        );
+      }
+      if (message === "upload_too_large") {
+        throw new ApiFailure(
+          413,
+          "upload_too_large",
+          "segment bytes exceed the G1 limit",
+        );
+      }
+      if (message === "storage_budget_reached") {
+        throw new ApiFailure(
+          429,
+          "storage_budget_reached",
+          "storage budget reached",
+          undefined,
+          86400,
+        );
+      }
+      if (
+        message === "segment_completed" || message === "segment_conflict" ||
+        message === "segment_finalized"
+      ) {
+        throw new ApiFailure(
+          409,
+          "conflict",
+          "segment registration conflicts with session state",
+        );
+      }
+      throw registered.error;
+    }
+    if (!registered.data) {
+      throw new ApiFailure(
+        500,
+        "internal",
+        "segment registration returned no row",
+      );
+    }
+    const row = registered.data as SegmentRow;
+    const putUrl = await deps.r2().presignPut(row.r2_key);
+    await takeSegmentUrl(admin, id, body.seq, c.var.userId);
+    return c.json(
+      segmentRegisterResponseSchema.parse({
+        seq: Number(row.seq),
+        r2_key: row.r2_key,
+        put_url: putUrl,
+        expires_at: urlExpiresAt(putUrl, PART_URL_TTL_S),
+      }),
+      200,
+    );
+  });
+
+  api.openapi(completeSegment, async (c) => {
+    const { id, seq } = c.req.valid("param");
+    const deps = c.var.deps;
+    const user = deps.user(jwtOf(c));
+    const loaded = await user.from("segments").select(SEGMENT_COLS)
+      .eq("session_id", id).eq("seq", seq).maybeSingle();
+    if (loaded.error) throw loaded.error;
+    if (!loaded.data) {
+      throw new ApiFailure(404, "not_found", "segment not found");
+    }
+    const row = loaded.data as SegmentRow;
+    if (row.completed_at) return c.json(completedSegment(row), 200);
+
+    const admin = deps.admin();
+    const head = await deps.r2().head(row.r2_key);
+    await addUsage(admin, 0, 1);
+    if (!head) {
+      throw new ApiFailure(409, "conflict", "uploaded segment is missing");
+    }
+    if (head.bytes !== Number(row.bytes)) {
+      throw new ApiFailure(
+        409,
+        "upload_parts_invalid",
+        "uploaded segment size does not match declared bytes",
+        { expected_bytes: Number(row.bytes), actual_bytes: head.bytes },
+      );
+    }
+
+    const update = await admin.from("segments").update({
+      completed_at: new Date().toISOString(),
+    }).eq("session_id", id).eq("owner_id", c.var.userId).eq("seq", seq)
+      .is("completed_at", null).select(SEGMENT_COLS).maybeSingle();
+    if (update.error) throw update.error;
+    if (update.data) {
+      return c.json(completedSegment(update.data as SegmentRow), 200);
+    }
+
+    const current = await user.from("segments").select(SEGMENT_COLS)
+      .eq("session_id", id).eq("seq", seq).maybeSingle();
+    if (current.error) throw current.error;
+    if (!current.data) {
+      throw new ApiFailure(404, "not_found", "segment not found");
+    }
+    return c.json(completedSegment(current.data as SegmentRow), 200);
+  });
 
   api.openapi(getSession, async (c) => {
     const { id } = c.req.valid("param");
@@ -423,7 +674,7 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
     const r2 = c.var.deps.r2();
     const parts = await Promise.all(part_numbers.map(async (n) => {
       const url = await r2.presignPart(up.r2_key, up.r2_upload_id, n);
-      return { n, url, expires_at: partUrlExpiresAt(url) };
+      return { n, url, expires_at: urlExpiresAt(url, PART_URL_TTL_S) };
     }));
     return c.json(uploadPartsResponseSchema.parse({ parts }), 200);
   });
