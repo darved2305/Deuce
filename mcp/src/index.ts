@@ -147,20 +147,34 @@ async function handleTool(
   }
 }
 
-function authHeaders(): Headers {
+// "user" auth is for caller-scoped routes (feed, posts, challenges): they span several accounts
+// under RLS, and developer keys are owner-only, so the API rejects keys there (403 read_only_key).
+type AuthMode = "any" | "user";
+
+function authHeaders(mode: AuthMode = "any"): Headers {
   const headers = new Headers({ accept: "application/json" });
   const apiKey = process.env.ELEVATE_API_KEY;
   const jwt = process.env.ELEVATE_JWT;
-  if (apiKey) headers.set("X-API-Key", apiKey);
+  if (mode === "user") {
+    if (!jwt) {
+      throw new ToolUnavailable(
+        "This tool reads a per-person feed and needs ELEVATE_JWT (a signed-in user's token); developer keys cannot read it.",
+      );
+    }
+    headers.set("Authorization", `Bearer ${jwt}`);
+  } else if (apiKey) headers.set("X-API-Key", apiKey);
   else if (jwt) headers.set("Authorization", `Bearer ${jwt}`);
   else throw new Error("Set ELEVATE_API_KEY or ELEVATE_JWT to query the API.");
   return headers;
 }
 
-export async function requestApi(path: string): Promise<unknown> {
+export async function requestApi(
+  path: string,
+  mode: AuthMode = "any",
+): Promise<unknown> {
   const response = await fetch(`${apiBase()}${path}`, {
     method: "GET",
-    headers: authHeaders(),
+    headers: authHeaders(mode),
   });
   let body: unknown;
   try {
@@ -225,6 +239,7 @@ async function requestContract<T>(
   path: string,
   requestPath: string,
   schema: z.ZodType<T>,
+  mode: AuthMode = "any",
 ): Promise<T> {
   const paths = await getOpenApiPaths();
   if (!hasGetOperation(paths[path])) {
@@ -232,7 +247,7 @@ async function requestContract<T>(
       `Not available yet: GET ${path} is not present in the deployed OpenAPI document.`,
     );
   }
-  const parsed = schema.safeParse(await requestApi(requestPath));
+  const parsed = schema.safeParse(await requestApi(requestPath, mode));
   if (!parsed.success) {
     throw new Error(
       `The API response for GET ${path} did not match the vendored response schema.`,
@@ -340,6 +355,7 @@ export function createServer(): McpServer {
           "/v1/feed",
           cursor ? `/v1/feed?cursor=${encodeURIComponent(cursor)}` : "/v1/feed",
           feedPageSchema,
+          "user",
         )),
   );
 

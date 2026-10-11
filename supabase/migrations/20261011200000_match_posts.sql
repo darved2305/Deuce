@@ -39,7 +39,9 @@ declare
   v_duration_ms integer;
   v_owner_display_name text;
 begin
-  select case when count(*) = 1 then max(nullif(s.source->>'duration_ms', '')::integer) end
+  select case when count(*) = 1 then max(
+           case when s.source->>'duration_ms' ~ '^[0-9]{1,9}$' then (s.source->>'duration_ms')::integer end
+         ) end
     into v_duration_ms
     from public.sessions s
     where s.match_id = p_match_id;
@@ -101,6 +103,8 @@ begin
          and event.value->>'plane' = 'court'
          and event.value->>'state' in ('observed', 'user')
          and jsonb_typeof(event.value->'contact_xy_m') = 'array'
+         and jsonb_typeof(event.value->'contact_xy_m'->0) = 'number'
+         and jsonb_typeof(event.value->'contact_xy_m'->1) = 'number'
     ), '[]'::jsonb),
     'owner_display_name', v_owner_display_name
   );

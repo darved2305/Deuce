@@ -193,7 +193,11 @@ test("get_friend_feed forwards its cursor and validates feed.page.v1", async () 
     response.statusCode = 404;
     json(response, { error: { code: "not_found", message: "nope" } });
   };
-  const h = await startHarness(feedStub, { ELEVATE_API_KEY: "ek_feed" });
+  // Both credentials set: the feed is caller-scoped, so the tool must send the JWT, never the key.
+  const h = await startHarness(feedStub, {
+    ELEVATE_API_KEY: "ek_feed",
+    ELEVATE_JWT: "jwt_feed",
+  });
   try {
     const result = await h.call("get_friend_feed", { cursor: "next" });
     assert.equal(result.isError, false, result.text);
@@ -202,9 +206,20 @@ test("get_friend_feed forwards its cursor and validates feed.page.v1", async () 
       "/v1/openapi.json",
       "/v1/feed?cursor=next",
     ]);
-    assert.equal(h.requests[1].headers["x-api-key"], "ek_feed");
+    assert.equal(h.requests[1].headers.authorization, "Bearer jwt_feed");
+    assert.equal(h.requests[1].headers["x-api-key"], undefined);
     assert.deepEqual(h.stray, []);
   } finally {
     await h.close();
+  }
+  // Key only: a clear tool error, and no feed request is sent.
+  const k = await startHarness(feedStub, { ELEVATE_API_KEY: "ek_feed" });
+  try {
+    const result = await k.call("get_friend_feed", {});
+    assert.equal(result.isError, true);
+    assert.match(result.text, /needs ELEVATE_JWT/);
+    assert.equal(k.requests.some(({ path }) => path.startsWith("/v1/feed")), false);
+  } finally {
+    await k.close();
   }
 });
