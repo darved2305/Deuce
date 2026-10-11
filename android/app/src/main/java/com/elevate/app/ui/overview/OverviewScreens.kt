@@ -271,6 +271,8 @@ fun MatchOverviewScreen(
     onReflex: () -> Unit = {},
     reviewLandings: List<com.elevate.app.domain.review.ReviewLanding> = emptyList(),
     onReview: (eventId: String) -> Unit = {},
+    decideFreezes: Int = 0,
+    onDecide: () -> Unit = {},
 ) {
     BackHandler(onBack = onBack)
     val hero = AnalysingHero(eyebrow, state.thumbnail, state.title)
@@ -287,7 +289,7 @@ fun MatchOverviewScreen(
     val haptics = rememberHaptics()
     val tabs: @Composable () -> Unit = { OverviewTabRow(tabIndex) { haptics.tick(); tabIndex = it } }
     val body: @Composable (Modifier) -> Unit = { m -> OverviewTabBody(OverviewTab.entries[tabIndex], state, onOpenRally, coachIntroPlayed, m, reviewLandings, onReview) }
-    val ctas: @Composable () -> Unit = { TrainingButtons(readLabDrills, onTrainRead, reflexRounds, onReflex) }
+    val ctas: @Composable () -> Unit = { TrainingButtons(readLabDrills, onTrainRead, reflexRounds, onReflex, decideFreezes, onDecide) }
     PeachPage {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
             val landscape = maxWidth > maxHeight
@@ -320,12 +322,13 @@ fun MatchOverviewScreen(
     }
 }
 
-/** "Train your read" and "Reflex challenge" side by side; each appears only when it has something to play. */
+/** "Train your read", "Reflex challenge" and "Decide" side by side; each appears only when it has something to play. */
 @Composable
-private fun TrainingButtons(readLabDrills: Int, onTrainRead: () -> Unit, reflexRounds: Int, onReflex: () -> Unit) {
+private fun TrainingButtons(readLabDrills: Int, onTrainRead: () -> Unit, reflexRounds: Int, onReflex: () -> Unit, decideFreezes: Int, onDecide: () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         com.elevate.app.ui.readlab.ReadLabEntryButton(readLabDrills, onTrainRead, Modifier.weight(1f))
         com.elevate.app.ui.readlab.ReflexEntryButton(reflexRounds, onReflex, Modifier.weight(1f))
+        com.elevate.app.ui.decide.DecideEntryButton(decideFreezes, onDecide, Modifier.weight(1f))
     }
 }
 
