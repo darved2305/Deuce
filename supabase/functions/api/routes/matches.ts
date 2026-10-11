@@ -1,5 +1,4 @@
 import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppEnv } from "../lib/auth.ts";
 import {
   errorEnvelopeSchema,
@@ -34,17 +33,8 @@ const getMatch = createRoute({
   },
 });
 
-type SessionRow = { id: string };
-type UploadRow = { session_id: string; r2_key: string };
-type ArtifactKeyRow = {
-  id: string;
-  analysis_id: string | null;
-  r2_key: string;
-};
-
-const QUERY_PAGE_SIZE = 500;
-const UPLOAD_SESSION_BATCH_SIZE = 100;
 const R2_DELETE_BATCH_SIZE = 8;
+const R2_DELETE_RETRY_MS = [250, 500] as const;
 
 const deleteMatch = createRoute({
   method: "delete",
@@ -53,105 +43,67 @@ const deleteMatch = createRoute({
   responses: {
     202: {
       description:
-        "Match deletion accepted; R2 objects are removed before cascading the match row.",
+        "Match rows are deleted; recorded R2 objects are removed asynchronously after commit.",
     },
     404: {
       description: "match not owned by the caller",
       content: { "application/json": { schema: errorEnvelopeSchema } },
     },
+    409: {
+      description: "an analysis is in progress",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
     500: {
-      description: "match deletion could not be scheduled",
+      description: "match deletion could not be completed",
       content: { "application/json": { schema: errorEnvelopeSchema } },
     },
   },
 });
 
-async function matchR2Keys(
-  admin: SupabaseClient,
-  matchId: string,
-): Promise<string[]> {
-  const sessionIds: string[] = [];
-  let sessionCursor: string | undefined;
-  while (true) {
-    let query = admin.from("sessions").select("id").eq("match_id", matchId);
-    if (sessionCursor) query = query.gt("id", sessionCursor);
-    const result = await query.order("id").limit(QUERY_PAGE_SIZE);
-    if (result.error) throw result.error;
-    const page = (result.data ?? []) as SessionRow[];
-    sessionIds.push(...page.map((row) => row.id));
-    if (page.length < QUERY_PAGE_SIZE) break;
-    sessionCursor = page[page.length - 1].id;
+function matchR2Keys(matchId: string, value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    throw new ApiFailure(500, "internal", "stored match R2 keys are invalid");
   }
-
-  const sessionIdSet = new Set(sessionIds);
   const keys = new Set<string>();
-  for (let i = 0; i < sessionIds.length; i += UPLOAD_SESSION_BATCH_SIZE) {
-    const result = await admin.from("uploads").select("session_id,r2_key").in(
-      "session_id",
-      sessionIds.slice(i, i + UPLOAD_SESSION_BATCH_SIZE),
-    );
-    if (result.error) throw result.error;
-    for (const upload of (result.data ?? []) as UploadRow[]) {
-      if (
-        !sessionIdSet.has(upload.session_id) ||
-        upload.r2_key !== `orig/${upload.session_id}/source.mp4` ||
-        !r2ObjectKeySchema.safeParse(upload.r2_key).success
-      ) {
-        throw new Error("stored upload key is invalid");
-      }
-      keys.add(upload.r2_key);
+  for (const key of value) {
+    if (
+      typeof key !== "string" || !r2ObjectKeySchema.safeParse(key).success ||
+      (!key.startsWith("orig/") && !key.startsWith("analysis/") &&
+        !key.startsWith(`clips/${matchId}/`))
+    ) {
+      throw new ApiFailure(500, "internal", "stored match R2 keys are invalid");
     }
-  }
-
-  let artifactCursor: string | undefined;
-  while (true) {
-    let query = admin.from("artifacts").select("id,analysis_id,r2_key").eq(
-      "match_id",
-      matchId,
-    );
-    if (artifactCursor) query = query.gt("id", artifactCursor);
-    const result = await query.order("id").limit(QUERY_PAGE_SIZE);
-    if (result.error) throw result.error;
-    const page = (result.data ?? []) as ArtifactKeyRow[];
-    for (const artifact of page) {
-      const { analysis_id, r2_key } = artifact;
-      if (!r2ObjectKeySchema.safeParse(r2_key).success) {
-        throw new Error("stored artifact key is invalid");
-      }
-      if (r2_key.startsWith("analysis/")) {
-        if (!analysis_id || !r2_key.startsWith(`analysis/${analysis_id}/`)) {
-          throw new Error("stored analysis key does not belong to match");
-        }
-      } else if (!r2_key.startsWith(`clips/${matchId}/`)) {
-        throw new Error("stored clip key does not belong to match");
-      }
-      keys.add(r2_key);
-    }
-    if (page.length < QUERY_PAGE_SIZE) break;
-    artifactCursor = page[page.length - 1].id;
+    keys.add(key);
   }
   return [...keys];
 }
 
-async function deleteMatchData(
-  admin: SupabaseClient,
-  r2: R2,
-  matchId: string,
-  ownerId: string,
-  keys: string[],
-): Promise<void> {
+async function deleteR2Key(r2: R2, key: string): Promise<void> {
+  for (let attempt = 0; attempt <= R2_DELETE_RETRY_MS.length; attempt++) {
+    try {
+      await r2.deleteObject(key);
+      return;
+    } catch (error) {
+      console.error("match R2 cleanup failed", {
+        attempt: attempt + 1,
+        error: error instanceof Error ? error.name : "unknown",
+      });
+      const delay = R2_DELETE_RETRY_MS[attempt];
+      if (delay !== undefined) {
+        await new Promise<void>((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+}
+
+async function cleanupMatchR2(r2: R2, keys: string[]): Promise<void> {
   for (let i = 0; i < keys.length; i += R2_DELETE_BATCH_SIZE) {
     await Promise.all(
       keys.slice(i, i + R2_DELETE_BATCH_SIZE).map((key) =>
-        r2.deleteObject(key)
+        deleteR2Key(r2, key)
       ),
     );
   }
-  const deleted = await admin.from("matches").delete().eq("id", matchId).eq(
-    "owner_id",
-    ownerId,
-  );
-  if (deleted.error) throw deleted.error;
 }
 
 export function registerMatches(api: OpenAPIHono<AppEnv>): void {
@@ -204,17 +156,26 @@ export function registerMatches(api: OpenAPIHono<AppEnv>): void {
     if (!owned.data) {
       throw new ApiFailure(404, "not_found", "match not found");
     }
-    const admin = deps.admin();
-    const keys = await matchR2Keys(admin, id);
-    const cleanup = deleteMatchData(admin, deps.r2(), id, ownerId, keys).catch(
-      (error: unknown) => {
-        console.error(
-          "match deletion failed",
-          error instanceof Error ? error.name : "unknown",
-        );
-      },
-    );
-    deps.waitUntil(cleanup);
+
+    const deleted = await deps.admin().rpc("delete_match", {
+      p_match_id: id,
+      p_owner_id: ownerId,
+    });
+    if (deleted.error) {
+      if (deleted.error.code === "P0002") {
+        throw new ApiFailure(404, "not_found", "match not found");
+      }
+      if (
+        deleted.error.code === "P0001" &&
+        deleted.error.message === "analysis_in_progress"
+      ) {
+        throw new ApiFailure(409, "conflict", "analysis in progress");
+      }
+      throw deleted.error;
+    }
+
+    const keys = matchR2Keys(id, deleted.data);
+    deps.waitUntil(cleanupMatchR2(deps.r2(), keys));
     return c.body(null, 202);
   });
 }
