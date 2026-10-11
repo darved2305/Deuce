@@ -190,6 +190,16 @@ class AnalysingFlowTest {
         assertThat(AnalysingFlow.ralliesEmpty(analysis(AnalysisState.COMPLETED))).isEqualTo("Rallies appear when the match record is served")
     }
 
+    @Test fun `a running pipeline is reopened only for the same file`() {
+        // Same uri, or the same sha256 in any letter case.
+        assertThat(AnalysingFlow.sameFile("content://a", null, "content://a", null)).isTrue()
+        assertThat(AnalysingFlow.sameFile("content://a", "ABC123", "content://b", "abc123")).isTrue()
+        // The demo bug: a stale upload of file A is running and file B is started.
+        assertThat(AnalysingFlow.sameFile("content://a", "abc123", "content://b", "def456")).isFalse()
+        assertThat(AnalysingFlow.sameFile(null, null, "content://b", "def456")).isFalse()
+        assertThat(AnalysingFlow.sameFile("content://a", null, "content://b", null)).isFalse()
+    }
+
     private val utc = java.time.ZoneOffset.UTC
     private val cached = CacheInfo(fromCache = true, cachedAtMs = 1_760_000_000_000, windowsCached = 2)
 

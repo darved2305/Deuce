@@ -7,6 +7,7 @@ import com.elevate.app.data.session.SessionApi
 import com.elevate.app.data.session.SessionCreateRequest
 import com.elevate.app.data.session.SessionCreateResponse
 import com.elevate.app.domain.media.Preflight
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -218,6 +219,23 @@ class UploadCoordinator(
         if (s != null) deleteStaged(s)
         store.clear()
         _progress.value = UploadProgress.Cancelled
+    }
+
+    /**
+     * [cancel], but never leaves the saved upload behind: when the server abort cannot be reached
+     * (offline, 5xx) the local state and staging copy are cleared anyway, so a new upload can be
+     * prepared. The unreachable server upload is abandoned.
+     */
+    suspend fun discard() {
+        try {
+            cancel()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            store.load()?.let(::deleteStaged)
+            store.clear()
+            _progress.value = UploadProgress.Cancelled
+        }
     }
 
     /** Forgets a finished upload (after the app has moved on to analysis). */

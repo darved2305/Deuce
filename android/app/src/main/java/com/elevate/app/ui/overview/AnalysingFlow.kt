@@ -309,6 +309,14 @@ object AnalysingFlow {
         }
     }
 
+    /**
+     * Whether a running pipeline belongs to the file being started: same source uri, or the same
+     * sha256 (ignoring case). Only then does starting again reopen the running Analysing screen.
+     */
+    fun sameFile(runningUri: String?, runningSha: String?, newUri: String?, newSha: String?): Boolean =
+        (runningUri != null && runningUri == newUri) ||
+            (runningSha != null && newSha != null && runningSha.equals(newSha, ignoreCase = true))
+
     /** "Badminton · 8:04 · 1080p50" from the real probe (short side + nominal fps); unknown parts left out. */
     fun heroLine(sport: String?, durationMs: Long?, width: Int?, height: Int?, fps: Double?): String? {
         val sportLabel = sport?.replace('_', ' ')?.replaceFirstChar { it.titlecase(Locale.ROOT) }
