@@ -80,12 +80,29 @@ class ReadLabDrillsTest {
         s = s.pick(ZoneId.parse("M2")!!).next()       // F2 truth, M2 touches: adjacent
         s = s.pick(ZoneId.parse("F1")!!).next()       // B3 truth: wrong
         s = s.pick(ZoneId.parse("M2")!!)
+        // Domain scorer refuses the candidate; the UI layer grades it against the estimate, flagged.
         assertThat(s.attempt!!.result).isEqualTo(ReadResult.Unscored(UnscoredReason.UNTRUSTED_LANDING))
+        assertThat(s.grade).isEqualTo(Graded(ReadResult.Exact, vsEstimate = true))
         s = s.next()
         assertThat(s.finished).isTrue()
         val sum = s.summary
-        assertThat(listOf(sum.exact, sum.adjacent, sum.wrong, sum.unscored)).containsExactly(1, 1, 1, 1).inOrder()
-        assertThat(ReadLabText.summary(sum)).isEqualTo("Read 1 of 3 exactly · 1 adjacent · 1 unconfirmed")
+        assertThat(listOf(sum.confirmed.exact, sum.confirmed.adjacent, sum.confirmed.wrong, sum.confirmed.unscored)).containsExactly(1, 1, 1, 0).inOrder()
+        assertThat(listOf(sum.estExact, sum.estAdjacent, sum.estWrong)).containsExactly(1, 0, 0).inOrder()
+        assertThat(ReadLabText.summaryLines(sum)).containsExactly(
+            "Read 1 of 3 exactly · 1 adjacent (confirmed landings)",
+            "Read 1 of 1 exactly · 0 adjacent (vs engine estimates)",
+        ).inOrder()
+    }
+
+    @Test fun `only candidates gives one line labelled vs engine estimates`() {
+        val events = (0 until 7).flatMap { i ->
+            listOf(hit("h$i", 1_000L + i * 1_000), landing("l$i", 1_900L + i * 1_000, 0.4, 12.8, state = "candidate"))
+        }
+        var s = ReadLabSession(build(events))
+        val picks = listOf("B1", "B1", "B1", "B1", "M1", "M2", "F3") // 4 exact, 2 adjacent (M1 touches B1; M2 touches B1), 1 wrong
+        picks.forEach { s = s.pick(ZoneId.parse(it)!!).next() }
+        assertThat(ReadLabText.summaryLines(s.summary))
+            .containsExactly("Read 4 of 7 exactly · 2 adjacent (vs engine estimates)")
     }
 
     @Test fun `the answer locks once`() {
@@ -95,27 +112,35 @@ class ReadLabDrillsTest {
         assertThat(ReadLabSession(d).next().index).isEqualTo(0) // no skipping an unanswered drill
     }
 
-    @Test fun `a candidate landing is labelled not confirmed and never scored`() {
+    @Test fun `a candidate landing is scored against the estimate and labelled`() {
         val d = build(listOf(hit("h1", 1_500), landing("l1", 2_400, 0.4, 12.8, state = "candidate"))).single()
         assertThat(d.viewSide).isEqualTo(CourtSide.NEAR)
         val r = ReadLabSession(listOf(d)).pick(ZoneId.parse("B1")!!).attempt!!.result!!
         assertThat(r).isEqualTo(ReadResult.Unscored(UnscoredReason.UNTRUSTED_LANDING))
-        val text = ReadLabText.reveal(d, r)
-        assertThat(text.landing).contains("Engine candidate: back left (B1), not confirmed")
-        assertThat(text.scored).isFalse()
+        val g = ReadLabSession(listOf(d)).pick(ZoneId.parse("B1")!!).grade!!
+        assertThat(g).isEqualTo(Graded(ReadResult.Exact, vsEstimate = true))
+        val text = ReadLabText.reveal(d, g)
+        assertThat(text.landing).isEqualTo("Engine estimate: back left (B1)")
+        assertThat(text.verdict).isEqualTo("Your read: exact (vs engine estimate, not confirmed)")
         assertThat(text.landing + text.verdict).doesNotContain("\u2014")
+        val adj = ReadLabSession(listOf(d)).pick(ZoneId.parse("M1")!!).grade!!
+        assertThat(ReadLabText.reveal(d, adj).verdict).isEqualTo("Your read: adjacent (vs engine estimate, not confirmed)")
     }
 
     @Test fun `an observed landing reads as the real landing`() {
         val d = build(listOf(hit("h1", 1_500), landing("l1", 2_400, 0.4, 12.8))).single()
         val r = ReadLabSession(listOf(d)).pick(ZoneId.parse("B1")!!).attempt!!.result!!
-        assertThat(ReadLabText.reveal(d, r).landing).isEqualTo("Real landing: back left (B1), observed")
+        val g = ReadLabGrading.grade(d, ReadLabSession(listOf(d)).pick(ZoneId.parse("B1")!!).attempt!!)!!
+        assertThat(g).isEqualTo(Graded(ReadResult.Exact, vsEstimate = false))
+        assertThat(ReadLabText.reveal(d, g).landing).isEqualTo("Real landing: back left (B1), observed")
+        assertThat(r).isEqualTo(ReadResult.Exact)
     }
 
-    @Test fun `an unobserved hitter position leaves the drill unscored`() {
+    @Test fun `an unobserved hitter position is scored against the estimate`() {
         val d = ReadLabDrills.build(listOf(hit("h1", 1_500, state = "candidate"), landing("l1", 2_400, 0.4, 12.8)), t, frames) { 1.5 }.single()
         val r = ReadLabSession(listOf(d)).pick(ZoneId.parse("B1")!!).attempt!!.result!!
         assertThat(r).isEqualTo(ReadResult.Unscored(UnscoredReason.UNKNOWN_HITTER_SIDE))
+        assertThat(ReadLabSession(listOf(d)).pick(ZoneId.parse("B1")!!).grade).isEqualTo(Graded(ReadResult.Exact, vsEstimate = true))
     }
 
     @Test fun `picker point is in the hitter's view`() {

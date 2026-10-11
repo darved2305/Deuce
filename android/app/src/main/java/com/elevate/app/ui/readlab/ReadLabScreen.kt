@@ -171,8 +171,8 @@ private fun Answer(s: ReadLabSession, onPick: (ZoneId) -> Unit, onAnotherLook: (
     val drill = s.drill ?: return
     val attempt = s.attempt ?: return
     val locked = attempt.locked
-    val result = attempt.result
-    val trusted = result != null && result !is ReadResult.Unscored
+    val grade = s.grade
+    val trusted = grade != null && !grade.vsEstimate && grade.result !is ReadResult.Unscored
     ElevateCard {
         Text(
             "Target half, from the hitter's view (net at the top)",
@@ -193,7 +193,7 @@ private fun Answer(s: ReadLabSession, onPick: (ZoneId) -> Unit, onAnotherLook: (
             )
         }
     }
-    if (result != null) Reveal(drill, attempt, result)
+    if (grade != null) Reveal(drill, attempt, grade)
     if (!locked && attempt.canRevealMore) {
         SecondaryButton("Another look (a later frame)", onAnotherLook, Modifier.fillMaxWidth())
     }
@@ -204,20 +204,20 @@ private fun Answer(s: ReadLabSession, onPick: (ZoneId) -> Unit, onAnotherLook: (
 }
 
 @Composable
-private fun Reveal(drill: Drill, attempt: ReadAttempt, result: ReadResult) {
+private fun Reveal(drill: Drill, attempt: ReadAttempt, grade: Graded) {
     val c = Elevate.colors
-    val text = ReadLabText.reveal(drill, result)
-    val tint = when (result) {
+    val text = ReadLabText.reveal(drill, grade)
+    val tint = when (grade.result) {
         ReadResult.Exact -> c.mint
         ReadResult.Adjacent -> c.peach
         ReadResult.Wrong -> c.errorSurface
         is ReadResult.Unscored -> c.lavender
     }
     ElevateCard(tint = tint, modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = "${text.verdict}. ${text.landing}" }) {
-        Text(text.verdict, style = MaterialTheme.typography.titleMedium, color = c.ink)
+        Text(text.landing, style = MaterialTheme.typography.titleMedium, color = c.ink)
         Spacer(Modifier.height(4.dp))
         attempt.pick?.let { Text("Your pick: ${ReadLabText.zoneName(it)}", style = MaterialTheme.typography.bodyMedium, color = c.ink) }
-        Text(text.landing, style = MaterialTheme.typography.bodyMedium, color = c.ink)
+        Text(text.verdict, style = MaterialTheme.typography.bodyMedium, color = c.ink)
         ReadLabText.margin(attempt)?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = c.inkMuted) }
     }
 }
@@ -232,13 +232,13 @@ private fun SummaryView(s: ReadLabSession, onRestart: () -> Unit, onBack: () -> 
     ) {
         Text(ReadLabText.HEADER, style = MaterialTheme.typography.titleMedium, color = c.ink)
         ElevateCard(tint = c.mint) {
-            Text(ReadLabText.summary(sum), style = MaterialTheme.typography.titleMedium, color = c.ink)
-            sum.medianScoredMarginMs?.let {
+            ReadLabText.summaryLines(sum).forEach { Text(it, style = MaterialTheme.typography.titleMedium, color = c.ink) }
+            sum.medianMarginMs?.let {
                 Text("Median read margin: $it ms before contact", style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
             }
-            if (sum.unscored > 0) {
+            if (sum.estScored > 0) {
                 Text(
-                    "Unconfirmed drills are engine candidates or lack an observed hitter position, so they are never scored.",
+                    "Engine estimates are not confirmed landings, so those reads are measured against the engine, not the real shot.",
                     style = MaterialTheme.typography.bodyMedium, color = c.inkMuted,
                 )
             }
