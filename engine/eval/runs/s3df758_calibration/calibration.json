@@ -1,0 +1,28 @@
+{
+  "calibration_id": "cal_5ce8b39cabd7a746",
+  "plane": "court",
+  "template": "badminton_singles",
+  "method": "tap",
+  "H": [
+    -0.004095713340634894,
+    -0.006318365893968458,
+    6.753647578765794,
+    -2.510446377319843e-20,
+    0.021401897533259107,
+    -21.71650568825165,
+    -5.220766575329499e-20,
+    -0.002347206310057368,
+    1.0
+  ],
+  "residual_px": 0.0,
+  "visible_fraction": 1.0,
+  "tier": "B",
+  "H_cov": "81 numbers",
+  "sigma_m": 0.1918460457571431,
+  "geometry_problem": null,
+  "frame_t_ms": 41260,
+  "size": [
+    1920,
+    1080
+  ]
+}

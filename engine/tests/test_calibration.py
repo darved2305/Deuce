@@ -203,3 +203,17 @@ def test_from_calibration_input_uses_session_spec_shape():
             "points_px": taps, "frame_ms": 1200}  # fmt: skip
     c = cal.from_calibration_input(spec, W, H)
     assert c.template == "badminton_doubles" and c.tier == "A"
+
+
+def test_real_a55_taps_give_a_valid_tier_b_calibration():
+    # Real corner taps of session s_3df758f2 (issue #61), tapped on h13g_singles at 41260 ms.
+    run = Path(__file__).resolve().parents[1] / "eval/runs/s3df758_calibration"
+    spec = json.loads((run / "calibration_input.json").read_text())
+    c = cal.from_calibration_input(spec, 1920, 1080)
+    d = c.to_match(cal.calibration_id(spec["points_px"], spec["template"]))
+    jsonschema.validate(d, MATCH_SCHEMA["properties"]["calibration"])
+    assert c.geometry_problem is None and c.visible_fraction == 1.0 and c.residual_px < 1e-3
+    assert d["tier"] == "B" and 0.15 < c.uncertainty.sigma_m < 0.40
+    # Every tap lands on the template corner it names: the H direction is image px -> court m.
+    for name, xy in zip(cal.CORNERS, cal.template_corners(spec["template"]), strict=True):
+        assert np.allclose(cal.to_court(c.h, [spec["points_px"][name]])[0], xy, atol=1e-4)
