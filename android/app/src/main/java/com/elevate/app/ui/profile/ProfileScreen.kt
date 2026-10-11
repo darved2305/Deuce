@@ -129,6 +129,7 @@ private fun ProfileBody(load: ProfileLoad) {
                 Column(Modifier.weight(1f).fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Spacer(Modifier.height(4.dp))
                     NameCard()
+                    com.elevate.app.ui.community.FriendsSection()
                     if (p.isEmpty) EmptyCard(load.notYetAnalysed) else {
                         StatTiles(p, load.notYetAnalysed)
                         StyleCard(p)
@@ -153,6 +154,7 @@ private fun ProfileBody(load: ProfileLoad) {
             ) {
                 Spacer(Modifier.height(4.dp))
                 NameCard()
+                com.elevate.app.ui.community.FriendsSection()
                 if (p.isEmpty) EmptyCard(load.notYetAnalysed) else {
                     StatTiles(p, load.notYetAnalysed)
                     StyleCard(p)

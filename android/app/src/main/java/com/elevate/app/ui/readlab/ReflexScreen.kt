@@ -130,7 +130,15 @@ private const val SEEK_WAIT_MS = 300L
  */
 @UnstableApi
 @Composable
-fun ReflexRoute(vm: ReplayViewModel, drills: List<Drill>, matchKey: String, cueSource: CueSource?, onBack: () -> Unit) {
+fun ReflexRoute(
+    vm: ReplayViewModel,
+    drills: List<Drill>,
+    matchKey: String,
+    cueSource: CueSource?,
+    onBack: () -> Unit,
+    /** Optional card under the finished run's summary (the friends challenge hangs off it). */
+    endExtra: (@Composable (ReflexSession) -> Unit)? = null,
+) {
     val state = vm.reflex
     val session by state.session.collectAsState()
     val settlement by state.settlement.collectAsState()
@@ -268,6 +276,7 @@ fun ReflexRoute(vm: ReplayViewModel, drills: List<Drill>, matchKey: String, cueS
         onPause = { paused = !paused },
         onPlayAgain = { paused = false; state.restart(); state.update { it.begin() }; runId++ },
         onBack = onBack,
+        endExtra = endExtra,
     )
 }
 
@@ -287,6 +296,7 @@ private fun ReflexScreen(
     onPause: () -> Unit,
     onPlayAgain: () -> Unit,
     onBack: () -> Unit,
+    endExtra: (@Composable (ReflexSession) -> Unit)? = null,
 ) {
     PeachPage {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -302,7 +312,7 @@ private fun ReflexScreen(
                         )
                     }
                     !session.started -> Intro(session, settlement, cueUi, onRelaxed, onStart, onBack)
-                    session.finished && phase != Phase.Reveal -> End(session, settlement, onPlayAgain, onBack)
+                    session.finished && phase != Phase.Reveal -> End(session, settlement, onPlayAgain, onBack, endExtra)
                     landscape -> Row(Modifier.fillMaxSize().padding(horizontal = ScreenGutter), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
                             Hud(session, phase, paused, onPause, onBack)
@@ -491,7 +501,7 @@ private fun Verdict(round: ReflexRound, r: ReflexRoundResult) {
 }
 
 @Composable
-private fun End(s: ReflexSession, settlement: ReflexSettlement?, onPlayAgain: () -> Unit, onBack: () -> Unit) {
+private fun End(s: ReflexSession, settlement: ReflexSettlement?, onPlayAgain: () -> Unit, onBack: () -> Unit, endExtra: (@Composable (ReflexSession) -> Unit)? = null) {
     val c = Elevate.colors
     val sum = s.summary
     Column(
@@ -520,6 +530,7 @@ private fun End(s: ReflexSession, settlement: ReflexSettlement?, onPlayAgain: ()
             Text("Best streak ${sum.bestStreak}", style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
             ReflexText.estimateNote(sum)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted) }
         }
+        endExtra?.invoke(s)
         PrimaryButton("Play again", onPlayAgain, Modifier.fillMaxWidth())
         SecondaryButton("Back to the match", onBack, Modifier.fillMaxWidth())
     }

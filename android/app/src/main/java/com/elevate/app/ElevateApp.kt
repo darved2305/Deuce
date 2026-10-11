@@ -125,6 +125,14 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
         }
     }
 
+    // A friend's challenge (link, rematch or result) sits above everything else while it is open.
+    val community: com.elevate.app.ui.community.CommunityViewModel = viewModel()
+    val communityScreen by community.screen.collectAsStateWithLifecycle()
+    if (communityScreen !is com.elevate.app.ui.community.CommunityScreen.Hidden) {
+        com.elevate.app.ui.community.CommunityRoute(vm, community, pickVideo)
+        return
+    }
+
     if (panel != Screen.Panel.None && pipeline != Screen.Pipeline.Idle) {
         AnalysisPanels(vm, panel, pipeline, step, upload, ovm, hero, if (analysedHere) openFacts else null)
         return
@@ -278,7 +286,10 @@ private fun AnalysisPanel(
             return
         }
         if (panel == Screen.Panel.Reflex) {
-            com.elevate.app.ui.readlab.ReflexRoute(vm, drills, match?.matchId.orEmpty(), cueSource, onBack = { vm.showPanel(Screen.Panel.Overview) })
+            com.elevate.app.ui.readlab.ReflexRoute(
+                vm, drills, match?.matchId.orEmpty(), cueSource, onBack = { vm.showPanel(Screen.Panel.Overview) },
+                endExtra = { s -> com.elevate.app.ui.community.ChallengeFriendCard(match?.matchId, s) },
+            )
             return
         }
         val overview by ovm.overview.collectAsStateWithLifecycle()

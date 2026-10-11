@@ -1,5 +1,6 @@
 package com.elevate.app.domain.link
 
+import com.elevate.app.domain.community.ChallengeLink
 import java.net.URI
 import java.net.URISyntaxException
 
@@ -32,5 +33,16 @@ object DeepLink {
                 DeepLinkTarget(parts[0], parts[2], tMs)
             else -> null
         }
+    }
+
+    private const val CHALLENGE_HOST = "c"
+
+    /** `elevate://c/{challenge_id}`, a friend's Reflex challenge. Anything else (match links included) is null. */
+    fun parseChallenge(uri: String?): String? {
+        if (uri.isNullOrBlank()) return null
+        val u = try { URI(uri.trim()) } catch (_: URISyntaxException) { return null }
+        if (!SCHEME.equals(u.scheme, ignoreCase = true) || u.host != CHALLENGE_HOST) return null
+        val parts = (u.rawPath ?: "").split('/').filter { it.isNotEmpty() }
+        return parts.singleOrNull()?.takeIf { ChallengeLink.ID.matches(it) }
     }
 }
