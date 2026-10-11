@@ -12,6 +12,8 @@ data class LiveHit(
     val sigmaMs: Long,
     /** Provenance state, verbatim from the event ("candidate" from the engine). */
     val state: String,
+    /** True for a `type: "landing"` event (drawn as "LANDING?"), false for a hit candidate. */
+    val landing: Boolean = false,
 )
 
 object LiveHits {

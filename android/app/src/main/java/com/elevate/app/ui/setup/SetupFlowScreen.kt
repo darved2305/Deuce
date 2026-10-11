@@ -110,7 +110,9 @@ fun SetupFlowScreen(
     onCancel: () -> Unit,
     onDone: (SetupResult) -> Unit,
 ) {
-    val vm: SetupViewModel = viewModel(key = "setup:$uri@$frameUs")
+    // One setup ViewModel per activity: load() resets it for a new (uri, frame). A key per frame kept
+    // every grabbed frame bitmap (up to 1920 px, ~8 MB) alive until the activity died.
+    val vm: SetupViewModel = viewModel(key = "setup")
     LaunchedEffect(uri, frameUs) { vm.load(uri, facts, frameUs) }
     val frame by vm.frame.collectAsStateWithLifecycle()
     val state by vm.state.collectAsStateWithLifecycle()

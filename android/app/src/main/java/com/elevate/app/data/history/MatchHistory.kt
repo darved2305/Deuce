@@ -38,7 +38,25 @@ data class MatchHistoryEntry(
     /** Merged `emit_range_us` of applied `window.completed` events, in ms. */
     @SerialName("coverage_ms") val coverageMs: Long = 0,
     @SerialName("engine_version") val engineVersion: String? = null,
+    /**
+     * Wall-clock ms when this phone first saw the analysis finished (server `completed`, or every
+     * window in: [HistoryStatus.Ready] / [HistoryStatus.ReadyFromWindows]); never moved afterwards.
+     */
+    @SerialName("completed_at") val completedAt: Long? = null,
+    /** App-private copy of the video kept for history (`filesDir/videos/<sha256>.<ext>`), if any. */
+    @SerialName("local_copy_path") val localCopyPath: String? = null,
 )
+
+/**
+ * The time the history card shows: when the analysis finished for a ready match (entries recorded
+ * before [MatchHistoryEntry.completedAt] existed fall back to the last update), when it started for
+ * one still analysing, and when it stopped for a failed one.
+ */
+fun MatchHistoryEntry.cardTimeMs(): Long = when (status()) {
+    HistoryStatus.Ready, HistoryStatus.ReadyFromWindows -> completedAt ?: updatedAt
+    HistoryStatus.Analysing -> createdAt
+    HistoryStatus.Failed -> updatedAt
+}
 
 /** What a history row may claim, derived from the recorded state only. */
 enum class HistoryStatus {

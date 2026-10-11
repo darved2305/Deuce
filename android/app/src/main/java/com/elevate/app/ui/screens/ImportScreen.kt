@@ -1,5 +1,6 @@
 package com.elevate.app.ui.screens
 
+import com.elevate.app.data.history.cardTimeMs
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -177,7 +178,7 @@ fun matchCardOf(entry: MatchHistoryEntry, thumbnail: ImageBitmap? = null): Match
     coverageMs = entry.coverageMs,
     windowsDone = entry.windowsDone,
     status = entry.status(),
-    updatedAt = entry.updatedAt,
+    updatedAt = entry.cardTimeMs(),
     createdAt = entry.createdAt,
     engineVersion = entry.engineVersion,
     thumbnail = thumbnail,
