@@ -804,3 +804,11 @@ Template (copy to the end of the file):
   3. `capabilities.v1 = {capabilities: {court, ball, reviews, score}}`, each `{tier, status}`.
 - **Blast radius:** Person 3 builds the six routes after `GET /v1/matches/{id}`; additive.
 - **PRs:** this PR.
+
+## D-261011-HW17 · The demo clip is h13g_singles
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **Decision:** the live demo and the "analysed earlier" result both use `h13g_singles` (full file).
+  It is the only clip with proof at every layer (#49, #54, #76, #87, #88), it is amateur singles from
+  one fixed camera (our user), the burned-in score lets judges check rally winners, and singles is
+  the format the rules confirm supports tonight. `eurogames_bern` is a low-resolution backup moment.
+- **Blast radius:** Person 2 tests and records on this clip (#84); demo script updated.

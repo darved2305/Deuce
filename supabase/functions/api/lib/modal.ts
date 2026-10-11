@@ -9,6 +9,9 @@ export type ModalSubmitBody = {
   analysis_id: string;
   r2_key: string;
   session_spec: Record<string, unknown>;
+  // contracts 1.9.0 (D-261011-HW15): the engine needs both to build its finalize body.
+  match_id?: string;
+  session_id?: string;
 };
 
 export class ModalUnavailable extends Error {}

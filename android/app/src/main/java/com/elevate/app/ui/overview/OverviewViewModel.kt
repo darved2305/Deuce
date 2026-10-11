@@ -74,7 +74,8 @@ class OverviewViewModel(
     val artifactAccess: StateFlow<com.elevate.app.data.analysis.ArtifactAccess> = this.sync.artifactAccess
 
     val overview: StateFlow<MatchOverviewState> =
-        combine(this.sync.state, match, matchProblem, thumbnail, this.sync.ballTrack) { a, m, p, t, _ ->
+        combine(this.sync.state, match, matchProblem, thumbnail, this.sync.ballTrack) { a, m, p, t, ball ->
+            val hits = hitTimeline(a)
             OverviewDerivation.derive(
                 title = title,
                 match = m,
@@ -84,7 +85,8 @@ class OverviewViewModel(
                 sourceFrameTimesUs = sourceFrameTimesUs,
                 sourceDurationMs = durationMs,
                 thumbnail = t,
-                hitTimeline = hitTimeline(a),
+                hitTimeline = hits,
+                live = if (m == null && a.isLive) liveOverview(a, ball, hits) else null,
             )
         }.stateIn(
             viewModelScope,
@@ -144,6 +146,19 @@ class OverviewViewModel(
             windowsExpected = a.windowsExpected,
             coverageUs = store.coverageUs,
             sourceDurationMs = durationMs,
+        )
+    }
+
+    /** The overview from the windows while `match.v1` is missing (engine not finalized / route not served). */
+    private fun liveOverview(a: AnalysisUiState, ball: com.elevate.app.domain.analysis.BallTrack, hits: HitTimelineState): LiveOverviewState {
+        val store = sync.windowStore()
+        return LiveOverview.derive(
+            analysis = a,
+            ball = ball,
+            windows = store.stored,
+            downloadedCoverageUs = store.coverageUs,
+            hitTimeline = hits,
+            sourceFrameTimesUs = sourceFrameTimesUs,
         )
     }
 

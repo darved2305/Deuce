@@ -2,15 +2,18 @@
 window.
 
 Only what the engine measured goes in. Rallies, shots, reviews, scores, metrics, moments and clips
-stay empty until the engine produces them; players stay empty until player tracks land. Hits are
+stay empty until the engine produces them; players are identity records (see players()). Hits are
 match events (`type: "hit"`), each with its own frame as evidence. Capability statuses are
 `unknown`: a status comes from the held-out eval, never from one run (01-ps-fundamentals).
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Sequence
+
+from elevate_engine.landings import court_point
 
 SESSION_FROM_KEY = re.compile(r"^(?:orig|seg)/(s_[A-Za-z0-9_-]+)/")
 
@@ -22,14 +25,34 @@ def session_id(r2_key: str) -> str:
     return m.group(1)
 
 
-def match_events(window_events: Sequence[dict]) -> list[dict]:
-    """window_result hit events -> match.v1 events. The shuttle-trail track_id is not carried
-    over: in match.v1 a hit's track_id means the hitter, which the engine does not know yet."""
-    keep = ("event_id", "type", "t_ms", "t_sigma_ms", "image_xy", "cues", "state")
+def players(match_id: str, session_spec: dict) -> list[dict]:
+    """match.v1 identity records (HW14 item 4; #65 B4b; #92). Singles with a who_is_me tap: the
+    user (`user_confirmed`, from their own tap) and the opponent (`engine`), in that order so the
+    API's teams are [[you], [opponent]]. track_ids stay empty until live player tracks link them:
+    no track is claimed that the engine has not associated. The opponent record exists only
+    because the user chose singles; it carries no detection, so a reader must not show it as
+    "detected" until track_ids are filled. Otherwise no players."""
+    if session_spec.get("format") != "singles" or not session_spec.get("who_is_me"):
+        return []
+    pid = lambda role: "p_" + hashlib.sha256(f"{match_id}:{role}".encode()).hexdigest()[:16]  # noqa: E731
     return [
-        {**{k: e[k] for k in keep}, "evidence": [{"t_ms": e["t_ms"]}]}
-        for e in sorted(window_events, key=lambda e: (e["t_ms"], e["event_id"]))
+        {"player_id": pid("me"), "track_ids": [], "label": "you", "identity": "user_confirmed"},
+        {"player_id": pid("opponent"), "track_ids": [], "label": "opponent", "identity": "engine"},
     ]
+
+
+def match_events(window_events: Sequence[dict], calibration: dict | None = None) -> list[dict]:
+    """window_result events -> match.v1 events. The shuttle-trail track_id is not carried over:
+    in match.v1 a hit's track_id means the hitter, which the engine does not know yet. A landing
+    gets court metres and their covariance only from a tier A/B calibration."""
+    keep = ("event_id", "type", "t_ms", "t_sigma_ms", "image_xy", "cues", "state")
+    out = []
+    for e in sorted(window_events, key=lambda e: (e["t_ms"], e["event_id"])):
+        m = {**{k: e[k] for k in keep}, "evidence": [{"t_ms": e["t_ms"]}]}
+        if e["type"] == "landing":
+            m.update(court_point(calibration, e["image_xy"]) or {})
+        out.append(m)
+    return out
 
 
 def request(
@@ -55,7 +78,7 @@ def request(
         "sport": session_spec["sport"],
         "format": session_spec["format"],
         "ruleset": session_spec["ruleset"],
-        "players": [],
+        "players": players(match_id, session_spec),
         "calibration": calibration,
         "analysis": {
             "analysis_id": analysis_id,
@@ -72,7 +95,7 @@ def request(
         },
         "rallies": [],
         "shots": [],
-        "events": match_events(window_events),
+        "events": match_events(window_events, calibration),
         "reviews": [],
         "confirmed_points": [],
         "score": {"timeline": [], "games": []},

@@ -71,6 +71,8 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
     }
 
     val pill by vm.pipelinePill.collectAsStateWithLifecycle()
+    val matches by vm.matches.collectAsStateWithLifecycle()
+    val liveHits by vm.liveHitsMs.collectAsStateWithLifecycle()
     // The analysis on record is of the open file (same sha256): don't offer to analyse it again.
     val openShaForCta = (screen as? Screen.Replay)?.sha256
     val analysedHere = pipeline != Screen.Pipeline.Idle && openShaForCta != null &&
@@ -102,6 +104,9 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
                 vm.onLiveTrail(ovm.engineTrail(clip), ovm.sync.engineVersion)
             }
         }
+        LaunchedEffect(ovm, openSha, openW, openH) {
+            ovm.sync.hits.collect { vm.onLiveHits(it) }
+        }
     }
 
     if (panel != Screen.Panel.None && pipeline != Screen.Pipeline.Idle) {
@@ -110,7 +115,11 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
     }
 
     when (val s = screen) {
-        is Screen.Import -> ImportScreen(opening = s.opening, error = s.error, onChoose = pickVideo, backend = backend) {
+        is Screen.Import -> ImportScreen(
+            opening = s.opening, error = s.error, onChoose = pickVideo, backend = backend,
+            matches = matches.map { com.elevate.app.ui.screens.matchCardOf(it) },
+            onOpenMatch = vm::openHistory,
+        ) {
             if (pipeline != Screen.Pipeline.Idle) PipelineStatus(pipelineUi)
         }
         is Screen.Replay -> {
@@ -132,6 +141,7 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
                 onSetUp = vm::startSetup,
                 onShowEngine = vm::showEngine,
                 onShowLive = vm::showLive,
+            hitsMs = liveHits,
                 pipeline = pipelineUi,
             )
         }

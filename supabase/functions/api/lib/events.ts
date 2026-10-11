@@ -9,6 +9,7 @@ export type EventRow = {
   schema_version: number;
   type: string;
   window_seq: number | null;
+  windows_expected?: number | null;
   decode_start_us: number | string | null;
   decode_end_us: number | string | null;
   emit_start_us: number | string | null;
@@ -27,6 +28,7 @@ export type EventWire = {
   schema_version: number;
   type: string;
   window_seq?: number;
+  windows_expected?: number;
   decode_window_us?: [number, number];
   emit_range_us?: [number, number];
   artifact_id?: string;
@@ -38,6 +40,7 @@ export type EventWire = {
 export type InternalEventBody = {
   type: string;
   window_seq?: number;
+  windows_expected?: number;
   decode_window_us?: [number, number];
   emit_range_us?: [number, number];
   artifact_id?: string;
@@ -64,6 +67,9 @@ export function rowToWire(r: EventRow): EventWire {
     schema_version: r.schema_version,
     type: r.type,
     ...(r.window_seq !== null ? { window_seq: r.window_seq } : {}),
+    ...(r.windows_expected != null
+      ? { windows_expected: r.windows_expected }
+      : {}),
     ...(decode ? { decode_window_us: decode } : {}),
     ...(emit ? { emit_range_us: emit } : {}),
     ...(r.artifact_id !== null ? { artifact_id: r.artifact_id } : {}),
@@ -76,6 +82,7 @@ export function rowToWire(r: EventRow): EventWire {
 export function fieldsToRpc(b: InternalEventBody): Record<string, unknown> {
   const f: Record<string, unknown> = {};
   if (b.window_seq !== undefined) f.window_seq = b.window_seq;
+  if (b.windows_expected !== undefined) f.windows_expected = b.windows_expected;
   if (b.decode_window_us) {
     f.decode_start_us = b.decode_window_us[0];
     f.decode_end_us = b.decode_window_us[1];

@@ -146,3 +146,16 @@ Fixed during the run: the setup frame scrolled under the header while tapping (n
 opening the video reset the live trail to none (race with the hand-label lookup); dots were ~2 px
 on 464p video (minimum size = the 1080p size); the live-row denominator counted only frames with
 a detection ("101/101"); a second "Analyse this match" was offered for an already analysed file.
+
+## Live loop with hits, overview and history (A55, 2026-10-11 06:06–06:18)
+
+Real clip `eurogames_bern_2.webm` (26.9 MiB, 96.9 s), deployed API + Modal (engine with hits, #76):
+upload resumed by itself after the guest-Wi-Fi timeouts (session `s_27fd83f6b6054eb7883919cce57453fc`);
+analysis streamed "Analysing · 0/97 s" (06:12:28) → 12 → 30 → 42 → 60 → 78 → 90 → "Windows done · summary
+pending" (06:13:33): 17 windows, 96.9 of 96.9 s, about 65 s once the engine started. Analysing:
+4/4 stages done. Match Overview (from the windows): 935 frames with the shuttle, per-window counts
+118·20·3·118·30·29·40·91·63·24·45·0·73·48·144·89·0, 3 rally candidates from hit candidates
+(0:44.9–0:47.1 ·4, 1:12.9–1:14.1 ·2, 1:29.0–1:32.1 ·5), "Match summary (score, landings) not served yet".
+Home lists it under "Your matches · Ready · analysed 96.9 of 96.9 s · engine 0.1.0". Tapping rally
+candidate 3 opens the analysed video at 1:29.00 with the live trail ("935/2904" = real frame count),
+a dashed "HIT?" ring around the shuttle at the hitter, and "14 hit candidates · engine" ticks.
