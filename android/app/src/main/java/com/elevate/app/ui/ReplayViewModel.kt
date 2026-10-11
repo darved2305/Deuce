@@ -1,5 +1,6 @@
 package com.elevate.app.ui
 
+import com.elevate.app.data.history.status
 import android.os.Build
 import com.elevate.app.data.analysis.AnalysisClient
 import com.elevate.app.data.analysis.HttpAnalysisClient
@@ -291,9 +292,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     /** The court overlay joins the trail's effect; the last overlay in the list draws on top. */
     private fun attachCourtOverlay() {
         if (!playerHasOverlays) return
-        controller.player.setVideoEffects(
-            listOf(OverlayEffect(listOf<TextureOverlay>(courtOverlay, controller.overlay))),
-        )
+        // Court lines under the trail and hit markers; kept across SDR/HDR player rebuilds.
+        controller.setUnderlays(listOf(courtOverlay))
     }
 
     /**
@@ -351,6 +351,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     /** sha256 of the uploaded source (from the saved session request), to match live output to a file. */
     fun pipelineSha256(): String? = runCatching {
+        adopted?.let { return it.sha256 }
         val st = uploadRuntime.coordinator.current() ?: return null
         val src = kotlinx.serialization.json.Json.parseToJsonElement(st.createRequestJson).jsonObject.getValue("source").jsonObject
         (src["sha256"] as? JsonPrimitive)?.content
@@ -393,7 +394,61 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     private val _lastAnalysis = MutableStateFlow<AnalysisUiState?>(null)
 
     /** The analysis screen's latest state, so the video screen's pill can show it after Back. */
-    fun onAnalysisState(state: AnalysisUiState) { _lastAnalysis.value = state }
+    fun onAnalysisState(state: AnalysisUiState) {
+        _lastAnalysis.value = state
+        viewModelScope.launch(Dispatchers.IO) {
+            if (runCatching { history.recorder.onAnalysisState(state) }.getOrDefault(false)) refreshMatches()
+        }
+    }
+
+    // ---- Match history (data/history): every analysis on this phone, reopened instantly ----
+    private val history by lazy { com.elevate.app.data.history.MatchHistoryRuntime.get(getApplication()) }
+    private val _matches = MutableStateFlow<List<com.elevate.app.data.history.MatchHistoryEntry>>(emptyList())
+    val matches: StateFlow<List<com.elevate.app.data.history.MatchHistoryEntry>> = _matches.asStateFlow()
+
+    // After _matches exists (init blocks run in declaration order).
+    init { refreshMatches() }
+
+    fun refreshMatches() {
+        viewModelScope.launch(Dispatchers.IO) { _matches.value = runCatching { history.history.list() }.getOrDefault(emptyList()) }
+    }
+
+    /** A history entry being viewed (not the latest upload): source facts and sha come from it. */
+    private var adopted: com.elevate.app.data.history.MatchHistoryEntry? = null
+
+    /** Opens a remembered analysis: its Analysing/Overview panel at once, and its video if still readable. */
+    fun openHistory(analysisId: String) {
+        val p = _pipeline.value
+        if (p == Screen.Pipeline.Uploading || p is Screen.Pipeline.StartingAnalysis) { _panel.value = Screen.Panel.Analysing; return }
+        viewModelScope.launch {
+            val e = withContext(Dispatchers.IO) { history.history.get(analysisId) } ?: return@launch
+            val uri = withContext(Dispatchers.IO) { com.elevate.app.data.history.MatchHistoryRuntime.readableSource(getApplication(), e) }
+            adopted = e
+            pipelineTitle = e.title
+            _lastAnalysis.value = null
+            _hero.value = PipelineHero(
+                com.elevate.app.ui.overview.AnalysingFlow.heroLine(e.sport, e.durationMs, e.width, e.height, null),
+                uri, e.durationMs, e.title,
+            )
+            _pipeline.value = Screen.Pipeline.Started(e.analysisId, e.sessionId, e.matchId, dispatched = true, state = e.lastState ?: "queued")
+            uri?.let { onPicked(it) }
+            _panel.value = if (e.status() == com.elevate.app.data.history.HistoryStatus.Analysing) Screen.Panel.Analysing else Screen.Panel.Overview
+        }
+    }
+
+    /** Live hit candidates for the open file (same sha256 as the analysed one), drawn on the video. */
+    private val _liveHitsMs = MutableStateFlow<List<Long>>(emptyList())
+    val liveHitsMs: StateFlow<List<Long>> = _liveHitsMs.asStateFlow()
+
+    fun onLiveHits(hits: List<com.elevate.app.domain.analysis.HitCandidate>) {
+        val s = _screen.value as? Screen.Replay ?: return
+        val facts = (s.preflight as? PreflightState.Done)?.facts
+        val live = com.elevate.app.domain.analysis.LiveHits.forFile(
+            hits, pipelineSha256(), s.sha256, facts?.durationMs, facts?.displayWidth, facts?.displayHeight,
+        )
+        controller.setHits(live, facts?.displayWidth, facts?.displayHeight)
+        _liveHitsMs.value = live.map { it.tMs }
+    }
 
     /**
      * Short line for a pill on the video / import screen ("Analysing · 18/485 s"); null when nothing
@@ -433,6 +488,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
      * the analysis screens keep their denominators after a restart: duration µs, width, height.
      */
     fun pipelineSource(): Triple<Long?, Int?, Int?>? = runCatching {
+        adopted?.let { return Triple(it.durationMs?.times(1000), it.width, it.height) }
         val st = uploadRuntime.coordinator.current() ?: return null
         val src = kotlinx.serialization.json.Json.parseToJsonElement(st.createRequestJson).jsonObject.getValue("source").jsonObject
         fun num(k: String) = (src[k] as? JsonPrimitive)?.content?.toDoubleOrNull()
@@ -468,6 +524,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
      * started as soon as the file is identified. Starting again while an upload runs only reopens it.
      */
     fun analyse() {
+        adopted = null
         val s = _screen.value as? Screen.Replay ?: return
         val facts = (s.preflight as? PreflightState.Done)?.takeIf { !it.blocked }?.facts ?: return
         val setup = s.setup ?: return
@@ -585,6 +642,21 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             // One key per upload: a start retried after process death returns the same analysis (contracts §3).
             val started = analysisClient.startAnalysis(sessionId, "analyse-${st.localId}")
             _pipeline.value = Screen.Pipeline.Started(started.response.analysisId, sessionId, st.matchId, started.dispatched, started.response.state)
+            adopted = null
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val req = kotlinx.serialization.json.Json.parseToJsonElement(st.createRequestJson).jsonObject
+                    val src = req.getValue("source").jsonObject
+                    fun num(k: String) = (src[k] as? JsonPrimitive)?.content?.toDoubleOrNull()
+                    history.recorder.onStarted(
+                        started.response.analysisId, sessionId, st.matchId, st.sha256,
+                        _hero.value.fileName ?: pipelineTitle, st.sourceUri, st.stagedPath,
+                        (req["sport"] as? JsonPrimitive)?.content, num("duration_ms")?.toLong(), num("width")?.toInt(), num("height")?.toInt(),
+                        started.response.state,
+                    )
+                }
+            }
+            refreshMatches()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -642,6 +714,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        runCatching { history.recorder.flush() }
         controller.release()
     }
 

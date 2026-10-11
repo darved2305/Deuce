@@ -102,6 +102,8 @@ fun ReplayScreen(
     onSetUp: () -> Unit = {},
     onShowEngine: (Boolean) -> Unit = {},
     onShowLive: (Boolean) -> Unit = {},
+    /** Live hit candidates (ms) for this file, shown as ticks under the timeline. */
+    hitsMs: List<Long> = emptyList(),
     pipeline: PipelineUi = PipelineUi(),
 ) {
     val c = Elevate.colors
@@ -137,7 +139,7 @@ fun ReplayScreen(
             VideoArea(title, state, controller, onChooseAnother, m)
         }
         val controls: @Composable (Modifier) -> Unit = { m ->
-            ControlsSheet(screen, state, controller, positionMs, onOverlayVisible, onSetUp, onShowEngine, onShowLive, pipeline, m)
+            ControlsSheet(screen, state, controller, positionMs, onOverlayVisible, onSetUp, onShowEngine, onShowLive, pipeline, m, hitsMs)
         }
         if (landscape) {
             Row(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -196,6 +198,7 @@ private fun ControlsSheet(
     onShowLive: (Boolean) -> Unit,
     pipeline: PipelineUi,
     modifier: Modifier,
+    hitsMs: List<Long> = emptyList(),
 ) {
     val c = Elevate.colors
     var dragging by remember { mutableStateOf(false) }
@@ -221,6 +224,9 @@ private fun ControlsSheet(
             colors = SliderDefaults.colors(thumbColor = c.orange, activeTrackColor = c.orange, inactiveTrackColor = c.line),
             modifier = Modifier.semantics { contentDescription = "Timeline" },
         )
+        if (hitsMs.isNotEmpty()) {
+            com.elevate.app.ui.live.HitStrip(durationMs = state.durationMs, hitsMs = hitsMs, positionMs = shownMs, onSeek = { controller.seekTo(it) })
+        }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             val tnum = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum", fontSize = 16.sp)
             Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {

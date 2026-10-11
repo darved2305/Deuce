@@ -108,6 +108,8 @@ data class MatchOverviewState(
     /** The hand-labelled range in source ms (first..last labelled frame), for its replay button. */
     val referenceRange: LongRange? = null,
     val hitTimeline: HitTimelineState = HitTimelineState.EMPTY,
+    /** Built from the live windows while `match.v1` is missing; null once the record is read. */
+    val live: LiveOverviewState? = null,
 )
 
 /** Pure derivations: every displayed count with its denominator, nothing invented. */
@@ -132,6 +134,8 @@ object OverviewDerivation {
         sourceDurationMs: Long? = null,
         thumbnail: ThumbnailState = ThumbnailState.Loading,
         hitTimeline: HitTimelineState = HitTimelineState.EMPTY,
+        /** Live-window view; dropped when [match] is known (the record is the better source). */
+        live: LiveOverviewState? = null,
     ): MatchOverviewState {
         val source = when {
             match != null && recordedMatchDocument != null -> OverviewSource.RecordedMatch(recordedMatchDocument)
@@ -155,6 +159,7 @@ object OverviewDerivation {
             referenceDetail = fixture?.second?.let(::referenceDetail),
             referenceRange = fixture?.second?.let { (it.rangeStartUs / 1000)..((it.rangeEndUs + 999) / 1000) },
             hitTimeline = hitTimeline,
+            live = live.takeIf { match == null },
         )
     }
 
