@@ -66,3 +66,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T00:01Z | #71 | @HetanshWaghela | p4 | android: Kotlin readers catch up with contracts 1.8.0; CI checks vendored rules | D-261011-HW14 (contracts 1.8.0, no contract change here) | 1.8.0 | ``` |
 | 2026-10-11T00:05Z | #76 | @VrajVed | p1 | engine: hits and audio onsets in live windows | None new. Follows D-261011-HW14 (contracts 1.8.0): hits are events with `type: "hit"`. | 1.8.0 | Real Modal run **`ap-OC1nn0d4By8WZb0voixnPt`**: `run_clip` on `h13g_singles.mp4` 31–91 s (real broadcast clip; the hel |
 | 2026-10-11T00:06Z | #69 | @HetanshWaghela | p2 | android: Kotlin bwf_3x21 rules port, 45/45 shared vectors | none (implements contracts §10 and D-261011-HW7) | 1.8.0 | ``` |
+| 2026-10-11T00:09Z | #73 | @HetanshWaghela | p2 | android: court corners can be placed outside the frame (closes #62) | none (closes #62; points_px is unbounded in contracts, packages/contracts/src/api.ts:41) | 1.8.0 | ``` |
