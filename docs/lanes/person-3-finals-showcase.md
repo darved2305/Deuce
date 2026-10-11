@@ -44,14 +44,14 @@ type `/mcp` and confirm `elevate` shows its 10 tools.
    capability statuses `unknown`, and it declined to treat candidates as facts.
    Say: "It is quoting the record. It never computes a statistic, and it says what it does not know."
 2. **"Show me the landing events and when they happened."** Tool `list_events` with type `landing`.
-   Verified through the server (`scripts/call.ts`): 5 landings at 10,620, 18,960, 42,740, 52,840 and
-   58,300 ms, each with a 10 ms timing uncertainty. Not yet run through Claude.
+   Run through Claude: it answered 5 landing candidates at 10.62, 18.96, 42.74, 52.84 and 58.30 s,
+   each with a 10 ms timing uncertainty, and called them unconfirmed.
 3. **"Is that analysis still running?"** (give it `a_af59a659bf524ef5a078ae7bbe2d0177`). Tool
-   `get_analysis_progress`. Verified through the server on this run mid-flight (10 windows
-   expected, hit candidates counted from the real window results). Now answers `completed`.
-4. **"Which rallies should I rewatch?"** Tool `rewatch_picks`. Expected honest answer: none, there
-   are no rallies in the record yet. Use this on purpose as the abstention beat. Not yet run
-   through Claude.
+   `get_analysis_progress`. Run through Claude: `completed`, all 10 of 10 windows processed, 0 failed, 32 hit
+   candidates counted from the real window results.
+4. **"Which rallies should I rewatch?"** Tool `rewatch_picks`. Run through Claude: it answered that there are none to suggest, because
+   the record has 0 rallies, and that rallies would have to be built from the candidates first.
+   Use this on purpose as the abstention beat.
 
 If Claude hesitates to call a tool, say "use the elevate MCP tools". All tools are read-only
 (`readOnlyHint`), so no permission prompt for writes can appear.
