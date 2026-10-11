@@ -4,8 +4,10 @@ import {
   errorEnvelopeSchema,
   matchIdSchema,
   matchV1Schema,
+  r2ObjectKeySchema,
 } from "../lib/contracts_vendor/index.ts";
 import { ApiFailure } from "../lib/errors.ts";
+import type { R2 } from "../lib/r2.ts";
 
 const getMatch = createRoute({
   method: "get",
@@ -30,6 +32,79 @@ const getMatch = createRoute({
     },
   },
 });
+
+const R2_DELETE_BATCH_SIZE = 8;
+const R2_DELETE_RETRY_MS = [250, 500] as const;
+
+const deleteMatch = createRoute({
+  method: "delete",
+  path: "/v1/matches/{id}",
+  request: { params: z.object({ id: matchIdSchema }) },
+  responses: {
+    202: {
+      description:
+        "Match rows are deleted; recorded R2 objects are removed asynchronously after commit.",
+    },
+    404: {
+      description: "match not owned by the caller",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
+    409: {
+      description: "an analysis is in progress",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
+    500: {
+      description: "match deletion could not be completed",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
+    },
+  },
+});
+
+function matchR2Keys(matchId: string, value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    throw new ApiFailure(500, "internal", "stored match R2 keys are invalid");
+  }
+  const keys = new Set<string>();
+  for (const key of value) {
+    if (
+      typeof key !== "string" || !r2ObjectKeySchema.safeParse(key).success ||
+      (!key.startsWith("orig/") && !key.startsWith("analysis/") &&
+        !key.startsWith(`clips/${matchId}/`))
+    ) {
+      throw new ApiFailure(500, "internal", "stored match R2 keys are invalid");
+    }
+    keys.add(key);
+  }
+  return [...keys];
+}
+
+async function deleteR2Key(r2: R2, key: string): Promise<void> {
+  for (let attempt = 0; attempt <= R2_DELETE_RETRY_MS.length; attempt++) {
+    try {
+      await r2.deleteObject(key);
+      return;
+    } catch (error) {
+      console.error("match R2 cleanup failed", {
+        attempt: attempt + 1,
+        error: error instanceof Error ? error.name : "unknown",
+      });
+      const delay = R2_DELETE_RETRY_MS[attempt];
+      if (delay !== undefined) {
+        await new Promise<void>((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+}
+
+async function cleanupMatchR2(r2: R2, keys: string[]): Promise<void> {
+  for (let i = 0; i < keys.length; i += R2_DELETE_BATCH_SIZE) {
+    await Promise.all(
+      keys.slice(i, i + R2_DELETE_BATCH_SIZE).map((key) =>
+        deleteR2Key(r2, key)
+      ),
+    );
+  }
+}
 
 export function registerMatches(api: OpenAPIHono<AppEnv>): void {
   api.openapi(getMatch, async (c) => {
@@ -65,5 +140,42 @@ export function registerMatches(api: OpenAPIHono<AppEnv>): void {
       throw new ApiFailure(409, "conflict", "analysis not complete");
     }
     return c.json(parsed.data, 200);
+  });
+  api.openapi(deleteMatch, async (c) => {
+    const { id } = c.req.valid("param");
+    const jwt = (c.req.header("Authorization") ?? "").slice(
+      "Bearer ".length,
+    );
+    const ownerId = c.var.userId;
+    const deps = c.var.deps;
+    const owned = await deps.user(jwt).from("matches").select("id").eq(
+      "id",
+      id,
+    ).eq("owner_id", ownerId).maybeSingle();
+    if (owned.error) throw owned.error;
+    if (!owned.data) {
+      throw new ApiFailure(404, "not_found", "match not found");
+    }
+
+    const deleted = await deps.admin().rpc("delete_match", {
+      p_match_id: id,
+      p_owner_id: ownerId,
+    });
+    if (deleted.error) {
+      if (deleted.error.code === "P0002") {
+        throw new ApiFailure(404, "not_found", "match not found");
+      }
+      if (
+        deleted.error.code === "P0001" &&
+        deleted.error.message === "analysis_in_progress"
+      ) {
+        throw new ApiFailure(409, "conflict", "analysis in progress");
+      }
+      throw deleted.error;
+    }
+
+    const keys = matchR2Keys(id, deleted.data);
+    deps.waitUntil(cleanupMatchR2(deps.r2(), keys));
+    return c.body(null, 202);
   });
 }

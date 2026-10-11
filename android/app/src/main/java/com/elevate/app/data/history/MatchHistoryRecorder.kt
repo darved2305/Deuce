@@ -35,6 +35,8 @@ class MatchHistoryRecorder(
         width: Int?,
         height: Int?,
         state: String?,
+        /** App-private copy kept for history ([com.elevate.app.data.upload.LocalVideoStore]), if any. */
+        localCopyPath: String? = null,
     ) {
         val now = clock()
         val old = history.get(analysisId)
@@ -58,6 +60,8 @@ class MatchHistoryRecorder(
                 windowsDone = old?.windowsDone ?: 0,
                 coverageMs = old?.coverageMs ?: 0,
                 engineVersion = old?.engineVersion,
+                completedAt = old?.completedAt ?: now.takeIf { state == "completed" },
+                localCopyPath = localCopyPath ?: old?.localCopyPath,
             ),
         )
         lastWriteAt[analysisId] = now
@@ -103,7 +107,10 @@ class MatchHistoryRecorder(
     private fun write(analysisId: String, p: Pending, now: Long): Boolean {
         pending.remove(analysisId)
         val written = history.update(analysisId) {
-            it.copy(lastState = p.state, coverageMs = p.coverageMs, windowsDone = p.windowsDone, engineVersion = p.engineVersion, updatedAt = now)
+            val next = it.copy(lastState = p.state, coverageMs = p.coverageMs, windowsDone = p.windowsDone, engineVersion = p.engineVersion, updatedAt = now)
+            // The first time it is finished (completed, or every window in) is the analysis time; never moved.
+            val finished = next.status() == HistoryStatus.Ready || next.status() == HistoryStatus.ReadyFromWindows
+            if (finished && next.completedAt == null) next.copy(completedAt = now) else next
         } != null
         if (written) lastWriteAt[analysisId] = now
         return written

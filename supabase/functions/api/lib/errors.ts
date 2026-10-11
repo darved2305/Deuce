@@ -117,7 +117,7 @@ export function notFound(c: Context): Response {
   return fail(c, 404, "not_found", "route not found");
 }
 
-export function onError(err: Error, c: Context): Response {
+export function onError(err: unknown, c: Context): Response {
   if (err instanceof ApiFailure) {
     return fail(
       c,
@@ -133,10 +133,9 @@ export function onError(err: Error, c: Context): Response {
       return fail(c, 422, "invalid_body", err.message);
     }
     const code = STATUS_CODES[err.status] ?? "internal";
-    if (ERROR_STATUSES[code] === err.status) {
+    if (code !== "internal" && ERROR_STATUSES[code] === err.status) {
       return fail(c, err.status as ErrorStatus, code, err.message);
     }
-    return fail(c, 500, "internal", "internal error");
   }
   console.error(err);
   return fail(c, 500, "internal", "internal error");

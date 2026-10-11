@@ -52,6 +52,10 @@ export function fakeClient(handler: Handler, log: Call[] = []): SupabaseClient {
         state.filters[`${k}>`] = v;
         return chain;
       },
+      in: (k: string, values: readonly unknown[]) => {
+        state.filters[`${k} in`] = values;
+        return chain;
+      },
       order: () => chain,
       limit: (n: number) => {
         state.filters["limit"] = n;
@@ -103,6 +107,9 @@ export function makeApp(
     bucket: "bkt",
     fetchImpl: () => Promise.reject(new Error("no r2 network")),
   }),
+  waitUntil: (task: Promise<unknown>) => void = (task) => {
+    void task;
+  },
 ) {
   Deno.env.set("INTERNAL_API_TOKEN", "tok");
   const deps: Deps = {
@@ -118,6 +125,7 @@ export function makeApp(
       },
     }),
     r2: () => r2,
+    waitUntil,
     verifyJwt: () => Promise.resolve({ sub: "u1", isAnonymous: true }),
   };
   return createApp(deps);

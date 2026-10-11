@@ -48,6 +48,8 @@ class OverviewViewModel(
     private val sourceFrameTimesUs: LongArray? = null,
     private val fixture: Pair<String, TrailTrack>? = null,
     /** Decodes a real frame (e.g. [FrameThumbnail.load] on Dispatchers.IO); null = no hero frame. */
+    /** Per-analysis cache of window results and match.v1: reopening works offline ("analysed earlier"). */
+    windowCache: com.elevate.app.data.analysis.WindowCache? = null,
     private val thumbnailLoader: (suspend (atMs: Long) -> ThumbnailState)? = null,
     /** Built by the lead or a test; defaults to one over [client]. */
     sync: AnalysisSync? = null,
@@ -60,6 +62,7 @@ class OverviewViewModel(
         sourceDurationUs = sourceDurationUs,
         sourceWidth = sourceWidth,
         sourceHeight = sourceHeight,
+        windowCache = windowCache,
     )
 
     private var knownMatchId: String? = matchId
@@ -69,6 +72,9 @@ class OverviewViewModel(
     private val durationMs = sourceDurationUs?.let { it / 1000 }
 
     val analysis: StateFlow<AnalysisUiState> = this.sync.state
+
+    /** The served `match.v1` once loaded (landings and calibration for the replay screen). */
+    val matchRecord: StateFlow<MatchRecord?> = match.asStateFlow()
 
     /** Whether the server hands out window results yet (404 = route not deployed). */
     val artifactAccess: StateFlow<com.elevate.app.data.analysis.ArtifactAccess> = this.sync.artifactAccess
@@ -180,7 +186,7 @@ class OverviewViewModel(
         }
         matchJob = viewModelScope.launch {
             try {
-                val m = client.getMatch(id)
+                val m = this@OverviewViewModel.sync.match(id)
                 match.value = m
                 matchProblem.value = null
                 loadThumbnail(m)

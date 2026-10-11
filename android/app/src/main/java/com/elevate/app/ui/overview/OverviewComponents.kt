@@ -129,7 +129,7 @@ internal fun MiniCourt(state: CourtState.Badminton, modifier: Modifier = Modifie
             fun ln(x0: Float, y0: Float, x1: Float, y1: Float, wide: Float = sw, color: Color = line) = drawLine(color, p(x0, y0), p(x1, y1), strokeWidth = wide)
             courtLines(wM, lM, state.singles, ::ln, sw)
             for (mk in state.marks) {
-                val o = p(mk.xM.toFloat(), mk.yM.toFloat())
+                val o = p((mk.xM + state.frameOffsetM).toFloat(), mk.yM.toFloat())
                 val r = 5.dp.toPx()
                 when (mk.state) {
                     "observed" -> { drawCircle(c.orange, r, o); drawCircle(Color.White, r, o, style = Stroke(1.5f.dp.toPx())) }
@@ -139,8 +139,21 @@ internal fun MiniCourt(state: CourtState.Badminton, modifier: Modifier = Modifie
             }
         }
         Text(state.note, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
+        if (state.marks.isNotEmpty()) {
+            Text(courtLegend(state.marks), style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+        }
     }
 }
+
+/** Shape key for the marks present (shape, not colour alone): "● observed · ○ candidate". */
+internal fun courtLegend(marks: List<CourtMark>): String =
+    marks.map { it.state }.distinct().sorted().joinToString(" · ") { st ->
+        when (st) {
+            "observed" -> "● observed"
+            "user" -> "■ confirmed by you"
+            else -> "○ $st"
+        }
+    }
 
 private fun courtLines(
     w: Float,
