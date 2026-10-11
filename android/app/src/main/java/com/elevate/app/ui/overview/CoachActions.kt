@@ -1,5 +1,7 @@
 package com.elevate.app.ui.overview
 
+import com.elevate.app.ui.components.Explanations
+import com.elevate.app.ui.components.ExplainBox
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
@@ -57,8 +59,8 @@ private object CoachIcons {
 @Composable
 internal fun CoachActions(speaking: Boolean, onListen: () -> Unit, showShare: Boolean, onShare: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        ActionPill(if (speaking) CoachIcons.Stop else CoachIcons.Speaker, if (speaking) "Stop" else "Listen", onListen)
-        if (showShare) ActionPill(CoachIcons.Share, "Share", onShare)
+        ExplainBox(Explanations.Listen) { ActionPill(if (speaking) CoachIcons.Stop else CoachIcons.Speaker, if (speaking) "Stop" else "Listen", onListen) }
+        if (showShare) ExplainBox(Explanations.Share) { ActionPill(CoachIcons.Share, "Share", onShare) }
     }
 }
 

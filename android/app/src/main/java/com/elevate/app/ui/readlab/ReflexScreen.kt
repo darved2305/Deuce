@@ -1,5 +1,7 @@
 package com.elevate.app.ui.readlab
 
+import com.elevate.app.ui.components.Explanations
+import com.elevate.app.ui.components.ExplainBox
 import android.content.Context
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
@@ -48,6 +50,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.ContentFrame
 import com.elevate.app.domain.court.ZoneId
@@ -66,6 +71,7 @@ import com.elevate.app.ui.components.VideoCard
 import com.elevate.app.ui.components.VideoChip
 import com.elevate.app.ui.theme.Elevate
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Per-device best score, one number per match, in the app's own SharedPreferences file. */
 class SharedPrefsReflexBest(context: Context) : ReflexBestStore {
@@ -79,7 +85,7 @@ class SharedPrefsReflexBest(context: Context) : ReflexBestStore {
 @Composable
 fun ReflexEntryButton(rounds: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
     if (rounds < ReflexRounds.MIN_ROUNDS) return
-    SecondaryButton(ReflexText.entry(rounds), onClick, modifier.fillMaxWidth())
+    ExplainBox(Explanations.Reflex, modifier.fillMaxWidth()) { SecondaryButton(ReflexText.entry(rounds), onClick, Modifier.fillMaxWidth()) }
 }
 
 /** A stopwatch that can be paused; the reaction time is read from it at the moment of the tap. */
@@ -96,6 +102,9 @@ private enum class Phase { Run, Armed, Reveal }
 
 /** Poll step of the round loop; small enough that the freeze lands within about a frame of its time. */
 private const val STEP_MS = 8L
+
+/** Longest wait for the freeze-frame seek to finish before the countdown starts anyway. */
+private const val SEEK_WAIT_MS = 300L
 
 /**
  * Reflex mode over the one player the app already has. Each round plays the real clip from
@@ -139,6 +148,12 @@ fun ReflexRoute(vm: ReplayViewModel, drills: List<Drill>, matchKey: String, cueS
     val stopwatch = remember { Stopwatch() }
     val started = s?.started == true
 
+    // Backgrounded: the run pauses with the player; the user resumes it.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        paused = true
+        controller.pause()
+    }
+
     // Pause and resume: the player and the timers stop together.
     LaunchedEffect(paused) {
         if (paused) { controller.pause(); stopwatch.pause() }
@@ -163,11 +178,27 @@ fun ReflexRoute(vm: ReplayViewModel, drills: List<Drill>, matchKey: String, cueS
             timeLeft = 1f
             controller.seekTo(ReflexRules.startUs(freezeUs) / 1000)
             if (!paused) controller.playerFlow.value.play()
-            while (controller.positionMs() < freezeMs || paused) delay(STEP_MS)
+            var playbackFailed = false
+            while (controller.positionMs() < freezeMs || paused) {
+                // A player error or the end of the clip would never reach the freeze frame: skip the round.
+                val p = controller.playerFlow.value
+                if (p.playerError != null || p.playbackState == Player.STATE_ENDED) { playbackFailed = true; break }
+                delay(STEP_MS)
+            }
+            if (playbackFailed) {
+                controller.pause()
+                state.update { it.answer(null, null) }
+                timeLeft = 0f
+                continue
+            }
 
             // 2. Freeze on the exact real frame; the countdown and the reaction clock start together.
             controller.pause()
             controller.seekTo(freezeMs)
+            // The frozen frame is on screen once the seek is done: only then does the clock start.
+            withTimeoutOrNull(SEEK_WAIT_MS) {
+                while (controller.playerFlow.value.playbackState != Player.STATE_READY) delay(STEP_MS)
+            }
             stopwatch.restart()
             if (paused) stopwatch.pause()
             phase = Phase.Armed
@@ -295,7 +326,7 @@ private fun Intro(s: ReflexSession, settlement: ReflexSettlement?, cueUi: CueUi?
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            PillChip(ReflexText.RELAXED_LABEL, s.relaxed, { onRelaxed(!s.relaxed) })
+            ExplainBox(Explanations.Relaxed) { PillChip(ReflexText.RELAXED_LABEL, s.relaxed, { onRelaxed(!s.relaxed) }) }
             Text(if (s.relaxed) "3 s to answer" else "1.5 s to answer", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
         }
         if (cueUi != null) {
@@ -395,7 +426,7 @@ private fun Countdown(timeLeft: Float, timerMs: Long) {
     val c = Elevate.colors
     val color = if (timeLeft > 0.5f) lerp(c.orange, c.mintInk, (timeLeft - 0.5f) * 2f) else lerp(c.error, c.orange, timeLeft * 2f)
     val secs = timeLeft * timerMs / 1000f
-    Text("Tap where it lands", style = MaterialTheme.typography.titleMedium, color = c.ink)
+    ExplainBox(Explanations.ZonePicker, Modifier.fillMaxWidth()) { Text("Tap where it lands", style = MaterialTheme.typography.titleMedium, color = c.ink) }
     Spacer(Modifier.height(8.dp))
     Box(
         Modifier.fillMaxWidth().height(14.dp).clip(CircleShape).background(c.line)

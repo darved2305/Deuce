@@ -1,5 +1,7 @@
 package com.elevate.app.ui.readlab
 
+import com.elevate.app.ui.components.Explanations
+import com.elevate.app.ui.components.ExplainBox
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.ContentFrame
 import com.elevate.app.domain.court.ZoneId
@@ -56,7 +60,7 @@ import com.elevate.app.ui.theme.Elevate
 @Composable
 fun ReadLabEntryButton(drills: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
     if (drills < 1) return
-    PrimaryButton(ReadLabText.entry(drills), onClick, modifier)
+    ExplainBox(Explanations.ReadLab, modifier) { PrimaryButton(ReadLabText.entry(drills), onClick, Modifier.fillMaxWidth()) }
 }
 
 /**
@@ -71,6 +75,9 @@ fun ReadLabRoute(vm: ReplayViewModel, drills: List<Drill>, cueSource: CueSource?
     val controller = vm.controller
     LaunchedEffect(drills) { state.start(drills) }
     val s = session
+
+    // Backgrounded: stop the video so no sound plays from a hidden screen.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { controller.pause() }
 
     // The engine's trail and hit marks would draw the future on the frozen frame: off while training.
     DisposableEffect(vm) {
@@ -170,11 +177,13 @@ private fun Frozen(s: ReadLabSession, controller: PlayerController, cueUi: CueUi
         if (cueUi != null && !attempt.locked) ShuttleCueOverlay(cueUi.cue, cueUi.imageW, cueUi.imageH)
         VideoChip("Drill ${s.index + 1} of ${s.drills.size} · frozen before the hit", Modifier.align(Alignment.TopStart).padding(12.dp))
     }
-    Text(
-        if (attempt.locked) "Answer locked." else "Where will the shuttle land? Tap a zone.",
-        style = MaterialTheme.typography.bodyMedium,
-        color = c.ink,
-    )
+    ExplainBox(Explanations.ZonePicker, Modifier.fillMaxWidth()) {
+        Text(
+            if (attempt.locked) "Answer locked." else "Where will the shuttle land? Tap a zone.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = c.ink,
+        )
+    }
     if (cueUi != null) ShuttleCueToggle(cueUi.on, cueUi.onToggle)
 }
 

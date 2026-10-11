@@ -1,5 +1,7 @@
 package com.elevate.app.ui.readlab
 
+import com.elevate.app.ui.components.Explanations
+import com.elevate.app.ui.components.ExplainBox
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -27,7 +29,7 @@ class CueUi(val cue: ShuttleCue.Cue?, val imageW: Int, val imageH: Int, val on: 
 /** The small "Shuttle cue" on/off chip; the cue defaults to on. */
 @Composable
 fun ShuttleCueToggle(on: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
-    PillChip("Shuttle cue", on, onToggle, modifier)
+    ExplainBox(Explanations.ShuttleCue, modifier) { PillChip("Shuttle cue", on, onToggle) }
 }
 
 private val Glow = Color(0xFFFFE9A0)

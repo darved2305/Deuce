@@ -36,6 +36,17 @@ class MatchHistoryRecorderTest {
         assertThat(e.durationMs).isEqualTo(25_603)
     }
 
+    @Test fun `a restart re-sending start keeps the recorded title`() {
+        val (_, r, f) = setup()
+        r.onStarted(
+            analysisId = id, sessionId = "s_de11aa34d9ed4834b4ab307e690e5cc2", matchId = null,
+            sha256 = "3669343e1837befefe9f77ae3b6a740767e4b6e59054d54b9cbbac1042d786ed", title = "Your match",
+            sourceUri = "content://x/1", stagedPath = null, sport = "badminton", durationMs = 25_603, width = 848, height = 464,
+            state = "queued",
+        )
+        assertThat(MatchHistory(f).get(id)!!.title).isEqualTo("eurogames_bern_1")
+    }
+
     @Test fun `state, window and engine changes are written at once, repeats are not`() {
         val (_, r, f) = setup()
         now = 1_500

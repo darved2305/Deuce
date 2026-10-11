@@ -49,7 +49,10 @@ class SetupViewModel(app: Application) : AndroidViewModel(app) {
         val atUs = if (facts.durationMs > 0) frameUs.coerceIn(0, facts.durationMs * 1000) else frameUs.coerceAtLeast(0)
         job = viewModelScope.launch {
             when (val g = grabber.grab(uri, atUs)) {
-                is FrameGrab.Failed -> _frame.value = SetupFrame.Failed(g.code, g.message)
+                is FrameGrab.Failed -> {
+                    loaded = null // so reopening retries
+                    _frame.value = SetupFrame.Failed(g.code, g.message)
+                }
                 is FrameGrab.Ok -> {
                     val f = g.frame
                     // The probe's display size is the image space of every other record (contracts §0).
