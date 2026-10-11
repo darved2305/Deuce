@@ -12,10 +12,14 @@ import com.elevate.app.data.api.MatchArtifacts
 import com.elevate.app.data.api.MatchCalibration
 import com.elevate.app.data.api.MatchCapabilities
 import com.elevate.app.data.api.MatchCapability
+import com.elevate.app.data.api.MatchConfirmedPoint
+import com.elevate.app.data.api.MatchEvent
 import com.elevate.app.data.api.MatchPlayer
 import com.elevate.app.data.api.MatchRally
 import com.elevate.app.data.api.MatchRecord
 import com.elevate.app.data.api.MatchRuleset
+import com.elevate.app.data.api.MatchScore
+import com.elevate.app.data.api.MatchScoreStep
 import com.elevate.app.data.api.MatchShot
 import com.elevate.app.data.api.MatchShotChosen
 import com.elevate.app.data.api.RealtimeHint
@@ -26,6 +30,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.StructureKind
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -65,8 +70,10 @@ class ContractSchemaTest {
      * [subset] = the reader holds only some of the schema's fields (match.v1): every field it has must
      * exist in the schema, but the schema may have more. Otherwise the field sets must be equal.
      * Required fields must be non-optional; they may be nullable only where the schema allows null.
+     * [lenient]: required lists (or a required object read as nullable) the reader accepts absent,
+     * decoding them as empty / null — absence can then never invent an item.
      */
-    private fun check(node: JsonObject, d: SerialDescriptor, what: String, subset: Boolean = false) {
+    private fun check(node: JsonObject, d: SerialDescriptor, what: String, subset: Boolean = false, lenient: Set<String> = emptySet()) {
         val vs = variants(node)
         val allProps = vs.flatMap(::props).toSet()
         val requiredEverywhere = vs.map(::required).reduce { a, b -> a intersect b }
@@ -76,6 +83,11 @@ class ContractSchemaTest {
         for (r in requiredEverywhere) {
             val i = names[r] ?: continue
             val prop = vs.firstNotNullOf { it["properties"]?.jsonObject?.get(r)?.jsonObject }
+            if (r in lenient) {
+                val e = d.getElementDescriptor(i)
+                assertWithMessage("$what.$r is lenient: must be a list or nullable").that(e.kind == StructureKind.LIST || e.isNullable).isTrue()
+                continue
+            }
             assertWithMessage("$what.$r is required by the schema").that(d.isElementOptional(i)).isFalse()
             if (!allowsNull(prop)) {
                 assertWithMessage("$what.$r is required and non-null in the schema").that(d.getElementDescriptor(i).isNullable).isFalse()
@@ -127,7 +139,8 @@ class ContractSchemaTest {
     /** The overview reads a subset of match.v1: names must exist, required ⇒ non-optional. */
     @Test fun matchSubset() {
         val m = schema("match.v1")
-        check(m, MatchRecord.serializer().descriptor, "match.v1", subset = true)
+        check(m, MatchRecord.serializer().descriptor, "match.v1", subset = true,
+            lenient = setOf("players", "rallies", "shots", "events", "confirmed_points", "score"))
         check(sub(m, "ruleset"), MatchRuleset.serializer().descriptor, "match.v1.ruleset")
         check(sub(m, "players", "[]"), MatchPlayer.serializer().descriptor, "match.v1.players[]")
         check(sub(m, "calibration"), MatchCalibration.serializer().descriptor, "match.v1.calibration")
@@ -138,6 +151,10 @@ class ContractSchemaTest {
         check(sub(m, "rallies", "[]"), MatchRally.serializer().descriptor, "match.v1.rallies[]")
         check(sub(m, "shots", "[]"), MatchShot.serializer().descriptor, "match.v1.shots[]", subset = true)
         check(sub(m, "shots", "[]", "chosen"), MatchShotChosen.serializer().descriptor, "match.v1.shots[].chosen")
+        check(sub(m, "events", "[]"), MatchEvent.serializer().descriptor, "match.v1.events[]", subset = true)
+        check(sub(m, "confirmed_points", "[]"), MatchConfirmedPoint.serializer().descriptor, "match.v1.confirmed_points[]", subset = true)
+        check(sub(m, "score"), MatchScore.serializer().descriptor, "match.v1.score", lenient = setOf("timeline", "games"))
+        check(sub(m, "score", "timeline", "[]"), MatchScoreStep.serializer().descriptor, "match.v1.score.timeline[]")
     }
 
     /** The fenced JSON examples in contracts.md decode with these readers. */
@@ -159,6 +176,13 @@ class ContractSchemaTest {
         assertThat(m.rallies.single().ballCoverage).isEqualTo(0.61)
         assertThat(m.shots.single().chosen.landingXyM).containsExactly(3.0, 9.6).inOrder()
         assertThat(m.analysis.engineVersion).isEqualTo("0.3.0")
+        val landing = m.events.single()
+        assertThat(landing.type).isEqualTo("landing")
+        assertThat(landing.contactXyM).containsExactly(0.36, 2.10).inOrder()
+        assertThat(landing.state).isEqualTo("candidate")
+        assertThat(m.confirmedPoints.single().winner).isEqualTo("p_arjun")
+        assertThat(m.score!!.games).hasSize(3)
+        assertThat(m.score!!.timeline.single().after).containsExactly(14L, 17L).inOrder()
 
         val hint = Contracts.json.decodeFromString(RealtimeHint.serializer(),
             Regex("""\{"schema_version": 1, "analysis_id": "a_…", "latest_seq": 13\}""").find(md)!!.value)

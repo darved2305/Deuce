@@ -4,6 +4,10 @@ import { env } from "./env.ts";
 import type { ModalDeps } from "./modal.ts";
 import { type R2, r2FromEnv } from "./r2.ts";
 
+declare const EdgeRuntime: {
+  waitUntil(task: Promise<unknown>): void;
+};
+
 export type Claims = { sub: string; isAnonymous: boolean };
 
 export type Deps = {
@@ -11,6 +15,7 @@ export type Deps = {
   admin: () => SupabaseClient;
   modal: () => ModalDeps;
   r2: () => R2;
+  waitUntil: (task: Promise<unknown>) => void;
   verifyJwt: (jwt: string) => Promise<Claims | null>;
 };
 
@@ -69,6 +74,7 @@ export function defaultDeps(): Deps {
       token: env("MODAL_SUBMIT_TOKEN"),
     }),
     r2: r2FromEnv,
+    waitUntil: (task) => EdgeRuntime.waitUntil(task),
     verifyJwt,
   };
 }
