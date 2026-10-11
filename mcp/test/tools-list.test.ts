@@ -40,8 +40,8 @@ test("stdio server lists tools and validates capability responses", async (t) =>
   assert.ok(address && typeof address !== "string");
 
   const packageRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-  const entrypoint = resolve(packageRoot, "src/index.ts");
-  const child = spawn(process.execPath, ["--import=tsx", entrypoint], {
+  const entrypoint = resolve(packageRoot, "dist/index.js");
+  const child = spawn(process.execPath, [entrypoint], {
     cwd: packageRoot,
     env: {
       ...process.env,

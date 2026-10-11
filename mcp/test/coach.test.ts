@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createRequire } from "node:module";
 import {
   countHits,
   deepLink,
@@ -11,15 +10,13 @@ import {
   windowProgress,
   type Match,
 } from "../src/coach.ts";
+import { matchV1Schema } from "../src/contracts/api.ts";
 import { matchFixture, MATCH_ID } from "./fixture.ts";
 
-const contracts = createRequire(import.meta.url)(
-  "../../supabase/functions/api/lib/contracts_vendor/index.ts",
-);
 const match = matchFixture() as unknown as Match;
 
 test("the fixture itself is a valid match.v1", () => {
-  assert.equal(contracts.matchV1Schema.safeParse(matchFixture()).success, true);
+  assert.equal(matchV1Schema.safeParse(matchFixture()).success, true);
 });
 
 test("deepLink uses the elevate:// scheme and clamps t_ms", () => {
