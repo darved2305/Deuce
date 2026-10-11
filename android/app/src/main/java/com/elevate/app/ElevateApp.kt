@@ -260,7 +260,7 @@ private fun AnalysisPanel(
     /** Facts of the open video when it is the analysed file; ReadLab freezes frames of that file only. */
     analysedFacts: SourceFacts?,
 ) {
-    if ((panel == Screen.Panel.Overview || panel == Screen.Panel.ReadLab || panel == Screen.Panel.Reflex) && ovm != null) {
+    if ((panel == Screen.Panel.Overview || panel == Screen.Panel.ReadLab || panel == Screen.Panel.Reflex || panel == Screen.Panel.Decide) && ovm != null) {
         val match by ovm.matchRecord.collectAsStateWithLifecycle()
         val drills = remember(match, analysedFacts) {
             com.elevate.app.ui.readlab.ReadLabDrills.fromMatch(match, analysedFacts?.frameTimesUs, analysedFacts?.displayWidth, analysedFacts?.displayHeight)
@@ -277,6 +277,14 @@ private fun AnalysisPanel(
             com.elevate.app.ui.readlab.ReadLabRoute(vm, drills, cueSource, onBack = { vm.showPanel(Screen.Panel.Overview) })
             return
         }
+        val feet by ovm.sync.feet.collectAsStateWithLifecycle()
+        val freezes = remember(match, analysedFacts, feet) {
+            com.elevate.app.ui.decide.DecideFreezes.fromMatch(match, analysedFacts?.frameTimesUs, analysedFacts?.displayWidth, analysedFacts?.displayHeight, feet)
+        }
+        if (panel == Screen.Panel.Decide) {
+            com.elevate.app.ui.decide.DecideRoute(vm, freezes, onBack = { vm.showPanel(Screen.Panel.Overview) })
+            return
+        }
         if (panel == Screen.Panel.Reflex) {
             com.elevate.app.ui.readlab.ReflexRoute(vm, drills, match?.matchId.orEmpty(), cueSource, onBack = { vm.showPanel(Screen.Panel.Overview) })
             return
@@ -291,6 +299,8 @@ private fun AnalysisPanel(
             onTrainRead = { vm.showPanel(Screen.Panel.ReadLab) },
             reflexRounds = reflexRounds,
             onReflex = { vm.showPanel(Screen.Panel.Reflex) },
+            decideFreezes = freezes.size,
+            onDecide = { vm.showPanel(Screen.Panel.Decide) },
         )
         return
     }
