@@ -77,3 +77,17 @@ def test_real_a55_taps_become_the_finalize_calibration():
     validate("analysis.finalize.request.v1", body(calibration=record))
     assert court_calibration(None, (1920, 1080), lambda *a, **k: None) is None
     assert court_calibration({"plane": "court"}, (1920, 1080), lambda *a, **k: None) is None
+
+
+def test_who_is_me_makes_exactly_one_user_confirmed_player_for_singles():
+    spec = {**SPEC, "who_is_me": {"image_xy": [960.0, 880.0], "t_ms": 41260}}
+    b = body(session_spec=spec)
+    validate("analysis.finalize.request.v1", b)
+    ps = b["vision_result"]["players"]
+    assert [p["identity"] for p in ps] == ["user_confirmed", "engine"]
+    assert [p["label"] for p in ps] == ["you", "opponent"]
+    assert all(p["track_ids"] == [] for p in ps) and len({p["player_id"] for p in ps}) == 2
+    assert body(session_spec=spec)["vision_result"]["players"] == ps  # deterministic per match
+    assert body()["vision_result"]["players"] == []  # no who_is_me tap: no identity claimed
+    doubles = {**spec, "format": "doubles"}
+    assert body(session_spec=doubles)["vision_result"]["players"] == []
