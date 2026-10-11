@@ -64,3 +64,16 @@ def test_submit_passes_an_optional_match_id_through():
 def test_null_player_tracks_validate_since_contracts_1_9():
     validate("analysis.finalize.request.v1",
              body(artifacts={"ball_track": "art_b", "player_tracks": None}))  # fmt: skip
+
+
+def test_real_a55_taps_become_the_finalize_calibration():
+    from elevate_engine.modal_app import court_calibration
+
+    spec = json.loads((ENGINE / "eval/runs/s3df758_calibration/calibration_input.json").read_text())
+    logs = []
+    record = court_calibration(spec, (1920, 1080), lambda *a, **k: logs.append((a, k)))
+    saved = json.loads((ENGINE / "eval/runs/s3df758_calibration/calibration.json").read_text())
+    assert record == saved and record["tier"] == "B"
+    validate("analysis.finalize.request.v1", body(calibration=record))
+    assert court_calibration(None, (1920, 1080), lambda *a, **k: None) is None
+    assert court_calibration({"plane": "court"}, (1920, 1080), lambda *a, **k: None) is None
