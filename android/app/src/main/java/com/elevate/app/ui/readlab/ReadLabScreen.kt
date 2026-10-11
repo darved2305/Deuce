@@ -1,0 +1,249 @@
+package com.elevate.app.ui.readlab
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.compose.ContentFrame
+import com.elevate.app.domain.court.ZoneId
+import com.elevate.app.domain.readlab.ReadAttempt
+import com.elevate.app.domain.readlab.ReadResult
+import com.elevate.app.playback.PlayerController
+import com.elevate.app.ui.ReplayViewModel
+import com.elevate.app.ui.Screen
+import com.elevate.app.ui.components.ElevateCard
+import com.elevate.app.ui.components.ElevateHeader
+import com.elevate.app.ui.components.PeachPage
+import com.elevate.app.ui.components.PrimaryButton
+import com.elevate.app.ui.components.ScreenGutter
+import com.elevate.app.ui.components.ScreenSpacing
+import com.elevate.app.ui.components.SecondaryButton
+import com.elevate.app.ui.components.VideoCard
+import com.elevate.app.ui.components.VideoChip
+import com.elevate.app.ui.theme.Elevate
+
+/** Entry point button for the match overview: shown only when there is at least one drill. */
+@Composable
+fun ReadLabEntryButton(drills: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    if (drills < 1) return
+    PrimaryButton(ReadLabText.entry(drills), onClick, modifier)
+}
+
+/**
+ * ReadLab over the one player the app already has: the frame is frozen by seeking that player to a
+ * real frame time before the contact and pausing it. No second player is created.
+ */
+@UnstableApi
+@Composable
+fun ReadLabRoute(vm: ReplayViewModel, drills: List<Drill>, onBack: () -> Unit) {
+    val state = vm.readLab
+    val session by state.session.collectAsState()
+    val controller = vm.controller
+    LaunchedEffect(drills) { state.start(drills) }
+    val s = session
+
+    // The engine's trail and hit marks would draw the future on the frozen frame: off while training.
+    DisposableEffect(vm) {
+        val wasOn = (vm.screen.value as? Screen.Replay)?.overlayVisible ?: true
+        vm.setOverlayVisible(false)
+        controller.setHitsVisible(false)
+        onDispose {
+            controller.pause()
+            controller.setHitsVisible(true)
+            vm.setOverlayVisible(wasOn)
+        }
+    }
+    // Freeze: seek to the ladder frame of the current drill and pause. Nothing later is shown until the answer is locked.
+    val frameUs = s?.attempt?.takeIf { !it.locked }?.frameUs
+    val drillKey = s?.drill?.hitEventId
+    LaunchedEffect(drillKey, frameUs) {
+        if (frameUs != null) {
+            controller.pause()
+            controller.seekTo(ReadLabSession.seekMs(frameUs))
+        }
+    }
+
+    BackHandler(onBack = onBack)
+    ReadLabScreen(
+        session = s,
+        controller = controller,
+        onPick = { z -> state.update { it.pick(z) } },
+        onAnotherLook = { state.update { it.anotherLook() } },
+        onNext = { controller.pause(); state.update { it.next() } },
+        onWatch = { controller.togglePlay() },
+        onRestart = { state.restart() },
+        onBack = onBack,
+    )
+}
+
+@UnstableApi
+@Composable
+fun ReadLabScreen(
+    session: ReadLabSession?,
+    controller: PlayerController,
+    onPick: (ZoneId) -> Unit,
+    onAnotherLook: () -> Unit,
+    onNext: () -> Unit,
+    onWatch: () -> Unit,
+    onRestart: () -> Unit,
+    onBack: () -> Unit,
+) {
+    PeachPage {
+        BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
+            val landscape = maxWidth > maxHeight
+            Column(Modifier.fillMaxSize()) {
+                ElevateHeader("ReadLab", onBack = onBack, subtitle = "Train your read on your own match")
+                when {
+                    session == null || session.drills.isEmpty() -> Column(Modifier.padding(horizontal = ScreenGutter)) {
+                        Text(ReadLabText.HEADER, style = MaterialTheme.typography.titleMedium, color = Elevate.colors.ink)
+                        Spacer(Modifier.height(8.dp))
+                        Text(ReadLabText.EMPTY, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    session.finished -> SummaryView(session, onRestart, onBack)
+                    landscape -> Row(Modifier.fillMaxSize().padding(horizontal = ScreenGutter), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
+                            Frozen(session, controller)
+                        }
+                        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
+                            Answer(session, onPick, onAnotherLook, onNext, onWatch)
+                        }
+                    }
+                    else -> Column(
+                        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = ScreenGutter).padding(bottom = 24.dp),
+                        verticalArrangement = ScreenSpacing,
+                    ) {
+                        Frozen(session, controller)
+                        Answer(session, onPick, onAnotherLook, onNext, onWatch)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@UnstableApi
+@Composable
+private fun Frozen(s: ReadLabSession, controller: PlayerController) {
+    val c = Elevate.colors
+    Text(ReadLabText.HEADER, style = MaterialTheme.typography.titleMedium, color = c.ink)
+    val attempt = s.attempt ?: return
+    VideoCard(Modifier.aspectRatio(16f / 9f)) {
+        val player by controller.playerFlow.collectAsState()
+        ContentFrame(player = player, modifier = Modifier.fillMaxSize().semantics { contentDescription = "Your match video, frozen just before a hit" })
+        VideoChip("Drill ${s.index + 1} of ${s.drills.size} · frozen before the hit", Modifier.align(Alignment.TopStart).padding(12.dp))
+    }
+    Text(
+        if (attempt.locked) "Answer locked." else "Where will the shuttle land? Tap a zone.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = c.ink,
+    )
+}
+
+@Composable
+private fun Answer(s: ReadLabSession, onPick: (ZoneId) -> Unit, onAnotherLook: () -> Unit, onNext: () -> Unit, onWatch: () -> Unit) {
+    val c = Elevate.colors
+    val drill = s.drill ?: return
+    val attempt = s.attempt ?: return
+    val locked = attempt.locked
+    val result = attempt.result
+    val trusted = result != null && result !is ReadResult.Unscored
+    ElevateCard {
+        Text(
+            "Target half, from the hitter's view (net at the top)",
+            style = MaterialTheme.typography.labelMedium, color = c.inkMuted,
+        )
+        Spacer(Modifier.height(8.dp))
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            ZonePicker(
+                template = drill.template,
+                side = drill.viewSide,
+                picked = attempt.pick,
+                locked = locked,
+                truthZone = ReadLabText.zoneOf(drill),
+                landingXyM = drill.landingXyM,
+                landingTrusted = trusted,
+                onPick = onPick,
+                modifier = Modifier.heightIn(max = 260.dp),
+            )
+        }
+    }
+    if (result != null) Reveal(drill, attempt, result)
+    if (!locked && attempt.canRevealMore) {
+        SecondaryButton("Another look (a later frame)", onAnotherLook, Modifier.fillMaxWidth())
+    }
+    if (locked) {
+        SecondaryButton("Watch the real shot", onWatch, Modifier.fillMaxWidth())
+        PrimaryButton(if (s.isLast) "See summary" else "Next", onNext)
+    }
+}
+
+@Composable
+private fun Reveal(drill: Drill, attempt: ReadAttempt, result: ReadResult) {
+    val c = Elevate.colors
+    val text = ReadLabText.reveal(drill, result)
+    val tint = when (result) {
+        ReadResult.Exact -> c.mint
+        ReadResult.Adjacent -> c.peach
+        ReadResult.Wrong -> c.errorSurface
+        is ReadResult.Unscored -> c.lavender
+    }
+    ElevateCard(tint = tint, modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = "${text.verdict}. ${text.landing}" }) {
+        Text(text.verdict, style = MaterialTheme.typography.titleMedium, color = c.ink)
+        Spacer(Modifier.height(4.dp))
+        attempt.pick?.let { Text("Your pick: ${ReadLabText.zoneName(it)}", style = MaterialTheme.typography.bodyMedium, color = c.ink) }
+        Text(text.landing, style = MaterialTheme.typography.bodyMedium, color = c.ink)
+        ReadLabText.margin(attempt)?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = c.inkMuted) }
+    }
+}
+
+@Composable
+private fun SummaryView(s: ReadLabSession, onRestart: () -> Unit, onBack: () -> Unit) {
+    val c = Elevate.colors
+    val sum = s.summary
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = ScreenGutter).padding(bottom = 24.dp),
+        verticalArrangement = ScreenSpacing,
+    ) {
+        Text(ReadLabText.HEADER, style = MaterialTheme.typography.titleMedium, color = c.ink)
+        ElevateCard(tint = c.mint) {
+            Text(ReadLabText.summary(sum), style = MaterialTheme.typography.titleMedium, color = c.ink)
+            sum.medianScoredMarginMs?.let {
+                Text("Median read margin: $it ms before contact", style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
+            }
+            if (sum.unscored > 0) {
+                Text(
+                    "Unconfirmed drills are engine candidates or lack an observed hitter position, so they are never scored.",
+                    style = MaterialTheme.typography.bodyMedium, color = c.inkMuted,
+                )
+            }
+        }
+        PrimaryButton("Train again", onRestart)
+        SecondaryButton("Back to the match", onBack, Modifier.fillMaxWidth())
+    }
+}
