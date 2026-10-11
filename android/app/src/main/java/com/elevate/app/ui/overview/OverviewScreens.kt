@@ -269,6 +269,8 @@ fun MatchOverviewScreen(
     onTrainRead: () -> Unit = {},
     reflexRounds: Int = 0,
     onReflex: () -> Unit = {},
+    reviewLandings: List<com.elevate.app.domain.review.ReviewLanding> = emptyList(),
+    onReview: (eventId: String) -> Unit = {},
 ) {
     BackHandler(onBack = onBack)
     val hero = AnalysingHero(eyebrow, state.thumbnail, state.title)
@@ -284,7 +286,7 @@ fun MatchOverviewScreen(
     val coachIntroPlayed = rememberSaveable { mutableStateOf(false) }
     val haptics = rememberHaptics()
     val tabs: @Composable () -> Unit = { OverviewTabRow(tabIndex) { haptics.tick(); tabIndex = it } }
-    val body: @Composable (Modifier) -> Unit = { m -> OverviewTabBody(OverviewTab.entries[tabIndex], state, onOpenRally, coachIntroPlayed, m) }
+    val body: @Composable (Modifier) -> Unit = { m -> OverviewTabBody(OverviewTab.entries[tabIndex], state, onOpenRally, coachIntroPlayed, m, reviewLandings, onReview) }
     val ctas: @Composable () -> Unit = { TrainingButtons(readLabDrills, onTrainRead, reflexRounds, onReflex) }
     PeachPage {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -345,7 +347,7 @@ private fun OverviewTabRow(selected: Int, onSelect: (Int) -> Unit) {
 
 /** One tab's content, scrolling on its own so the hero and the tab row never move. */
 @Composable
-private fun OverviewTabBody(tab: OverviewTab, s: MatchOverviewState, onOpenRally: (String, Long, Long) -> Unit, coachIntroPlayed: MutableState<Boolean>, modifier: Modifier) {
+private fun OverviewTabBody(tab: OverviewTab, s: MatchOverviewState, onOpenRally: (String, Long, Long) -> Unit, coachIntroPlayed: MutableState<Boolean>, modifier: Modifier, reviewLandings: List<com.elevate.app.domain.review.ReviewLanding>, onReview: (String) -> Unit) {
     val reduce = rememberReduceMotion()
     AnimatedContent(targetState = tab, transitionSpec = { tabTransition(reduce) }, modifier = modifier, label = "overview-tab") { current ->
         // Nothing has arrived yet: placeholders in the shape of the report, not a blank page.
@@ -367,7 +369,10 @@ private fun OverviewTabBody(tab: OverviewTab, s: MatchOverviewState, onOpenRally
                     OverviewRallies(s, onOpenRally)
                     OverviewHits(s, onOpenRally)
                 }
-                OverviewTab.Court -> OverviewCourt(s)
+                OverviewTab.Court -> {
+                    OverviewCourt(s)
+                    com.elevate.app.ui.review.ReviewEntry(reviewLandings, onReview)
+                }
             }
         }
     }
