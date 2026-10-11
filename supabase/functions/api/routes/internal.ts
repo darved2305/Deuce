@@ -75,7 +75,9 @@ const getSegments = createRoute({
   request: {
     params: Params,
     query: z.object({
-      after_seq: z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
+      // Exclusive cursor. -1 starts before seq 0 so the engine can verify segment 0's manifest
+      // (D-261011-HW33); the default stays 0 for existing callers.
+      after_seq: z.coerce.number().int().min(-1).max(Number.MAX_SAFE_INTEGER)
         .default(0),
     }),
   },

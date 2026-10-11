@@ -216,6 +216,22 @@ Deno.test("internal segments requires the token and returns only the completed p
   assert.equal(body.final_seq, 3);
 });
 
+Deno.test("internal segments after_seq=-1 includes segment 0; below -1 is rejected", async () => {
+  const t = build({
+    segments: [segmentRow(0, true), segmentRow(1, true, true)],
+  });
+  const res = await getSegments(t.app, "?after_seq=-1");
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  conforms("internal.segments.page.v1", body);
+  assert.deepEqual(
+    body.segments.map((segment: { seq: number }) => segment.seq),
+    [0, 1],
+  );
+  assert.equal(body.final_seq, 1);
+  assert.equal((await getSegments(t.app, "?after_seq=-2")).status, 422);
+});
+
 Deno.test("finalize bad body -> 422 and marks the run failed", async () => {
   const t = build();
   const res = await call(t.app, "finalize", { vision_result: {} });
