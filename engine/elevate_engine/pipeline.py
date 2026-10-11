@@ -25,7 +25,12 @@ from dataclasses import dataclass
 
 from elevate_engine import landings
 from elevate_engine import window as win
-from elevate_engine.hits import hit_candidates, shuttle_track_id
+from elevate_engine.hits import (
+    detect_direction_changes,
+    estimate_av_offset_ms,
+    hit_candidates,
+    shuttle_track_id,
+)
 from elevate_engine.sports import TrackingConfig
 from elevate_engine.tracking import track
 
@@ -134,9 +139,13 @@ def window_hits(
     window.build keeps only those inside window k's emitted range. A result without an
     "onsets" key (no audio measured) gives trajectory-only candidates."""
     onsets_ = sorted(o for res in results for o in res.get("onsets", []))
-    landed = landings.detect_landings(rows, known_until_ms=max(r["emit"][1] for r in results))
+    lo, hi = results[0]["emit"][0], results[-1]["emit"][1]
+    span_rows = [r for r in rows if lo <= r[0] < hi]
+    offset = estimate_av_offset_ms(detect_direction_changes(span_rows), onsets_)
+    landed = landings.detect_landings(span_rows, known_until_ms=hi)
     landing_events = landings.window_events(landed, analysis_id, k, shuttle_track_id(analysis_id))
-    events = hit_candidates(rows, onsets_, analysis_id, k) + landing_events
+    hits = hit_candidates(span_rows, onsets_, analysis_id, k, onset_offset_ms=offset)
+    events = hits + landing_events
     return onsets_, sorted(events, key=lambda e: (e["t_ms"], e["event_id"]))
 
 
@@ -164,7 +173,9 @@ def assemble(
     rows, stats = track_windows(per_window, cfg)
     windows = [
         window_result(analysis_id, plan, res, rows, models,
-                      *window_hits(analysis_id, plan.seq, rows, per_window))
+                      *window_hits(analysis_id, plan.seq, rows,
+                                   per_window[max(0, plan.seq - plans[0].seq - 1):
+                                              plan.seq - plans[0].seq + 2]))
         for plan, res in zip(plans, per_window, strict=True)
     ]  # fmt: skip
     return windows, stats
