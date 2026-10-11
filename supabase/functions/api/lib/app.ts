@@ -8,6 +8,7 @@ import { registerAnalyses } from "../routes/analyses.ts";
 import { registerArtifacts } from "../routes/artifacts.ts";
 import { registerHealth } from "../routes/health.ts";
 import { registerInternal } from "../routes/internal.ts";
+import { registerMatches } from "../routes/matches.ts";
 import { registerReviews } from "../routes/reviews.ts";
 import { registerSessions } from "../routes/sessions.ts";
 
@@ -22,6 +23,7 @@ export function createApp(deps: Deps = defaultDeps()): Hono {
   registerHealth(api);
   registerAnalyses(api);
   registerArtifacts(api);
+  registerMatches(api);
   registerReviews(api);
   registerSessions(api);
   registerInternal(api);

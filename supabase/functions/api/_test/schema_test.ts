@@ -195,6 +195,7 @@ Deno.test("1.4 event schemas cover every read event type", () => {
   conforms("internal.event.request.v1", {
     type: "analysis.started",
     engine_version: "0.3.0",
+    windows_expected: 7,
   });
   conforms("internal.event.request.v1", {
     type: "window.completed",
