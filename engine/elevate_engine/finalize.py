@@ -2,13 +2,14 @@
 window.
 
 Only what the engine measured goes in. Rallies, shots, reviews, scores, metrics, moments and clips
-stay empty until the engine produces them; players stay empty until player tracks land. Hits are
+stay empty until the engine produces them; players are identity records (see players()). Hits are
 match events (`type: "hit"`), each with its own frame as evidence. Capability statuses are
 `unknown`: a status comes from the held-out eval, never from one run (01-ps-fundamentals).
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Sequence
 
@@ -20,6 +21,20 @@ def session_id(r2_key: str) -> str:
     if not m:
         raise ValueError(f"no session id in r2_key {r2_key!r}")
     return m.group(1)
+
+
+def players(match_id: str, session_spec: dict) -> list[dict]:
+    """match.v1 identity records (HW14 item 4; #65 B4b; #92). Singles with a who_is_me tap: the
+    user (`user_confirmed`, from their own tap) and the opponent (`engine`), in that order so the
+    API's teams are [[you], [opponent]]. track_ids stay empty until live player tracks link them:
+    no track is claimed that the engine has not associated. Otherwise no players."""
+    if session_spec.get("format") != "singles" or not session_spec.get("who_is_me"):
+        return []
+    pid = lambda role: "p_" + hashlib.sha256(f"{match_id}:{role}".encode()).hexdigest()[:16]  # noqa: E731
+    return [
+        {"player_id": pid("me"), "track_ids": [], "label": "you", "identity": "user_confirmed"},
+        {"player_id": pid("opponent"), "track_ids": [], "label": "opponent", "identity": "engine"},
+    ]
 
 
 def match_events(window_events: Sequence[dict]) -> list[dict]:
@@ -55,7 +70,7 @@ def request(
         "sport": session_spec["sport"],
         "format": session_spec["format"],
         "ruleset": session_spec["ruleset"],
-        "players": [],
+        "players": players(match_id, session_spec),
         "calibration": calibration,
         "analysis": {
             "analysis_id": analysis_id,
