@@ -1,0 +1,139 @@
+{
+  "clip": "20251109_101719.mp4",
+  "clip_sha256": "ca2303cea54a48be114689bfff802e35d86615dc97966aec43a7bdc52c9f5679",
+  "source_size": [
+    1920,
+    1080
+  ],
+  "range_s": [
+    0.0,
+    7.08
+  ],
+  "command": "cd engine && PYTHONPATH=. uv run python eval/stabilise_check.py /Users/Hetansh/Github/elevate1.0/research/clips-extra/files/20251109_101719.mp4 0 7.08 eval/runs/stabilise_20251109_101719 --windows 2",
+  "config": {
+    "enabled": true,
+    "min_motion_px": 0.5,
+    "reanchor_every": 30,
+    "max_corners": 300,
+    "lk_win": 21,
+    "lk_levels": 3,
+    "fb_tol_px": 0.5,
+    "ransac_px": 2.0,
+    "min_inliers": 20,
+    "orb_features": 1500,
+    "orb_min_inliers": 30,
+    "orb_ransac_px": 3.0,
+    "reanchor_max_jump_px": 60.0,
+    "refine_max_px": 25.0,
+    "max_step_px": 40.0,
+    "max_failed_fraction": 0.3,
+    "person_pad_px": 6,
+    "person_window_ms": 250,
+    "residual_samples": 0,
+    "background_samples": 60
+  },
+  "opencv": "5.0.0",
+  "machine": "arm64 Darwin, CPU, no GPU, no person masks",
+  "metric": "median over consecutive frames of window.global_shift (phase correlation, 512x288 grey), times source_width/512; after = over the area all warped frames cover",
+  "summary": {
+    "median_before_source_px": 0.663,
+    "median_after_source_px": 0.158,
+    "median_shift_to_reference_before_source_px": 125.091,
+    "median_shift_to_reference_after_source_px": 0.143,
+    "median_estimate_path_s_per_window": 1.55,
+    "median_stabilise_window_s": 4.75,
+    "gate_applied_windows": "2/2"
+  },
+  "windows": [
+    {
+      "emit_ms": [
+        0,
+        6000
+      ],
+      "frames": 406,
+      "decode_s": 3.25,
+      "camera_motion_px_before": 0.808,
+      "shift_to_reference_px_before": 234.208,
+      "gate_applied": true,
+      "gate_report": {
+        "stabilised": true,
+        "ref_index": 203,
+        "failed_steps": 0,
+        "unrecovered": 0,
+        "reanchors": 12,
+        "reanchors_rejected": 0,
+        "identity_fallback": false,
+        "reason": "",
+        "valid_fraction": 0.7973,
+        "residual_motion_px": 0.0366,
+        "residual_to_reference_px": 0.026
+      },
+      "forced_report": {
+        "stabilised": true,
+        "camera_motion_px": 0.8083402938583645,
+        "ref_index": 203,
+        "failed_steps": 0,
+        "unrecovered": 0,
+        "reanchors": 12,
+        "reanchors_rejected": 0,
+        "identity_fallback": false,
+        "reason": "",
+        "valid_fraction": 0.7973,
+        "residual_motion_px": 0.0366,
+        "residual_to_reference_px": 0.026
+      },
+      "stabilise_window_s": 5.61,
+      "stabilise_window_full_residual_s": 9.53,
+      "estimate_path_s": 2.51,
+      "residual_motion_px_after_512": 0.0366,
+      "residual_motion_px_after_source": 0.137,
+      "shift_to_reference_px_after": 0.097,
+      "camera_motion_px_after_full_frame": 0.123
+    },
+    {
+      "emit_ms": [
+        6000,
+        7080
+      ],
+      "frames": 109,
+      "decode_s": 1.53,
+      "camera_motion_px_before": 0.517,
+      "shift_to_reference_px_before": 15.975,
+      "gate_applied": true,
+      "gate_report": {
+        "stabilised": true,
+        "ref_index": 54,
+        "failed_steps": 0,
+        "unrecovered": 0,
+        "reanchors": 2,
+        "reanchors_rejected": 0,
+        "identity_fallback": false,
+        "reason": "",
+        "valid_fraction": 0.9688,
+        "residual_motion_px": 0.0477,
+        "residual_to_reference_px": 0.0504
+      },
+      "forced_report": {
+        "stabilised": true,
+        "camera_motion_px": 0.5167185795994433,
+        "ref_index": 54,
+        "failed_steps": 0,
+        "unrecovered": 0,
+        "reanchors": 2,
+        "reanchors_rejected": 0,
+        "identity_fallback": false,
+        "reason": "",
+        "valid_fraction": 0.9688,
+        "residual_motion_px": 0.0477,
+        "residual_to_reference_px": 0.0504
+      },
+      "stabilise_window_s": 3.88,
+      "stabilise_window_full_residual_s": 3.72,
+      "estimate_path_s": 0.6,
+      "residual_motion_px_after_512": 0.0477,
+      "residual_motion_px_after_source": 0.179,
+      "shift_to_reference_px_after": 0.189,
+      "camera_motion_px_after_full_frame": 0.161
+    }
+  ]
+}

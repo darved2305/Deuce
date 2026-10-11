@@ -1,0 +1,85 @@
+{
+  "clip": "h13g_singles.mp4",
+  "clip_sha256": "303c0ff8565a6934fa27171011e45481060f60af67eb5fc33f2d602c9df51ec2",
+  "source_size": [
+    1920,
+    1080
+  ],
+  "range_s": [
+    31.0,
+    37.0
+  ],
+  "command": "cd engine && PYTHONPATH=. uv run python eval/stabilise_check.py /Users/hetanshwaghela/Downloads/h13g_singles.mp4 31 37 eval/runs/stabilise_h13g_singles_31_37 --windows 1",
+  "config": {
+    "enabled": true,
+    "min_motion_px": 0.5,
+    "reanchor_every": 30,
+    "max_corners": 300,
+    "lk_win": 21,
+    "lk_levels": 3,
+    "fb_tol_px": 0.5,
+    "ransac_px": 2.0,
+    "min_inliers": 20,
+    "orb_features": 1500,
+    "orb_min_inliers": 30,
+    "orb_ransac_px": 3.0,
+    "reanchor_max_jump_px": 60.0,
+    "refine_max_px": 25.0,
+    "max_step_px": 40.0,
+    "max_failed_fraction": 0.3,
+    "person_pad_px": 6,
+    "person_window_ms": 250,
+    "residual_samples": 0,
+    "background_samples": 60
+  },
+  "opencv": "5.0.0",
+  "machine": "arm64 Darwin, CPU, no GPU, no person masks",
+  "metric": "median over consecutive frames of window.global_shift (phase correlation, 512x288 grey), times source_width/512; after = over the area all warped frames cover",
+  "summary": {
+    "median_before_source_px": 0.065,
+    "median_after_source_px": 0.065,
+    "median_shift_to_reference_before_source_px": 0.037,
+    "median_shift_to_reference_after_source_px": 0.015,
+    "median_estimate_path_s_per_window": 1.87,
+    "median_stabilise_window_s": 3.71,
+    "gate_applied_windows": "0/1"
+  },
+  "windows": [
+    {
+      "emit_ms": [
+        31000,
+        37000
+      ],
+      "frames": 300,
+      "decode_s": 2.52,
+      "camera_motion_px_before": 0.065,
+      "shift_to_reference_px_before": 0.037,
+      "gate_applied": false,
+      "gate_report": {
+        "stabilised": false,
+        "reason": "below_threshold"
+      },
+      "forced_report": {
+        "stabilised": true,
+        "camera_motion_px": 0.06457715235071149,
+        "ref_index": 150,
+        "failed_steps": 0,
+        "unrecovered": 0,
+        "reanchors": 9,
+        "reanchors_rejected": 0,
+        "identity_fallback": false,
+        "reason": "",
+        "valid_fraction": 1.0,
+        "residual_motion_px": 0.0174,
+        "residual_to_reference_px": 0.0039
+      },
+      "stabilise_window_s": 3.71,
+      "stabilise_window_full_residual_s": 6.02,
+      "estimate_path_s": 1.87,
+      "residual_motion_px_after_512": 0.0174,
+      "residual_motion_px_after_source": 0.065,
+      "shift_to_reference_px_after": 0.015,
+      "camera_motion_px_after_full_frame": 0.066
+    }
+  ]
+}
