@@ -68,6 +68,21 @@ function send(
   );
 }
 
+Deno.test("API key is rejected on caller-scoped challenge routes (HW31)", async () => {
+  const t = await build(() => ok(null));
+  for (
+    const path of [
+      "/v1/challenges",
+      "/v1/challenges/ch_any",
+      "/v1/challenges/ch_any/entries",
+    ]
+  ) {
+    const res = await send(t.app, path, "GET", { "X-API-Key": t.key });
+    assert.equal(res.status, 403, path);
+    assert.equal((await res.json()).error.code, "read_only_key", path);
+  }
+});
+
 function matchV1(matchId: string) {
   return {
     schema: "match.v1",

@@ -34,6 +34,9 @@ export async function sha256Hex(value: string): Promise<string> {
 
 // Paths include the function name: the root app mounts the API at /api (lib/app.ts).
 const PUBLIC_PATHS = new Set(["/api/v1/health", "/api/v1/openapi.json"]);
+// Challenge reads run as the caller under RLS across several accounts (D-261011-HW31); a developer
+// key is owner-only with no share visibility, so those routes reject keys outright.
+const KEY_UNSUPPORTED_PREFIXES = ["/api/v1/challenges"];
 
 export const internalAuth = createMiddleware<AppEnv>(async (c, next) => {
   const token = c.req.header("X-Internal-Token");
@@ -69,7 +72,10 @@ export const userAuth = createMiddleware<AppEnv>(async (c, next) => {
     c.set("userId", developerKey.owner_id);
     c.set("isAnonymous", false);
     c.set("readOnly", true);
-    if (c.req.method !== "GET") {
+    if (
+      c.req.method !== "GET" ||
+      KEY_UNSUPPORTED_PREFIXES.some((p) => c.req.path.startsWith(p))
+    ) {
       return fail(
         c,
         403,
