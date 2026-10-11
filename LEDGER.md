@@ -116,3 +116,6 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T04:17Z | #145 | @HetanshWaghela | p4 | android: premium polish (radius and type scale, motion, skeletons, haptics, game | none | 1.10.0 | ``` |
 | 2026-10-11T04:19Z | #146 | @HetanshWaghela | p4 | android: Your game, a player profile across all analysed matches | none | 1.10.0 | ``` |
 | 2026-10-11T04:25Z | #147 | @HetanshWaghela | p4 | engine: handheld stabilisation before TrackNet (KLT + reference refine + ORB re- | none | 1.10.0 | Real clips, local CPU (`engine/eval/runs/stabilise_*/stabilise.json` with manifests): |
+| 2026-10-11T04:53Z | #149 | @HetanshWaghela | p4 | android: Decide mode, aim your shot on the real moment, see the opponent's real  | none | 1.10.0 | ``` |
+| 2026-10-11T04:56Z | #150 | @HetanshWaghela | p4 | android: Instant Review, line calls shown with the evidence (freeze, zoom to the | none | 1.10.0 | ``` |
+| 2026-10-11T04:58Z | #151 | @HetanshWaghela | p4 | android: training games say what unlocks them instead of disappearing | none | 1.10.0 | ``` |

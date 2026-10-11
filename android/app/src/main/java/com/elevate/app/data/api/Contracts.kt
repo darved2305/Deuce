@@ -192,6 +192,8 @@ data class MatchEvent(
     val plane: String? = null,
     /** Court metres in the calibration template's frame (x across from its left sideline, y from the near baseline). */
     @SerialName("contact_xy_m") val contactXyM: List<Double>? = null,
+    /** 2x2 covariance of [contactXyM] in m² ([[xx, xy], [yx, yy]]); absent when the engine did not estimate one. */
+    @SerialName("cov_m2") val covM2: List<List<Double>>? = null,
 )
 
 /** Subset of a `match.v1` confirmed point. */

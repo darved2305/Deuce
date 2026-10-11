@@ -131,6 +131,14 @@ object Explanations {
         "Same video",
         "The shots are frozen on exact frames, so both players need the same video file. Elevate checks it with a fingerprint of the file.",
     )
+    val Decide = Explanation("Decide mode", "The clip freezes just before a hit. Drag the aim point onto the court and let go. You see if it is in, how open the defender left the court, and what really happened.")
+    val DecideReticle = Explanation("Aim point", "Drag it where you would place the shot. It sits just above your finger so you can see it. Let go to commit. It snaps a tick when it crosses into a new zone.")
+    val DecideLegal = Explanation("In or out", "Lines count as in. The shot must land inside the opponent's half. Outside the lines, or on your own half, is not a legal shot.")
+    val DecideDefender = Explanation("Defender", "Where the opponent really stood at the frozen frame, taken from the analysis. The ring is a rough reach for drawing only. If the position was not seen, no verdict is given.")
+    val DecideReach = Explanation("Open court", "Compares the defender's zone to your aim zone. Open court is 2 or more zones away, Stretch is next door, Right at them is the same zone.")
+    val DecideCompare = Explanation("Your choice and what you played", "Your aim is shown against where your real shot landed, when the analysis saw it land. You beat your shot when your choice was more open by spacing.")
+    val DecideSimulated = Explanation("Simulated arcs", "The curved paths are drawn illustrations of a shot from the hitter to a point. They are not tracked. The real clip is the truth.")
+    val DecideResults = Explanation("Session results", "Open court counts your aims that left the defender 2 or more zones away. Legal is the share that landed in. Beat counts aims more open than your real shot.")
 
     /** Every entry, for the tests and for any help screen. */
     val all: List<Explanation> by lazy {
@@ -140,6 +148,7 @@ object Explanations {
             Sport, Format, AddMatch, Cloud, Ball, Magnifier, TrailToggle, CourtToggle, Speed, Analysing, StageVideo, StageUpload, StageAnalyse,
             YourGame, StyleDeepHitter, StyleNetPlayer, StyleRallyBuilder, StyleShortRallies, StyleFastExchanges,
             PlacementHeat, Trends, TrainingStats, FocusAreas, Challenge, HeadToHead, SameVideo,
+            Decide, DecideReticle, DecideLegal, DecideDefender, DecideReach, DecideCompare, DecideSimulated, DecideResults,
         )
     }
 }

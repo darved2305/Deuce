@@ -3,6 +3,7 @@ package com.elevate.app.domain.analysis
 import com.elevate.app.data.api.WindowEvent
 import com.elevate.app.data.api.WindowResult
 import com.elevate.app.data.events.EventLog
+import com.elevate.app.domain.decide.FootSample
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
@@ -90,6 +91,8 @@ class WindowResultStore(
         val ballCoverage: Double,
         /** Kept `type: "hit"` events in t order, inside [emitUs]. Other event types are ignored. */
         val hits: List<HitCandidate> = emptyList(),
+        /** Player foot rows with metres (withheld ones are not kept), inside [emitUs]. */
+        val feet: List<FootSample> = emptyList(),
     )
 
     data class Row(val tUs: Long, val x: Float, val y: Float, val conf: Float, val state: Byte)
@@ -109,6 +112,9 @@ class WindowResultStore(
     val failedWindows: Map<Int, String> get() = failed.toMap()
     /** Hit candidates of every stored window, by time. Each window owns only its emit range. */
     fun hits(): List<HitCandidate> = windows.values.flatMap { it.hits }.sortedBy { it.tMs }
+
+    /** Real foot positions (court metres) of every stored window, by time. */
+    fun feet(): List<FootSample> = windows.values.flatMap { it.feet }.sortedBy { it.tMs }
 
     val rejectedRows: Int get() = windows.values.sumOf { it.rejected }
     val droppedOutsideEmit: Int get() = windows.values.sumOf { it.droppedOutsideEmit }
@@ -161,6 +167,7 @@ class WindowResultStore(
         }
         hits.sortBy { it.tMs }
         val players = result.players.count { p -> (p.getOrNull(0) as? JsonPrimitive)?.longOrNull?.let { it * 1000 in emit } == true }
+        val feet = result.players.mapNotNull { parseFoot(it) }.filter { it.tMs * 1000 in emit }.sortedBy { it.tMs }
         val w = Window(
             windowSeq = result.windowSeq,
             engineVersion = engineVersion,
@@ -173,6 +180,7 @@ class WindowResultStore(
             rejectReasons = reasons.take(MAX_REASONS),
             ballCoverage = result.quality.ballCoverage,
             hits = hits,
+            feet = feet,
         )
         windows[result.windowSeq] = w
         failed.remove(result.windowSeq)
@@ -216,6 +224,15 @@ class WindowResultStore(
             BallTrack.code(ev.state) == null -> { reject("hit ${ev.eventId}: state not observed|candidate|inferred|user"); null }
             else -> HitCandidate(ev.tMs, ev.tSigmaMs, ev.trackId.ifBlank { null }, xy, ev.cues, ev.state)
         }
+    }
+
+    /** `[t_ms, track_id, x, y, w, h, foot_x_m, foot_y_m, conf]`; null foot metres (withheld) give no sample. */
+    private fun parseFoot(r: JsonArray): FootSample? {
+        if (r.size != 9) return null
+        fun num(i: Int) = (r[i] as? JsonPrimitive)?.takeUnless { it.isString }?.doubleOrNull?.takeIf { it.isFinite() }
+        val t = (r[0] as? JsonPrimitive)?.takeUnless { it.isString }?.longOrNull?.takeIf { it >= 0 } ?: return null
+        val track = (r[1] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+        return FootSample(t, track, num(6) ?: return null, num(7) ?: return null)
     }
 
     private fun parseRow(r: JsonArray, reject: (String) -> Unit): Row? {
