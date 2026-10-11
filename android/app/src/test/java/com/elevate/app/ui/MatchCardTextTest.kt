@@ -27,26 +27,26 @@ class MatchCardTextTest {
     private fun card(e: MatchHistoryEntry = entry): MatchCard = matchCardOf(e)
 
     @Test fun `line shows sport, clock and real coverage of the real duration`() {
-        assertThat(matchCardLine(card())).isEqualTo("Badminton · 0:25 · analysed 25.6 of 25.6 s")
-        assertThat(matchCardLine(card(entry.copy(coverageMs = 6_000, windowsDone = 1)))).isEqualTo("Badminton · 0:25 · analysed 6.0 of 25.6 s")
+        assertThat(matchCardLine(card())).isEqualTo("Badminton · 0:25 · Fully analysed")
+        assertThat(matchCardLine(card(entry.copy(coverageMs = 6_000, windowsDone = 1)))).isEqualTo("Badminton · 0:25 · 6.0 s of 25.6 s analysed")
     }
 
     @Test fun `line never invents a denominator`() {
-        assertThat(matchCardLine(card(entry.copy(durationMs = null, sport = null)))).isEqualTo("analysed 25.6 s")
+        assertThat(matchCardLine(card(entry.copy(durationMs = null, sport = null)))).isEqualTo("25.6 s analysed")
         assertThat(matchCardLine(card(entry.copy(lastState = "failed", windowsDone = 0, coverageMs = 0)))).isEqualTo("Badminton · 0:25")
     }
 
     @Test fun `footer says when it was analysed and by which engine`() {
-        assertThat(matchCardFooter(card(), zone, nowMs = at0530 + 3_600_000)).isEqualTo("Analysed 05:30 · engine 0.1.0")
-        assertThat(matchCardFooter(card(), zone, nowMs = at0530 + 2 * 86_400_000L)).isEqualTo("Analysed Sun 11 Oct 05:30 · engine 0.1.0")
+        assertThat(matchCardFooter(card(), zone, nowMs = at0530 + 3_600_000)).isEqualTo("Analysed 05:30")
+        assertThat(matchCardFooter(card(), zone, nowMs = at0530 + 2 * 86_400_000L)).isEqualTo("Analysed Sun 11 Oct 05:30")
         val running = card(entry.copy(windowsDone = 1, coverageMs = 6_000, engineVersion = null))
         assertThat(running.status).isEqualTo(HistoryStatus.Analysing)
         assertThat(matchCardFooter(running, zone, nowMs = at0530)).isEqualTo("Started 05:29")
-        assertThat(matchCardFooter(card(entry.copy(lastState = "failed")), zone, nowMs = at0530)).isEqualTo("Stopped 05:30 · engine 0.1.0")
+        assertThat(matchCardFooter(card(entry.copy(lastState = "failed")), zone, nowMs = at0530)).isEqualTo("Stopped 05:30")
     }
 
     @Test fun `chip labels and eyebrow`() {
-        assertThat(matchStatusLabel(card().status)).isEqualTo("Ready · from windows")
+        assertThat(matchStatusLabel(card().status)).isEqualTo("Ready")
         assertThat(matchStatusLabel(card(entry.copy(lastState = "completed")).status)).isEqualTo("Ready")
         assertThat(matchStatusLabel(HistoryStatus.Analysing)).isEqualTo("Analysing")
         assertThat(matchStatusLabel(HistoryStatus.Failed)).isEqualTo("Failed")

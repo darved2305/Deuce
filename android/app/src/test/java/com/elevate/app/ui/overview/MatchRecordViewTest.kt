@@ -89,7 +89,7 @@ class MatchRecordViewTest {
         assertThat(s.hitTimeline.recordSource).isEqualTo("the match record · engine 0.1.0")
         assertThat(s.hitTimeline.timelineMs).isEqualTo(96_900)
         assertThat(HitTimelineText.caption(s.hitTimeline))
-            .isEqualTo("14 hit candidates · 3 rally candidates · from the match record · engine 0.1.0 (candidates)")
+            .isEqualTo("14 hits · 3 rallies")
         val r = s.rallies as RalliesState.FromHits
         assertThat(r.rows.map { it.hitCount }).containsExactly(4, 5, 4).inOrder()
         assertThat(r.rows.first().rallyId).isEqualTo("${HIT_RALLY_ID_PREFIX}1")
@@ -100,8 +100,8 @@ class MatchRecordViewTest {
     @Test fun `a55 shape - court chip, visible fraction, no landings, no players, no score`() {
         val s = OverviewDerivation.derive("Match", a55Shape, null)
         val c = s.court as CourtState.Badminton
-        assertThat(c.chip).isEqualTo("Court from your taps · tier B")
-        assertThat(c.detail).isEqualTo("64% of the court in frame · fit error 2.3 px")
+        assertThat(c.chip).isEqualTo("Court locked from your 4 taps")
+        assertThat(c.detail).isEqualTo("64% of the court in frame")
         assertThat(c.marks).isEmpty()
         assertThat(c.note).isEqualTo("No landings in this match")
         assertThat(s.selectedPlayer).isEqualTo("Player not selected yet")
@@ -144,8 +144,8 @@ class MatchRecordViewTest {
 
     @Test fun `newest shape - you and the opponent, score only from confirmed points`() {
         val s = OverviewDerivation.derive("Match", newestShape, null)
-        assertThat(s.selectedPlayer).isEqualTo("You · confirmed by you")
-        assertThat(s.opponent).isEqualTo("Opponent · no track linked yet")
+        assertThat(s.selectedPlayer).isEqualTo("You")
+        assertThat(s.opponent).isEqualTo("Opponent")
         assertThat(s.score).isEqualTo(ScoreLine("You 2 · Opponent 1", "3 confirmed points · games (you first) 21–17", confirmed = true))
         // Two hits 800 ms apart: one rally candidate from the record's hits.
         assertThat((s.rallies as RalliesState.FromHits).rows.single().hitCount).isEqualTo(2)
@@ -157,10 +157,10 @@ class MatchRecordViewTest {
         assertThat(row.winnerSide).isEqualTo(1)
         assertThat(row.winner).isEqualTo("Won by opponent · confirmed")
         assertThat(s.score).isEqualTo(ScoreLine("You 0 · Opponent 1", "1 confirmed point of 1 rally · games (you first) 21–17, 19–21, 21–15", confirmed = true))
-        assertThat(s.opponent).isEqualTo("Opponent · named by you · 1 track")
+        assertThat(s.opponent).isEqualTo("Opponent")
         val c = s.court as CourtState.Badminton
-        assertThat(c.chip).isEqualTo("Court from your taps · tier A")
-        assertThat(c.detail).isEqualTo("100% of the court in frame · fit error 1.8 px")
+        assertThat(c.chip).isEqualTo("Court locked from your 4 taps")
+        assertThat(c.detail).isEqualTo("100% of the court in frame")
         assertThat(c.note).isEqualTo("1 landing candidate")
         assertThat(c.marks.single().xM).isEqualTo(0.36)
         // No hit events in the example: the hit timeline stays whatever the windows gave.

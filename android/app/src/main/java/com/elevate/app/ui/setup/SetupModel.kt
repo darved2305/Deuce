@@ -127,8 +127,8 @@ data class SetupState(
     /** Why Next is off on this step; null when it is on. */
     val blocker: String?
         get() = when (step) {
-            Step.Court -> if (!isEnabled(sport)) "${sport.label} isn't analysed in this build" else (courtCheck as? CourtCheck.Problem)?.text
-            Step.Ball -> if (!isEnabled(sport)) "${sport.label} isn't analysed in this build" else if (ball == null) "Tap the ball" else null
+            Step.Court -> if (!isEnabled(sport)) "Coming soon" else (courtCheck as? CourtCheck.Problem)?.text
+            Step.Ball -> if (!isEnabled(sport)) "Coming soon" else if (ball == null) "Tap the ball" else null
             Step.WhoIsMe -> if (me == null) "Tap yourself" else if (result() == null) "Setup is incomplete" else null
         }
 

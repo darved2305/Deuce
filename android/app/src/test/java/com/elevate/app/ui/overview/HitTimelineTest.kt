@@ -16,7 +16,7 @@ class HitTimelineTest {
         )
         assertThat(s.rallies.map { it.hitCount }).containsExactly(3)
         assertThat(HitTimelineText.caption(s))
-            .isEqualTo("4 hit candidates · 1 rally candidate · from 4 of 5 windows analysed (engine, candidates)")
+            .isEqualTo("4 hits · 1 rally so far")
         assertThat(s.timelineMs).isEqualTo(60_000)
         assertThat(s.hits.map { it.tMs }).isInOrder()
     }
@@ -25,7 +25,6 @@ class HitTimelineTest {
         val s = OverviewDerivation.hitTimeline(listOf(hit(1)), 2, 3, 10, emptyList(), null)
         assertThat(HitTimelineText.windows(s)).isEqualTo("2 of 10 windows")
         assertThat(s.totalIsExpected).isTrue()
-        assertThat(HitTimelineText.detail(s)).doesNotContain("so far")
     }
 
     @Test fun `windows reported never fall below windows read`() {

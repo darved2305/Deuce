@@ -121,8 +121,8 @@ fun ReplayScreen(
             delay(if (playingNow) 50 else 200)
         }
     }
-    val debuggable = (LocalContext.current.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-    LaunchedEffect(debuggable) { controller.setPresentationTimeStamp(debuggable) }
+    // The frame time stamp is a developer aid: never drawn for people.
+    LaunchedEffect(Unit) { controller.setPresentationTimeStamp(com.elevate.app.playback.TrailOverlay.SHOW_PTS) }
 
     val title = displayTitle(screen.title)
     val facts = (screen.preflight as? PreflightState.Done)?.facts
@@ -211,9 +211,14 @@ private fun ControlsSheet(
         modifier
             .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
             .background(Color.White)
+            .navigationBarsPadding(),
+    ) {
+    // The scrolling part of the sheet; the primary action stays pinned below it.
+    Column(
+        Modifier
+            .weight(1f, fill = false)
             .verticalScroll(rememberScrollState())
-            .navigationBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Slider(
@@ -254,7 +259,11 @@ private fun ControlsSheet(
         PreflightRow(screen.preflight)
         SetupRow(screen, onSetUp)
         PipelineRow(screen, pipeline)
-        if (!pipeline.analysedHere) AnalyseButton(screen, onSetUp)
+        Spacer(Modifier.height(4.dp))
+    }
+    if (!pipeline.analysedHere) {
+        Box(Modifier.padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 12.dp)) { AnalyseButton(screen, onSetUp) }
+    }
     }
 }
 
@@ -456,12 +465,12 @@ private fun LiveRow(live: Screen.LiveOffer?, onShowLive: (Boolean) -> Unit) {
         title = text.title,
         bg = c.mint,
         iconTint = c.mintInk,
-        value = "${live.framesWithBall}/${t.framesInRange}",
+        value = "${live.framesWithBall} of ${t.framesInRange} frames tracked",
         valueDescription = text.spoken,
         toggle = live.shown to onShowLive,
         toggleLabel = "Live engine trail",
     ) {
-        DetailText("Your upload, analysed by the engine ${live.engineVersion} · $range so far")
+        DetailText("$range so far")
         DetailText(text.detail)
     }
 }
@@ -475,9 +484,9 @@ internal data class LiveRowText(val title: String, val spoken: String, val detai
 internal fun liveRowText(candidates: Boolean, frames: Int, framesInRange: Int): LiveRowText {
     val count = if (candidates) "a candidate on $frames of $framesInRange frames" else "shuttle on $frames of $framesInRange frames"
     return LiveRowText(
-        title = if (candidates) "Live engine · shuttle candidates" else "Live engine · shuttle",
+        title = "Shuttle trail",
         spoken = count,
-        detail = "${count.replaceFirstChar { it.uppercase() }} · more appear as windows finish",
+        detail = "From your upload · more appears as the analysis runs",
     )
 }
 
@@ -569,6 +578,8 @@ class PipelineUi(
 @Composable
 private fun PipelineRow(screen: Screen.Replay, ui: PipelineUi) {
     if (screen.setup == null && ui.state == Screen.Pipeline.Idle) return
+    // A previous video's analysis must not show on this one: only the Analyse button then.
+    if (ui.state != Screen.Pipeline.Idle && !ui.analysedHere) return
     PipelineStatus(ui, ready = screen.sha256 != null)
 }
 
@@ -595,7 +606,7 @@ fun PipelineStatus(ui: PipelineUi, ready: Boolean = true) {
     when (val p = ui.state) {
         Screen.Pipeline.Idle ->
             if (ready) PrimaryButton("Upload & analyse", onClick = ui.onAnalyse, modifier = Modifier.padding(top = 4.dp))
-            else StatusCard("Preparing the file…", "Measuring its fingerprint before upload", c.cream)
+            else StatusCard("Preparing the file…", "Preparing your video", c.cream)
         Screen.Pipeline.Uploading -> UploadProgressCard(ui.upload, onRetry = ui.onRetryUpload, onCancel = ui.onCancelUpload)
         is Screen.Pipeline.StartingAnalysis -> StatusCard("Uploaded · starting analysis…", "Waiting for the server", c.cream)
         is Screen.Pipeline.Started -> Column(
@@ -604,7 +615,12 @@ fun PipelineStatus(ui: PipelineUi, ready: Boolean = true) {
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
             Text(
-                if (p.dispatched) "Analysis started · ${p.state}" else "Analysis ${p.state}",
+                when (com.elevate.app.domain.analysis.AnalysisState.fromWire(p.state)) {
+                    null, com.elevate.app.domain.analysis.AnalysisState.AWAITING_UPLOAD,
+                    com.elevate.app.domain.analysis.AnalysisState.UPLOADED, com.elevate.app.domain.analysis.AnalysisState.QUEUED -> "Starting"
+                    com.elevate.app.domain.analysis.AnalysisState.COMPLETED -> "Ready"
+                    else -> "Analysing"
+                },
                 style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
                 color = c.ink,
             )
@@ -658,7 +674,7 @@ private fun AnalyseButton(screen: Screen.Replay, onSetUp: () -> Unit) {
     if (screen.setup != null) return
     val p = screen.preflight as? PreflightState.Done ?: return
     if (p.blocked) return
-    PrimaryButton("Analyse this match", onClick = onSetUp, modifier = Modifier.padding(top = 4.dp))
+    PrimaryButton("Analyse this match", onClick = onSetUp)
 }
 
 /** e.g. "Badminton singles · 4 corners". Only what the user chose. */

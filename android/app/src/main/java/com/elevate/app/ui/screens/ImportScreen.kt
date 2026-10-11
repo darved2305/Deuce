@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -113,8 +114,6 @@ fun ImportScreen(
 
                 if (matches.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
-                    SectionTitle("Your matches")
-                    Spacer(Modifier.height(8.dp))
                     matches.forEach { card ->
                         MatchRow(card, onOpen = { onOpenMatch(card.analysisId) })
                         Spacer(Modifier.height(12.dp))
@@ -187,20 +186,21 @@ fun matchCardOf(entry: MatchHistoryEntry, thumbnail: ImageBitmap? = null): Match
 /** "1 match on this phone" (history is local to the phone until an identity is linked). */
 internal fun matchesEyebrow(count: Int): String = if (count == 1) "1 match on this phone" else "$count matches on this phone"
 
-/** "Badminton · 0:25 · analysed 25.6 of 25.6 s". Unknown parts are left out; no denominator is invented. */
+/** "Badminton · 0:25 · Fully analysed" or "... · 12.0 s of 25.6 s analysed". Unknown parts are left out; no denominator is invented. */
 internal fun matchCardLine(card: MatchCard): String {
     val sport = card.sport?.replace('_', ' ')?.replaceFirstChar { it.titlecase(Locale.ROOT) }
     val length = card.durationMs?.takeIf { it > 0 }?.let { formatClock(it) }
     val covered = seconds(card.coverageMs)
     val analysed = when {
         card.status == HistoryStatus.Failed && card.windowsDone == 0 -> null
-        card.durationMs != null && card.durationMs > 0 -> "analysed $covered of ${seconds(card.durationMs)} s"
-        else -> "analysed $covered s"
+        card.durationMs != null && card.durationMs > 0 && card.coverageMs + 1000 >= card.durationMs -> "Fully analysed"
+        card.durationMs != null && card.durationMs > 0 -> "$covered s of ${seconds(card.durationMs)} s analysed"
+        else -> "$covered s analysed"
     }
     return listOfNotNull(sport, length, analysed).joinToString(" · ")
 }
 
-/** "Analysed 05:30 · engine 0.1.0" (ready), "Started 05:30" (analysing), "Stopped 05:30" (failed). */
+/** "Analysed 05:30" (ready), "Started 05:30" (analysing), "Stopped 05:30" (failed). */
 internal fun matchCardFooter(card: MatchCard, zone: ZoneId = ZoneId.systemDefault(), nowMs: Long = System.currentTimeMillis()): String {
     val (verb, at) = when (card.status) {
         HistoryStatus.Ready, HistoryStatus.ReadyFromWindows -> "Analysed" to card.updatedAt
@@ -211,14 +211,13 @@ internal fun matchCardFooter(card: MatchCard, zone: ZoneId = ZoneId.systemDefaul
     val today = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
     val pattern = if (time.toLocalDate() == today) "HH:mm" else "EEE d MMM HH:mm"
     val whenText = time.format(DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH))
-    val engine = card.engineVersion?.takeIf { it.isNotBlank() }?.let { "engine $it" }
-    return listOfNotNull("$verb $whenText", engine).joinToString(" · ")
+    return "$verb $whenText"
 }
 
 /** Chip text: what the recorded state allows, nothing more. */
 internal fun matchStatusLabel(status: HistoryStatus): String = when (status) {
     HistoryStatus.Analysing -> "Analysing"
-    HistoryStatus.ReadyFromWindows -> "Ready · from windows"
+    HistoryStatus.ReadyFromWindows -> "Ready"
     HistoryStatus.Ready -> "Ready"
     HistoryStatus.Failed -> "Failed"
 }
@@ -296,6 +295,9 @@ private fun Tip(icon: ImageVector, title: String, body: String) {
 @Composable
 private fun BackendLine(status: BackendStatus?) {
     val c = Elevate.colors
+    // "Cloud not set up" is a developer note: people on a release build see nothing.
+    val debuggable = (LocalContext.current.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    if (status == BackendStatus.NotConfigured && !debuggable) return
     val (dot, text) = when (status) {
         null -> c.inkMuted to "Checking cloud…"
         BackendStatus.NotConfigured -> c.inkMuted to "Cloud not set up"

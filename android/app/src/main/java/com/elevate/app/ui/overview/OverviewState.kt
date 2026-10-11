@@ -248,25 +248,13 @@ object OverviewDerivation {
     private fun who(match: MatchRecord, playerId: String): String =
         if (playerId == you(match)?.playerId) "you" else match.players.firstOrNull { it.playerId == playerId }?.label ?: playerId
 
-    private fun identityText(identity: String): String = when (identity) {
-        "user_confirmed" -> "confirmed by you"
-        "user_named" -> "named by you"
-        "engine" -> "from the engine"
-        else -> identity
-    }
-
-    private fun tracksText(n: Int): String = if (n == 0) "no track linked yet" else "$n track${if (n == 1) "" else "s"}"
-
     fun opponent(match: MatchRecord?): String? {
         if (match == null) return null
         val me = you(match)
         val others = match.players.filter { it.playerId != me?.playerId }
         if (others.isEmpty()) return null
         return others.joinToString(" · ") { p ->
-            val name = if (p.label.equals("opponent", ignoreCase = true)) "Opponent" else "Opponent: ${p.label}"
-            // An engine record with no track is only the format's second player, not a detection (#92).
-            if (p.identity == "engine" && p.trackIds.isEmpty()) "$name · ${tracksText(0)}"
-            else "$name · ${identityText(p.identity)} · ${tracksText(p.trackIds.size)}"
+            if (p.label.equals("opponent", ignoreCase = true)) "Opponent" else "Opponent: ${p.label}"
         }
     }
 
@@ -327,13 +315,12 @@ object OverviewDerivation {
         if (match == null) return "Sport and format not known until the match record arrives"
         val sport = match.sport.replace('_', ' ').replaceFirstChar { it.titlecase(Locale.ROOT) }
         val format = match.format.takeIf { it != "none" }
-        return listOfNotNull(sport, format, "${match.ruleset.id} ${match.ruleset.version}").joinToString(" · ")
+        return listOfNotNull(sport, format).joinToString(" · ")
     }
 
     fun selectedPlayer(match: MatchRecord?): String {
-        val me = you(match) ?: return "Player not selected yet"
-        val tracks = if (me.trackIds.isEmpty()) null else tracksText(me.trackIds.size)
-        return listOfNotNull("You", tracks, identityText(me.identity)).joinToString(" · ")
+        if (you(match) == null) return "Player not selected yet"
+        return "You"
     }
 
     fun rallies(match: MatchRecord?, frameTimesUs: LongArray?, durationMs: Long?, hits: HitTimelineState? = null): RalliesState {
@@ -367,7 +354,12 @@ object OverviewDerivation {
                 endMs = r.endMs,
                 shots = r.shotIds.size,
                 ballCoverage = ballCoverageLabel(r.ballCoverage, frames),
-                winner = if (confirmed) "Won by $who · confirmed" else "Winner candidate: $who · MODEL ESTIMATE",
+                winner = when {
+                    confirmed -> "Won by $who · confirmed"
+                    side == 0 -> "Looks like a point for you"
+                    side == 1 -> "Looks like their point"
+                    else -> null
+                },
                 winnerConfirmed = confirmed,
                 winnerSide = side,
                 state = r.state,
@@ -388,8 +380,7 @@ object OverviewDerivation {
     /** "Court from your taps · tier B" (method `tap`), else the method named verbatim. */
     fun courtChip(cal: MatchCalibration?): String {
         if (cal == null) return "Court not calibrated"
-        val how = if (cal.method == "tap") "Court from your taps" else "Court from ${cal.method}"
-        return "$how · tier ${cal.tier}"
+        return if (cal.method == "tap") "Court locked from your 4 taps" else "Court locked from ${cal.method}"
     }
 
     /** "92% of the court in frame · fit error 1.8 px"; parts with invalid values are left out. */
@@ -397,7 +388,6 @@ object OverviewDerivation {
         if (cal == null) return null
         val parts = listOfNotNull(
             cal.visibleFraction.takeIf { it.isFinite() && it in 0.0..1.0 }?.let { "${(it * 100).roundToInt()}% of the court in frame" },
-            cal.residualPx.takeIf { it.isFinite() && it >= 0 }?.let { String.format(Locale.ROOT, "fit error %.1f px", it) },
         )
         return parts.joinToString(" · ").ifEmpty { null }
     }

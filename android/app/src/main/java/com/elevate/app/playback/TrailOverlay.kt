@@ -91,7 +91,7 @@ class TrailOverlay(private val trailWindowUs: Long = 400_000) : CanvasOverlay(/*
         if (!drawTrail && !stamp && !canvasDirty) return
         canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
         canvasDirty = false
-        if (stamp) drawStamp(canvas, presentationTimeUs)
+        if (SHOW_PTS && stamp) drawStamp(canvas, presentationTimeUs)
         if (!drawTrail) return
 
         val track = p.track
@@ -170,6 +170,8 @@ class TrailOverlay(private val trailWindowUs: Long = 400_000) : CanvasOverlay(/*
     }
 
     companion object {
+        /** Developer-only frame time stamp. Never drawn for people; flip locally to debug frame timing. */
+        const val SHOW_PTS = false
         const val MAX_CANVAS_LONG_SIDE = 1920
         private const val ORANGE = 0xFFE8622A.toInt()
         private const val CYAN = 0xFF2EE6E6.toInt()

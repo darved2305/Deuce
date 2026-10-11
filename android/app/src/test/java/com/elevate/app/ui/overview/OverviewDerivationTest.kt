@@ -65,7 +65,7 @@ class OverviewDerivationTest {
     @Test fun `unconfirmed winners are model estimates`() {
         val m = example.copy(rallies = example.rallies.map { it.copy(winnerState = "candidate") })
         val row = (OverviewDerivation.rallies(m, null, null) as RalliesState.Available).rows.single()
-        assertThat(row.winner).isEqualTo("Winner candidate: opponent · MODEL ESTIMATE")
+        assertThat(row.winner).isEqualTo("Looks like their point")
         assertThat(row.winnerConfirmed).isFalse()
     }
 
@@ -92,8 +92,8 @@ class OverviewDerivationTest {
     }
 
     @Test fun `source line and selected player come from the record`() {
-        assertThat(OverviewDerivation.sourceLine(example)).isEqualTo("Badminton · singles · bwf_3x21 2025-04")
-        assertThat(OverviewDerivation.selectedPlayer(example)).isEqualTo("You · 1 track · confirmed by you")
+        assertThat(OverviewDerivation.sourceLine(example)).isEqualTo("Badminton · singles")
+        assertThat(OverviewDerivation.selectedPlayer(example)).isEqualTo("You")
     }
 
     @Test fun `hand-labelled fixture is labelled as a reference, with its own counts`() {

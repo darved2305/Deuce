@@ -20,7 +20,7 @@ object AnalysingText {
         null -> s.unknownState?.let { "Server state: $it" } ?: "Waiting for the server"
         AnalysisState.AWAITING_UPLOAD -> "Waiting for the upload"
         AnalysisState.UPLOADED -> "Uploaded"
-        AnalysisState.QUEUED -> "Queued for the engine"
+        AnalysisState.QUEUED -> "Waiting for a free analyser"
         AnalysisState.PROCESSING -> "Analysing"
         AnalysisState.PARTIAL -> "Analysing · first results ready"
         AnalysisState.FINALIZING -> "Finalizing the match record"

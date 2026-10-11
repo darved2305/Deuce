@@ -56,14 +56,14 @@ data class AnalysingFlowState(
 object AnalysingFlow {
 
     /** Shown when windows are done but `GET /v1/artifacts/{id}` is not deployed (404). */
-    const val DETECTIONS_NOT_SERVED = "Detections ready on the server · drawing them needs a server update"
+    const val DETECTIONS_NOT_SERVED = "Your shots are ready. Still working out the full match summary."
     const val LEAVE_LINE = "You can leave. We'll keep going."
 
     /** "Your match" value when every window covering the source is in but the engine has not finalized. */
-    const val READY_FROM_WINDOWS = "ready · from the windows"
+    const val READY_FROM_WINDOWS = "ready"
 
     /** Said whenever the overview is built from the windows alone: nothing of the match record is shown. */
-    const val SUMMARY_PENDING = "Match summary (score, landings) pending the engine"
+    const val SUMMARY_PENDING = "Your rallies are ready. Score and landings are still being worked out."
 
     fun state(
         pipeline: Screen.Pipeline,
@@ -138,7 +138,7 @@ object AnalysingFlow {
     private fun sendCard(pipeline: Screen.Pipeline, step: String?, upload: UploadProgress): SendCard {
         if (pipeline is Screen.Pipeline.Failed) {
             val kept = upload as? UploadProgress.Failed
-            val note = if (pipeline.stage == CANCEL_STAGE) "$CANCEL_FAILED · ${pipeline.reason}" else pipeline.reason
+            val note = if (pipeline.stage == CANCEL_STAGE) CANCEL_FAILED else pipeline.reason
             return SendCard(kept?.let { UploadText.ofTotal(it.acceptedBytes, it.totalBytes) }, kept?.let { UploadText.fraction(it) }, null, null, note)
         }
         if (step != null) return SendCard(null, null, null, null, step)
@@ -171,7 +171,7 @@ object AnalysingFlow {
     }
 
     private fun queueStage(pipeline: Screen.Pipeline, s: AnalysisState?, a: AnalysisUiState?): FlowStage {
-        fun st(state: StageState, value: String?) = FlowStage(FlowStage.Key.QUEUE, "Queued for the engine", state, value)
+        fun st(state: StageState, value: String?) = FlowStage(FlowStage.Key.QUEUE, "Waiting for a free analyser", state, value)
         return when (pipeline) {
             Screen.Pipeline.Idle, Screen.Pipeline.Uploading -> st(StageState.Pending, null)
             is Screen.Pipeline.StartingAnalysis -> st(StageState.Active, "starting")
@@ -188,7 +188,7 @@ object AnalysingFlow {
         a?.stages?.any { it.type == "analysis.started" || it.type == "window.completed" } == true || (a?.windowsDone ?: 0) > 0
 
     private fun trackStage(s: AnalysisState?, a: AnalysisUiState?): FlowStage {
-        fun st(state: StageState, value: String?) = FlowStage(FlowStage.Key.TRACK, "Tracking the shuttle", state, value)
+        fun st(state: StageState, value: String?) = FlowStage(FlowStage.Key.TRACK, "Following the shuttle", state, value)
         if (WindowCoverage.readyFromWindows(a)) return st(StageState.Done, a?.let(::tracking))
         return when (s) {
             AnalysisState.PROCESSING, AnalysisState.PARTIAL -> st(StageState.Active, a?.let(::tracking) ?: "starting")
@@ -198,18 +198,13 @@ object AnalysingFlow {
         }
     }
 
-    /** "3 windows · 18.0 of 484.5 s" (+ " · 1 failed"); covered seconds of the known clip length only. */
+    /** "18.0 of 484.5 s watched" (+ " · 1 part skipped"); covered seconds of the known clip length only. */
     fun tracking(a: AnalysisUiState): String {
         val covered = String.format(Locale.ROOT, "%.1f", a.coveredUs / 1e6)
         val total = a.totalUs?.takeIf { it > 0 }
-        val time = if (total != null) "$covered of ${String.format(Locale.ROOT, "%.1f", total / 1e6)} s" else "$covered s · length unknown"
-        val windows = when (a.windowsDone) {
-            0 -> null
-            1 -> "1 window"
-            else -> "${a.windowsDone} windows"
-        }
-        val failed = a.windowsFailed.takeIf { it > 0 }?.let { "$it failed" }
-        return listOfNotNull(windows, time, failed).joinToString(" · ")
+        val time = if (total != null) "$covered of ${String.format(Locale.ROOT, "%.1f", total / 1e6)} s watched" else "$covered s watched · length unknown"
+        val failed = a.windowsFailed.takeIf { it > 0 }?.let { "$it skipped" }
+        return listOfNotNull(time, failed).joinToString(" · ")
     }
 
     private fun matchStage(s: AnalysisState?, a: AnalysisUiState?): FlowStage {
@@ -251,10 +246,10 @@ object AnalysingFlow {
      * not reach the server). Its retry action cancels again; it never restarts the upload.
      */
     const val CANCEL_STAGE = "cancel"
-    const val CANCEL_FAILED = "Could not cancel the upload · Try again cancels it"
+    const val CANCEL_FAILED = "Couldn't cancel the upload. Tap to try again."
 
     private fun notice(pipeline: Screen.Pipeline, a: AnalysisUiState?, artifacts: ArtifactAccess, cache: CacheInfo?, zone: ZoneId): String? = when {
-        pipeline is Screen.Pipeline.Failed && pipeline.stage == "analysis" -> "Could not start the analysis · ${pipeline.reason}"
+        pipeline is Screen.Pipeline.Failed && pipeline.stage == "analysis" -> pipeline.reason
         pipeline is Screen.Pipeline.Failed -> null // the send card carries the reason
         a == null -> null
         a.failureReason != null -> "Stopped · ${a.failureReason}"
@@ -300,12 +295,12 @@ object AnalysingFlow {
             AnalysisState.COMPLETED -> "Your match is ready"
             AnalysisState.FAILED -> "Analysis stopped"
             AnalysisState.FINALIZING -> "Finishing your match"
-            AnalysisState.PROCESSING, AnalysisState.PARTIAL -> if (WindowCoverage.readyFromWindows(analysis)) "Windows done · summary pending" else {
+            AnalysisState.PROCESSING, AnalysisState.PARTIAL -> if (WindowCoverage.readyFromWindows(analysis)) "Almost there, writing up your match" else {
                 val total = analysis?.totalUs?.takeIf { it > 0 }
                 val covered = ((analysis?.coveredUs ?: 0) / 1e6).roundToInt()
                 if (total != null) "Analysing · $covered/${(total / 1e6).roundToInt()} s" else "Analysing · $covered s"
             }
-            else -> "Queued for the engine"
+            else -> "Waiting for a free analyser"
         }
     }
 

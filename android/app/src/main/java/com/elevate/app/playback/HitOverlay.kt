@@ -126,9 +126,9 @@ class HitOverlay : CanvasOverlay(/* useInputFrameSize = */ false) {
         const val MAX_CANVAS_LONG_SIDE = 1920
         /** A hit candidate is marked on frames within this many ms of its time. */
         const val WINDOW_MS = 150L
-        const val LABEL = "HIT?"
+        const val LABEL = "Hit"
         /** Landing candidates from `match.v1` (contracts §7): dashed, never a verdict. */
-        const val LANDING_LABEL = "LANDING?"
+        const val LANDING_LABEL = "Lands"
         private const val ORANGE = 0xFFFF7A1A.toInt()
         private const val LIME = 0xFFB6FF3B.toInt() // lime: not the trail orange, candidate cyan or net yellow
         private const val SHADOW = 0x99000000.toInt()

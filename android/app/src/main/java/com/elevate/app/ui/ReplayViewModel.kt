@@ -2,6 +2,7 @@ package com.elevate.app.ui
 
 import com.elevate.app.data.history.status
 import android.os.Build
+import android.util.Log
 import com.elevate.app.data.analysis.AnalysisClient
 import com.elevate.app.data.analysis.HttpAnalysisClient
 import com.elevate.app.data.session.Ruleset
@@ -170,7 +171,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             val info = try {
                 withContext(Dispatchers.IO) { inspector.info(uri) }
             } catch (e: IOException) {
-                _screen.value = Screen.Import(error = "This file can't be opened as a video. ${e.message ?: ""}".trim())
+                Log.w(TAG, "video could not be opened", e)
+                _screen.value = Screen.Import(error = "This video can't be opened. Try another file.")
                 return@launch
             } catch (e: SecurityException) {
                 _screen.value = Screen.Import(error = "Access to this file was not granted. Pick it again.")
@@ -194,7 +196,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                     val facts = withContext(Dispatchers.IO) { probe.probe(uri) }
                     PreflightState.Done(facts, Preflight.assess(facts))
                 } catch (e: IOException) {
-                    PreflightState.Failed(e.message ?: "could not read the file")
+                    Log.w(TAG, "preflight could not read the file", e)
+                    PreflightState.Failed("This video can't be opened. Try another file.")
                 } catch (e: SecurityException) {
                     PreflightState.Failed("access to the file was revoked")
                 }
@@ -212,7 +215,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 // The bundled hand-labelled reference (one clip) is for engine evaluation, not users.
                 if (SHOW_REFERENCE_FIXTURES) repository.annotationsFor(fp) else AnnotationState.NoneForThisVideo
             } catch (e: IOException) {
-                AnnotationState.Failed("could not read the file to identify it: ${e.message}")
+                Log.w(TAG, "could not read the file to identify it", e)
+                AnnotationState.Failed("This video can't be opened. Try another file.")
             } catch (e: SecurityException) {
                 AnnotationState.Failed("access to the file was revoked while identifying it")
             }
@@ -603,7 +607,10 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                     pipelineJob = viewModelScope.launch { finishPipeline() }
                 }
                 UploadPhase.Completed -> pipelineJob = viewModelScope.launch { finishPipeline() }
-                else -> _pipeline.value = Screen.Pipeline.Failed("upload", cur.failure?.message ?: "upload stopped; tap to resume")
+                else -> {
+                    Log.w(TAG, "restored upload had stopped: ${cur.failure?.code} ${cur.failure?.message}")
+                    _pipeline.value = Screen.Pipeline.Failed("upload", UPLOAD_STOPPED)
+                }
             }
         }
     }
@@ -643,7 +650,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         _lastAnalysis.value = null
         showPanel(Screen.Panel.Analysing)
         if (!UploadRuntime.isConfigured) {
-            _pipeline.value = Screen.Pipeline.Failed("setup", "Elevate cloud is not configured in this build")
+            _pipeline.value = Screen.Pipeline.Failed("setup", "Upload isn't available right now. Try again later.")
             return
         }
         _pipelineStep.value = if (s.sha256 == null) "Identifying the file" else "Preparing"
@@ -654,7 +661,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 val sha = s.sha256 ?: awaitSha(s.uri)
                 if (sha == null) {
                     _pipelineStep.value = null
-                    _pipeline.value = Screen.Pipeline.Failed("upload", "This video could not be identified, so it cannot be uploaded")
+                    _pipeline.value = Screen.Pipeline.Failed("upload", "This video can't be opened. Try another file.")
                     return@launch
                 }
                 _pipelineStep.value = "Preparing"
@@ -694,7 +701,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 _pipelineStep.value = null
                 if (!UploadScheduler.start(app, facts.bytes)) {
-                    _pipeline.value = Screen.Pipeline.Failed("upload", "The system refused to start the upload")
+                    _pipeline.value = Screen.Pipeline.Failed("upload", UPLOAD_STOPPED)
                     return@launch
                 }
                 finishPipeline()
@@ -702,7 +709,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 _pipelineStep.value = null
-                _pipeline.value = Screen.Pipeline.Failed("upload", e.message ?: e.javaClass.simpleName)
+                Log.w(TAG, "upload could not start", e)
+                _pipeline.value = Screen.Pipeline.Failed("upload", UPLOAD_STOPPED)
             }
         }
     }
@@ -731,7 +739,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 when (cur.phase) {
                     UploadPhase.Completed -> break
                     UploadPhase.Failed, UploadPhase.Aborted -> if (active || waitedMs >= 30_000) {
-                        _pipeline.value = Screen.Pipeline.Failed("upload", cur.failure?.let { "${it.code}: ${it.message}" } ?: "upload stopped")
+                        Log.w(TAG, "upload stopped: ${cur.failure?.code} ${cur.failure?.message}")
+                        _pipeline.value = Screen.Pipeline.Failed("upload", UPLOAD_STOPPED)
                         return
                     }
                     else -> active = true
@@ -764,7 +773,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _pipeline.value = Screen.Pipeline.Failed(stage, e.message ?: e.javaClass.simpleName)
+            Log.w(TAG, "$stage failed", e)
+            _pipeline.value = Screen.Pipeline.Failed(stage, if (stage == "analysis") "Couldn't start the analysis. Tap to retry." else UPLOAD_STOPPED)
         }
     }
 
@@ -798,7 +808,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 // Offline or a server error on abort: the saved upload is kept (retry resumes it).
                 // Uncaught here, this exception crashed the app from viewModelScope.
-                _pipeline.value = Screen.Pipeline.Failed("cancel", "The upload could not be cancelled: ${e.message ?: e.javaClass.simpleName}")
+                Log.w(TAG, "cancel failed", e)
+                _pipeline.value = Screen.Pipeline.Failed("cancel", "Couldn't cancel the upload. Tap to try again.")
                 return@launch
             }
             _pipeline.value = Screen.Pipeline.Idle
@@ -881,6 +892,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
+        private const val TAG = "ReplayViewModel"
+        private const val UPLOAD_STOPPED = "Upload stopped. Tap to retry."
         const val FIXTURE_DIR = "fixtures"
 
         /** Off for users: the hand-labelled reference clip and its recorded run stay out of the app. */

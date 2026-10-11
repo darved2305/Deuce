@@ -181,7 +181,8 @@ class OverviewViewModel(
 
     private fun loadMatch() {
         val id = knownMatchId ?: sync.matchId ?: run {
-            matchProblem.value = "no match id known for this analysis yet"
+            android.util.Log.w("OverviewViewModel", "no match id known for this analysis yet")
+            matchProblem.value = MATCH_LOAD_FAILED
             return
         }
         matchJob = viewModelScope.launch {
@@ -191,11 +192,8 @@ class OverviewViewModel(
                 matchProblem.value = null
                 loadThumbnail(m)
             } catch (e: AnalysisApiException) {
-                matchProblem.value = when {
-                    e.httpStatus == 404 -> "GET /v1/matches/$id answered 404 (${e.code ?: "no code"}): the match record is not served yet"
-                    e.isNetwork -> "no connection (${e.message})"
-                    else -> e.message ?: e.kind.name
-                }
+                android.util.Log.w("OverviewViewModel", "match $id load failed: ${e.httpStatus} ${e.code} ${e.message}")
+                matchProblem.value = MATCH_LOAD_FAILED
             }
         }
     }
@@ -207,6 +205,10 @@ class OverviewViewModel(
         if (current is ThumbnailState.Ready && current.atMs == at) return
         thumbJob?.cancel()
         thumbJob = viewModelScope.launch { thumbnail.value = loader(at) }
+    }
+
+    companion object {
+        const val MATCH_LOAD_FAILED = "Couldn't load the match summary. Pull to retry."
     }
 
     /** For the lead's `viewModel(factory = …)`. */

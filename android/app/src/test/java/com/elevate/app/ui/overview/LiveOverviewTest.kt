@@ -121,11 +121,11 @@ class LiveOverviewTest {
     }
 
     @Test fun `pending line says plainly what the windows cannot give`() {
-        assertThat(live(store()).pendingLine).isEqualTo("Match summary (score, landings) pending the engine")
+        assertThat(live(store()).pendingLine).isEqualTo("Your rallies are ready. Score and landings are still being worked out.")
         assertThat(live(store(), analysis(coverage = listOf(0L..18_000_000L))).pendingLine)
-            .isEqualTo("Engine still analysing · match summary (score, landings) pending the engine")
+            .isEqualTo("Still analysing. Your rallies appear as they are found.")
         assertThat(live(store(), analysis(state = AnalysisState.COMPLETED)).pendingLine)
-            .isEqualTo("Match summary (score, landings) not served yet")
+            .isEqualTo("Your rallies are ready. Score and landings are still being worked out.")
     }
 
     @Test fun `overview derivation carries the live view only without a match record`() {
@@ -144,11 +144,11 @@ class LiveOverviewTest {
         val a = analysis()
         val f = AnalysingFlow.state(started, null, UploadProgress.Idle, a, ArtifactAccess.Serving)
         assertThat(f.stages.map { it.state }).containsExactly(StageState.Done, StageState.Done, StageState.Done, StageState.Done).inOrder()
-        assertThat(f.stages[3].value).isEqualTo("ready · from the windows")
-        assertThat(f.stages[2].value).isEqualTo("5 windows · 25.6 of 25.6 s")
+        assertThat(f.stages[3].value).isEqualTo("ready")
+        assertThat(f.stages[2].value).isEqualTo("25.6 of 25.6 s watched")
         assertThat(f.notice).isEqualTo(AnalysingFlow.SUMMARY_PENDING)
         assertThat(f.action).isEqualTo(AnalysingFlowState.Action.OPEN_RESULTS)
-        assertThat(AnalysingFlow.pill(started, null, UploadProgress.Idle, a)).isEqualTo("Windows done · summary pending")
+        assertThat(AnalysingFlow.pill(started, null, UploadProgress.Idle, a)).isEqualTo("Almost there, writing up your match")
     }
 
     @Test fun `a gap in the windows keeps tracking active and your match next`() {

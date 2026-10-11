@@ -541,13 +541,12 @@ private fun SportSection(s: SetupState, dispatch: (SetupAction) -> Unit) {
     val c = Elevate.colors
     SectionTitle("Sport")
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Free play stays hidden until its ruleset version is pinned; the others show as "soon".
-        for (sport in Sport.entries.filter { it != Sport.FreePlay || s.isEnabled(it) }) {
-            val ok = s.isEnabled(sport)
+        // Only sports that can be analysed are offered: no "soon" pills.
+        for (sport in Sport.entries.filter { s.isEnabled(it) }) {
             PillChip(
-                text = if (ok) sport.label else "${sport.label} · soon",
+                text = sport.label,
                 selected = sport == s.sport,
-                enabled = ok,
+                enabled = true,
                 onClick = { dispatch(SetupAction.SelectSport(sport)) },
             )
         }
