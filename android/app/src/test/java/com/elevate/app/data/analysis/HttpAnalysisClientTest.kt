@@ -121,4 +121,11 @@ class HttpAnalysisClientTest {
         val e = assertThrows(AnalysisApiException::class.java) { kotlinx.coroutines.runBlocking { HttpAnalysisClient("", "", { "jwt" }).events("a_1", 0) } }
         assertThat(e.kind).isEqualTo(AnalysisApiException.Kind.NOT_CONFIGURED)
     }
+
+    /** A55 crash: a timed-out sign-in refresh escaped as AuthException and killed the app on the main thread. */
+    @Test fun `failed token refresh is a network error, not a crash`() = runTest {
+        val c = HttpAnalysisClient("http://127.0.0.1:1/x", "pk", { throw com.elevate.app.data.auth.AuthException(0, "token refresh failed: SocketTimeoutException") })
+        val e = assertThrows(AnalysisApiException::class.java) { kotlinx.coroutines.runBlocking { c.events("a_1", 0) } }
+        assertThat(e.kind).isEqualTo(AnalysisApiException.Kind.NETWORK)
+    }
 }
