@@ -39,7 +39,7 @@ Deno.test("budget numbers are the D-261011-HW2 values", () => {
   assert.equal(BUDGET.sessionsPerUserPerDay, 5);
   assert.equal(BUDGET.uploadsPerDay, 30);
   assert.equal(BUDGET.partUrlsPerPart, 3);
-  assert.equal(BUDGET.downloadsPerUserPerDay, 200);
+  assert.equal(BUDGET.downloadsPerUserPerDay, 1000);
 });
 
 Deno.test("G2: originals of the last day + artifacts + this upload must stay within 2 GiB", () => {
@@ -92,20 +92,22 @@ Deno.test("G9 reads R2_WRITES_ENABLED: only false pauses", () => {
   }
 });
 
-Deno.test("G6: 200 download URLs per user per day (helper; wired when artifact reads land)", async () => {
+Deno.test("G6: 1,000 download URLs per user per day, deduped by artifact within validity", async () => {
   const calls: unknown[] = [];
   const allow = fakeClient((c) => {
     calls.push(c);
-    return ok(200);
+    return ok(1);
   });
-  await takeDownloadUrl(allow, "u1");
+  await takeDownloadUrl(allow, "u1", "art_1");
   assert.deepEqual((calls[0] as { args: unknown }).args, {
     p_owner: "u1",
-    p_limit: 200,
+    p_limit: 1000,
+    p_artifact: "art_1",
+    p_ttl: 300,
   });
   const deny = fakeClient(() => ok(null));
   await assert.rejects(
-    () => takeDownloadUrl(deny, "u1"),
+    () => takeDownloadUrl(deny, "u1", "art_1"),
     (e) =>
       e instanceof ApiFailure && e.code === "daily_download_limit" &&
       e.status === 429 && (e.retryAfterS ?? 0) > 0,
