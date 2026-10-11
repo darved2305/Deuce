@@ -72,12 +72,13 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
     }
 
     val pill by vm.pipelinePill.collectAsStateWithLifecycle()
+    val analysedSha by vm.analysedSha.collectAsStateWithLifecycle()
     val matches by vm.matches.collectAsStateWithLifecycle()
     val liveHits by vm.liveHitsMs.collectAsStateWithLifecycle()
     // The analysis on record is of the open file (same sha256): don't offer to analyse it again.
     val openShaForCta = (screen as? Screen.Replay)?.sha256
     val analysedHere = pipeline != Screen.Pipeline.Idle && openShaForCta != null &&
-        remember(pipeline, openShaForCta) { vm.pipelineSha256() } == openShaForCta
+        analysedSha == openShaForCta
     val pipelineUi = PipelineUi(
         state = pipeline,
         upload = upload,

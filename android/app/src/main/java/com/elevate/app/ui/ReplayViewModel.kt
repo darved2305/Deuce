@@ -351,6 +351,10 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** sha256 of the uploaded source (from the saved session request), to match live output to a file. */
+    /** [pipelineSha256], refreshed on IO whenever the pipeline changes: safe to read in composition. */
+    private val _analysedSha = MutableStateFlow<String?>(null)
+    val analysedSha: StateFlow<String?> = _analysedSha.asStateFlow()
+
     fun pipelineSha256(): String? = runCatching {
         adopted?.let { return it.sha256 }
         val st = uploadRuntime.coordinator.current() ?: return null
@@ -426,6 +430,9 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     fun openHistory(analysisId: String) {
         val p = _pipeline.value
         if (p == Screen.Pipeline.Uploading || p is Screen.Pipeline.StartingAnalysis) { _panel.value = Screen.Panel.Analysing; return }
+        // A restore still finishing in the background must not switch the screen to its own analysis
+        // after the user picked this one (QA: restore/openHistory race).
+        pipelineJob?.cancel()
         viewModelScope.launch {
             val e = withContext(Dispatchers.IO) { history.history.get(analysisId) } ?: return@launch
             val uri = withContext(Dispatchers.IO) { com.elevate.app.data.history.MatchHistoryRuntime.readableSource(getApplication(), e) }
@@ -732,7 +739,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         showPanel(Screen.Panel.None)
         val s = _screen.value as? Screen.Replay
         val analysedSha = pipelineSha256()
-        if (s != null && (analysedSha == null || s.sha256 == null || s.sha256 == analysedSha)) {
+        if (s != null && (analysedSha == null || (s.sha256 != null && s.sha256 == analysedSha))) {
             controller.pause()
             controller.seekTo(startMs)
             return
@@ -787,5 +794,13 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         const val FIXTURE_DIR = "fixtures"
         const val ENGINE_DIR = "engine_runs"
+    }
+
+    // Last in the class: it reads _pipeline, uploadRuntime and adopted, which must exist first
+    // (init blocks and property initializers run in declaration order).
+    init {
+        viewModelScope.launch {
+            _pipeline.collect { _analysedSha.value = withContext(Dispatchers.IO) { pipelineSha256() } }
+        }
     }
 }
