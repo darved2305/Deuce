@@ -27,6 +27,7 @@ function build(
         schema_version: 1,
         type: c.args.p_type,
         window_seq: 0,
+        windows_expected: fields.windows_expected ?? null,
         decode_start_us: 10,
         decode_end_us: 20,
         emit_start_us: null,
@@ -194,6 +195,61 @@ Deno.test("finalize persists summary; a retry -> 409 conflict", async () => {
   assert.equal((await second.json()).error.code, "conflict");
 });
 
+Deno.test("finalize accepts the 1.8.0 minimal body with null calibration", async () => {
+  const t = build();
+  const body = {
+    ...finalizeBody,
+    vision_result: {
+      ...finalizeBody.vision_result,
+      players: [],
+      calibration: null,
+    },
+  };
+  const res = await call(t.app, "finalize", body);
+  assert.equal(res.status, 200);
+  const ingest = t.log.find((entry) =>
+    entry.kind === "rpc" && entry.name === "ingest_vision_result"
+  );
+  assert.ok(ingest && ingest.kind === "rpc");
+  const result = ingest.args.p_result as {
+    players: unknown[];
+    calibration: unknown;
+    score: { timeline: unknown[]; games: unknown[] };
+  };
+  assert.deepEqual(result.players, []);
+  assert.equal(result.calibration, null);
+  assert.deepEqual(result.score, { timeline: [], games: [] });
+});
+
+Deno.test("finalize forwards hit event player, track, and image fields", async () => {
+  const t = build();
+  const hit = {
+    event_id: "e_hit",
+    type: "hit",
+    t_ms: 21430,
+    t_sigma_ms: 10,
+    image_xy: [922.5, 723.8],
+    player_id: "p_me",
+    track_id: "t_1",
+    cues: ["audio", "trajectory"],
+    state: "candidate",
+    evidence: [{ t_ms: 21430 }],
+  };
+  const body = {
+    ...finalizeBody,
+    vision_result: { ...finalizeBody.vision_result, events: [hit] },
+  };
+  const res = await call(t.app, "finalize", body);
+  assert.equal(res.status, 200);
+  const ingest = t.log.find((entry) =>
+    entry.kind === "rpc" && entry.name === "ingest_vision_result"
+  );
+  assert.ok(ingest && ingest.kind === "rpc");
+  assert.deepEqual((ingest.args.p_result as { events: unknown[] }).events, [
+    hit,
+  ]);
+});
+
 const estimateReview = {
   review_id: "rv_estimate",
   match_id: "m_1",
@@ -316,13 +372,19 @@ Deno.test("engine_version is stored by append_event and returned by the cursor",
   const res = await call(t.app, "events", {
     type: "analysis.started",
     engine_version: "0.3.0",
+    windows_expected: 7,
   });
   assert.equal(res.status, 200);
   const rpc = t.log[0] as Call & {
     args: { p_fields: Record<string, unknown> };
   };
-  assert.deepEqual(rpc.args.p_fields, { engine_version: "0.3.0" });
-  assert.equal((await res.json()).engine_version, "0.3.0");
+  assert.deepEqual(rpc.args.p_fields, {
+    engine_version: "0.3.0",
+    windows_expected: 7,
+  });
+  const event = await res.json();
+  assert.equal(event.engine_version, "0.3.0");
+  assert.equal(event.windows_expected, 7);
 
   const cursor = await t.app.fetch(
     new Request("http://localhost/api/v1/analyses/a_1/events", {
