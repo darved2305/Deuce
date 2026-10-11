@@ -332,9 +332,9 @@ private fun Panel(s: DecideSession, f: Freeze, onNext: () -> Unit, onReplayClip:
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // Legality.
             val (legalText, legalTint) = when (o.decision) {
-                is Decision.Legal -> "IN" to c.mint
-                Decision.Out -> "OUT" to c.errorSurface
-                Decision.OwnHalf -> "OWN HALF" to c.errorSurface
+                is Decision.Legal -> "Lands in" to c.mint
+                Decision.Out -> "Goes out" to c.errorSurface
+                Decision.OwnHalf -> "Your own side" to c.errorSurface
                 Decision.NoCourt -> "NO COURT" to c.errorSurface
             }
             ExplainBox(Explanations.DecideLegal, Modifier.fillMaxWidth()) {
@@ -394,7 +394,7 @@ private fun Panel(s: DecideSession, f: Freeze, onNext: () -> Unit, onReplayClip:
 private fun choiceText(o: Outcome): String = when (val d = o.decision) {
     is Decision.Legal -> zoneLabel(d.zone) + (o.reach?.let { ", ${it.label}" } ?: ", no verdict")
     Decision.Out -> "Out of court"
-    Decision.OwnHalf -> "Own half"
+    Decision.OwnHalf -> "Your own side"
     Decision.NoCourt -> "No court grid"
 }
 
