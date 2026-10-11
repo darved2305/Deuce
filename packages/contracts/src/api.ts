@@ -767,6 +767,33 @@ export const matchV1Schema = strictObject({
 
 export const visionResultSchema = matchV1Schema.omit({ insights: true });
 
+// D-261011-HW16 (#65, B6 reads): one page envelope; items reuse match.v1 pieces, never a new shape.
+// `next_cursor` is opaque (null = last page). limit: default 20, max 20 on /v1/moments, else 100.
+const nextCursorSchema = z.string().min(1).nullable();
+
+export const matchListItemSchema = strictObject({
+  match_id: matchIdSchema,
+  sport: builtSportSchema,
+  format: matchFormatSchema,
+  ruleset: matchV1Schema.shape.ruleset,
+  created_at: isoTimestampSchema,
+  // State of the match's latest analysis; null before the first analysis starts.
+  state: analysisStateSchema.nullable(),
+  score: strictObject({ games: z.array(scorePairSchema) }),
+});
+
+export const matchesPageSchema = strictObject({ items: z.array(matchListItemSchema), next_cursor: nextCursorSchema });
+export const ralliesPageSchema = strictObject({ items: z.array(rallySchema), next_cursor: nextCursorSchema });
+// GET /v1/matches/{id}/rallies/{rid}: the rally plus its shots, in shot_ids order.
+export const rallyDetailSchema = rallySchema.extend({ shots: z.array(shotSchema) });
+// GET /v1/matches/{id}/moments and GET /v1/moments (filters: ?tag=, ?match_id= on /v1/moments).
+export const momentsPageSchema = strictObject({
+  items: z.array(momentSchema.extend({ match_id: matchIdSchema })),
+  next_cursor: nextCursorSchema,
+});
+// GET /v1/capabilities: what this build can measure, in match.v1's {tier, status} vocabulary.
+export const capabilitiesResponseSchema = strictObject({ capabilities: capabilitiesSchema });
+
 export const analysisFinalizeRequestSchema = strictObject({
   vision_result: visionResultSchema,
   clip_artifact_ids: z.array(artifactIdSchema),

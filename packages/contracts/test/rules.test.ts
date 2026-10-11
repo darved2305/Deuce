@@ -331,3 +331,18 @@ test("1.9.0 (#77): the engine can build finalize from what dispatch hands it", (
   assert.equal(zodAccepts("analysis.finalize.request.v1", fin), true, "no players, no whole-match tracks");
   assert.equal(jsonAccepts("analysis.finalize.request.v1", fin), true);
 });
+
+test("1.10.0 (#65): read pages reuse match.v1 pieces", () => {
+  const m = example("match.v1");
+  const rally = m.rallies[0];
+  assert.equal(zodAccepts("rallies.page.v1", { items: m.rallies, next_cursor: null }), true, "rallies page");
+  assert.equal(jsonAccepts("rallies.page.v1", { items: m.rallies, next_cursor: "c1" }), true);
+  assert.equal(zodAccepts("rally.detail.v1", { ...rally, shots: m.shots }), true, "rally plus shots");
+  assert.equal(zodAccepts("moments.page.v1", { items: m.moments.map((x: any) => ({ ...x, match_id: m.match_id })), next_cursor: null }), true);
+  assert.equal(zodAccepts("moments.page.v1", { items: m.moments, next_cursor: null }), m.moments.length === 0, "moments need match_id");
+  const item = { match_id: m.match_id, sport: m.sport, format: m.format, ruleset: m.ruleset, created_at: "2026-10-11T05:00:00+05:30", state: null, score: { games: m.score.games } };
+  assert.equal(zodAccepts("matches.page.v1", { items: [item], next_cursor: null }), true, "matches page");
+  assert.equal(jsonAccepts("matches.page.v1", { items: [item], next_cursor: null }), true);
+  assert.equal(zodAccepts("capabilities.v1", { capabilities: m.capabilities }), true, "capabilities");
+  assert.equal(zodAccepts("matches.page.v1", { items: [], next_cursor: "" }), false, "empty cursor is not a cursor");
+});

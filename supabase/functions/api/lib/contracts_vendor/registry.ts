@@ -36,6 +36,11 @@ import {
   uploadPartsRequestSchema,
   uploadPartsResponseSchema,
   visionResultSchema,
+  matchesPageSchema,
+  ralliesPageSchema,
+  rallyDetailSchema,
+  momentsPageSchema,
+  capabilitiesResponseSchema,
 } from "./api.ts";
 import { trailLabelsSchema } from "./fixtures.ts";
 import { modelDescriptorSchema } from "./model.ts";
@@ -56,7 +61,7 @@ function entry(
 ): SchemaRegistryEntry {
   return {
     schema,
-    version: "1.9.0",
+    version: "1.10.0",
     file: `${name}.schema.json`,
     description,
   };
@@ -163,6 +168,11 @@ export const schemaRegistry = {
     matchV1Schema,
     "Canonical match record served to clients.",
   ),
+  "matches.page.v1": entry("matches.page.v1", matchesPageSchema, "GET /v1/matches: the caller's matches, newest first."),
+  "rallies.page.v1": entry("rallies.page.v1", ralliesPageSchema, "GET /v1/matches/{id}/rallies."),
+  "rally.detail.v1": entry("rally.detail.v1", rallyDetailSchema, "GET /v1/matches/{id}/rallies/{rid}: rally plus shots."),
+  "moments.page.v1": entry("moments.page.v1", momentsPageSchema, "GET /v1/matches/{id}/moments and GET /v1/moments."),
+  "capabilities.v1": entry("capabilities.v1", capabilitiesResponseSchema, "GET /v1/capabilities."),
   "vision_result.v1": entry(
     "vision_result.v1",
     visionResultSchema,

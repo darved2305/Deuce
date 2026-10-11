@@ -1,0 +1,484 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "ball_coverage": {
+      "type": "number"
+    },
+    "clip_id": {
+      "anyOf": [
+        {
+          "pattern": "^c_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        {
+          "pattern": "^c_r_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        {
+          "pattern": "^c_sh_[A-Za-z0-9_-]+$",
+          "type": "string"
+        }
+      ]
+    },
+    "end_ms": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "end_reason": {
+      "type": "string"
+    },
+    "rally_id": {
+      "pattern": "^r_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "server": {
+      "pattern": "^p_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "shot_ids": {
+      "items": {
+        "pattern": "^sh_[A-Za-z0-9_-]+$",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "shots": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "chosen": {
+            "additionalProperties": false,
+            "properties": {
+              "family": {
+                "type": "string"
+              },
+              "landing_state": {
+                "enum": [
+                  "observed",
+                  "candidate",
+                  "inferred",
+                  "user"
+                ],
+                "type": "string"
+              },
+              "landing_xy_m": {
+                "items": false,
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "target_zone": {
+                "enum": [
+                  "F1",
+                  "F2",
+                  "F3",
+                  "M1",
+                  "M2",
+                  "M3",
+                  "B1",
+                  "B2",
+                  "B3",
+                  "S",
+                  "L"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "target_zone",
+              "landing_xy_m",
+              "landing_state",
+              "family"
+            ],
+            "type": "object"
+          },
+          "clip_id": {
+            "anyOf": [
+              {
+                "pattern": "^c_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_r_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_sh_[A-Za-z0-9_-]+$",
+                "type": "string"
+              }
+            ]
+          },
+          "contact_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "contact_sigma_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "context": {
+            "additionalProperties": false,
+            "properties": {
+              "pressure_bucket": {
+                "type": "string"
+              },
+              "rally_len_so_far": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "score_before": {
+                "items": false,
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                ],
+                "type": "array"
+              },
+              "state": {
+                "enum": [
+                  "observed",
+                  "candidate",
+                  "inferred",
+                  "user"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "score_before",
+              "pressure_bucket",
+              "rally_len_so_far",
+              "state"
+            ],
+            "type": "object"
+          },
+          "coordinate_frame_version": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "flight_time_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "flight_time_state": {
+            "enum": [
+              "observed",
+              "candidate",
+              "inferred",
+              "user"
+            ],
+            "type": "string"
+          },
+          "incoming": {
+            "additionalProperties": false,
+            "properties": {
+              "family": {
+                "type": "string"
+              },
+              "landing_zone": {
+                "enum": [
+                  "F1",
+                  "F2",
+                  "F3",
+                  "M1",
+                  "M2",
+                  "M3",
+                  "B1",
+                  "B2",
+                  "B3",
+                  "S",
+                  "L"
+                ],
+                "type": "string"
+              },
+              "source_zone": {
+                "enum": [
+                  "F1",
+                  "F2",
+                  "F3",
+                  "M1",
+                  "M2",
+                  "M3",
+                  "B1",
+                  "B2",
+                  "B3",
+                  "S",
+                  "L"
+                ],
+                "type": "string"
+              },
+              "zones_state": {
+                "enum": [
+                  "observed",
+                  "candidate",
+                  "inferred",
+                  "user"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "source_zone",
+              "landing_zone",
+              "zones_state",
+              "family"
+            ],
+            "type": "object"
+          },
+          "index": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "outcome": {
+            "additionalProperties": false,
+            "properties": {
+              "point_winner": {
+                "pattern": "^p_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              "shots_to_end": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "state": {
+                "enum": [
+                  "observed",
+                  "candidate",
+                  "inferred",
+                  "user"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "point_winner",
+              "shots_to_end",
+              "state"
+            ],
+            "type": "object"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "player_id": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "quality": {
+            "additionalProperties": false,
+            "properties": {
+              "camera_quality_grade": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "camera_quality_grade"
+            ],
+            "type": "object"
+          },
+          "rally_id": {
+            "pattern": "^r_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "reference_plane": {
+            "enum": [
+              "court",
+              "tabletop",
+              "floor"
+            ],
+            "type": "string"
+          },
+          "roles": {
+            "additionalProperties": false,
+            "properties": {
+              "focal": {
+                "additionalProperties": false,
+                "properties": {
+                  "conf": {
+                    "type": "number"
+                  },
+                  "player_id": {
+                    "pattern": "^p_[A-Za-z0-9_-]+$",
+                    "type": "string"
+                  },
+                  "state": {
+                    "enum": [
+                      "observed",
+                      "candidate",
+                      "inferred",
+                      "user"
+                    ],
+                    "type": "string"
+                  },
+                  "xy_m": {
+                    "items": false,
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "prefixItems": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "player_id",
+                  "xy_m",
+                  "state",
+                  "conf"
+                ],
+                "type": "object"
+              },
+              "opponent": {
+                "additionalProperties": false,
+                "properties": {
+                  "conf": {
+                    "type": "number"
+                  },
+                  "player_id": {
+                    "pattern": "^p_[A-Za-z0-9_-]+$",
+                    "type": "string"
+                  },
+                  "state": {
+                    "enum": [
+                      "observed",
+                      "candidate",
+                      "inferred",
+                      "user"
+                    ],
+                    "type": "string"
+                  },
+                  "xy_m": {
+                    "items": false,
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "prefixItems": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "player_id",
+                  "xy_m",
+                  "state",
+                  "conf"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "focal",
+              "opponent"
+            ],
+            "type": "object"
+          },
+          "shot_id": {
+            "pattern": "^sh_[A-Za-z0-9_-]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "shot_id",
+          "rally_id",
+          "index",
+          "player_id",
+          "contact_ms",
+          "contact_sigma_ms",
+          "phase",
+          "reference_plane",
+          "coordinate_frame_version",
+          "roles",
+          "incoming",
+          "chosen",
+          "flight_time_ms",
+          "flight_time_state",
+          "context",
+          "outcome",
+          "quality",
+          "clip_id"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "start_ms": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "state": {
+      "enum": [
+        "observed",
+        "candidate",
+        "inferred",
+        "user"
+      ],
+      "type": "string"
+    },
+    "winner": {
+      "pattern": "^p_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "winner_state": {
+      "enum": [
+        "observed",
+        "candidate",
+        "inferred",
+        "user"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "rally_id",
+    "start_ms",
+    "end_ms",
+    "shot_ids",
+    "server",
+    "winner",
+    "winner_state",
+    "end_reason",
+    "ball_coverage",
+    "clip_id",
+    "state",
+    "shots"
+  ],
+  "type": "object"
+}

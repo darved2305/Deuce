@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "ball_coverage": {
+            "type": "number"
+          },
+          "clip_id": {
+            "anyOf": [
+              {
+                "pattern": "^c_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_r_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_sh_[A-Za-z0-9_-]+$",
+                "type": "string"
+              }
+            ]
+          },
+          "end_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "end_reason": {
+            "type": "string"
+          },
+          "rally_id": {
+            "pattern": "^r_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "server": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "shot_ids": {
+            "items": {
+              "pattern": "^sh_[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "start_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "observed",
+              "candidate",
+              "inferred",
+              "user"
+            ],
+            "type": "string"
+          },
+          "winner": {
+            "pattern": "^p_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "winner_state": {
+            "enum": [
+              "observed",
+              "candidate",
+              "inferred",
+              "user"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "rally_id",
+          "start_ms",
+          "end_ms",
+          "shot_ids",
+          "server",
+          "winner",
+          "winner_state",
+          "end_reason",
+          "ball_coverage",
+          "clip_id",
+          "state"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "next_cursor": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "items",
+    "next_cursor"
+  ],
+  "type": "object"
+}

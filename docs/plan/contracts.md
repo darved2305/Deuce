@@ -124,6 +124,10 @@ one `analysis.completed`.
 - `POST /internal/analyses/{id}/finalize {vision_result: <match.v1 without insights>, clip_artifact_ids: []}`.
   The engine fills `match_id` and `session_ids: [session_id]` from the dispatch request (`modal.submit.request.v1`
   carries optional `match_id`, `session_id` since 1.9.0); `analysis.artifacts.*` may be `null` (D-261011-HW15).
+- Reads (1.10.0, D-261011-HW16), all `{items, next_cursor}` pages (limit default 20; max 20 on moments, 100 else):
+  `GET /v1/matches` → `matches.page.v1` · `GET /v1/matches/{id}/rallies` → `rallies.page.v1` ·
+  `GET /v1/matches/{id}/rallies/{rid}` → `rally.detail.v1` · `GET /v1/matches/{id}/moments`, `GET /v1/moments?tag=&match_id=` →
+  `moments.page.v1` · `GET /v1/capabilities` → `capabilities.v1`.
 
 Event row (`analysis_events`):
 
