@@ -108,3 +108,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T03:17Z | #135 | @HetanshWaghela | p4 | mcp + sdk: Ask your coach (8 read-only tools, deep links), one-command analysis, | none | 1.10.0 | ``` |
 | 2026-10-11T03:28Z | #137 | @HetanshWaghela | p4 | android: Reflex mode, read the shot against the clock on your own match | none | 1.10.0 | ``` |
 | 2026-10-11T03:28Z | #138 | @HetanshWaghela | p4 | android: voice coach (TTS), share-your-match card, elevate:// deep links | none | 1.10.0 | ``` |
+| 2026-10-11T03:31Z | #133 | @darved2305 | p2 | android: mini court stays inside its card; court-lines caption names its source | none | 1.10.0 | Galaxy A55 (`RZCY12S9LRD`), build from `main` @ `fc2342d` then this branch, 08:33–08:34 IST. Real h13g footage (1080p5 |
