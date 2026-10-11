@@ -111,3 +111,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T03:31Z | #133 | @darved2305 | p2 | android: mini court stays inside its card; court-lines caption names its source | none | 1.10.0 | Galaxy A55 (`RZCY12S9LRD`), build from `main` @ `fc2342d` then this branch, 08:33–08:34 IST. Real h13g footage (1080p5 |
 | 2026-10-11T03:33Z | #141 | @HetanshWaghela | p4 | android: overview opens on the Coach tab (Coach / Rallies / Court), fixed header | none | 1.10.0 | ``` |
 | 2026-10-11T03:35Z | #142 | @HetanshWaghela | p4 | android: shuttle cue at the freeze (ring, direction arrow, short tail) in ReadLa | none | 1.10.0 | ``` |
+| 2026-10-11T03:37Z | #143 | @HetanshWaghela | p4 | android: hold any button to see what it does, plus decluttering and polish | none | 1.10.0 | ``` |
