@@ -295,6 +295,14 @@ private fun AnalysisPanel(
             return
         }
         val overview by ovm.overview.collectAsStateWithLifecycle()
+        val cal = match?.calibration
+        val trainingLock = when {
+            match == null -> "they unlock when your match summary is ready."
+            cal == null || cal.tier == "C" -> "set the 4 court corners in setup so we can place landings on the court."
+            analysedFacts == null -> "open this match's video on this phone to train on it."
+            drills.isEmpty() -> "no clear landings were found in this match."
+            else -> null
+        }
         MatchOverviewScreen(
             state = overview,
             eyebrow = hero.eyebrow,
@@ -307,6 +315,7 @@ private fun AnalysisPanel(
             reviewLandings = reviewLandings,
             onReview = { id -> vm.review.select(id); vm.showPanel(Screen.Panel.Review) },
             decideFreezes = freezes.size,
+            trainingLock = trainingLock,
             onDecide = { vm.showPanel(Screen.Panel.Decide) },
         )
         return

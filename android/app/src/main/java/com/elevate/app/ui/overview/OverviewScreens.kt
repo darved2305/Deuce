@@ -273,6 +273,8 @@ fun MatchOverviewScreen(
     onReview: (eventId: String) -> Unit = {},
     decideFreezes: Int = 0,
     onDecide: () -> Unit = {},
+    /** Why the training games are not available yet; null when they are (or the reason is unknown). */
+    trainingLock: String? = null,
 ) {
     BackHandler(onBack = onBack)
     val hero = AnalysingHero(eyebrow, state.thumbnail, state.title)
@@ -289,7 +291,7 @@ fun MatchOverviewScreen(
     val haptics = rememberHaptics()
     val tabs: @Composable () -> Unit = { OverviewTabRow(tabIndex) { haptics.tick(); tabIndex = it } }
     val body: @Composable (Modifier) -> Unit = { m -> OverviewTabBody(OverviewTab.entries[tabIndex], state, onOpenRally, coachIntroPlayed, m, reviewLandings, onReview) }
-    val ctas: @Composable () -> Unit = { TrainingButtons(readLabDrills, onTrainRead, reflexRounds, onReflex, decideFreezes, onDecide) }
+    val ctas: @Composable () -> Unit = { TrainingButtons(readLabDrills, onTrainRead, reflexRounds, onReflex, decideFreezes, onDecide, trainingLock) }
     PeachPage {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
             val landscape = maxWidth > maxHeight
@@ -324,7 +326,14 @@ fun MatchOverviewScreen(
 
 /** "Train your read", "Reflex challenge" and "Decide" side by side; each appears only when it has something to play. */
 @Composable
-private fun TrainingButtons(readLabDrills: Int, onTrainRead: () -> Unit, reflexRounds: Int, onReflex: () -> Unit, decideFreezes: Int, onDecide: () -> Unit) {
+private fun TrainingButtons(readLabDrills: Int, onTrainRead: () -> Unit, reflexRounds: Int, onReflex: () -> Unit, decideFreezes: Int, onDecide: () -> Unit, trainingLock: String? = null) {
+    // Never vanish silently: with no game available, say what unlocks them.
+    if (readLabDrills < 1 && trainingLock != null) {
+        com.elevate.app.ui.components.ExplainBox(com.elevate.app.ui.components.Explanations.ReadLab, Modifier.fillMaxWidth()) {
+            com.elevate.app.ui.components.StateMessage(com.elevate.app.ui.components.ElevateIcons.Empty, "Training games: $trainingLock")
+        }
+        return
+    }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         com.elevate.app.ui.readlab.ReadLabEntryButton(readLabDrills, onTrainRead, Modifier.weight(1f))
         com.elevate.app.ui.readlab.ReflexEntryButton(reflexRounds, onReflex, Modifier.weight(1f))
