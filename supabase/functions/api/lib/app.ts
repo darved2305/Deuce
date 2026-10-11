@@ -15,8 +15,12 @@ import { registerSessions } from "../routes/sessions.ts";
 export function createApp(deps: Deps = defaultDeps()): Hono {
   const api = new OpenAPIHono<AppEnv>({ defaultHook });
   api.use("*", async (c, next) => {
-    c.set("deps", deps);
-    await next();
+    try {
+      c.set("deps", deps);
+      await next();
+    } catch (err) {
+      return onError(err, c);
+    }
   });
   api.use("/internal/*", internalAuth);
   api.use("/v1/*", userAuth);
@@ -39,7 +43,15 @@ export function createApp(deps: Deps = defaultDeps()): Hono {
     );
     return c.json({ ...doc, paths }, 200);
   });
-  const root = new Hono().route("/api", api);
+  const root = new Hono();
+  root.use("*", async (c, next) => {
+    try {
+      await next();
+    } catch (err) {
+      return onError(err, c);
+    }
+  });
+  root.route("/api", api);
   root.notFound(notFound);
   root.onError(onError);
   return root;
