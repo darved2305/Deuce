@@ -63,32 +63,39 @@ internal_secret = modal.Secret.from_name("elevate-internal")  # INTERNAL_API_TOK
 r2_secret = modal.Secret.from_name("elevate-r2")  # R2_* incl. R2_WRITES_ENABLED
 ENGINE_VERSION = "0.1.0"
 WINDOW_MS = 6000
+WINDOW_MODELS = ("tracknet_v3", "dfine_s_coco")  # shuttle candidates, person boxes
+PERSON_FPS = 12.0  # D-FINE samples each emitted range at about this rate
 
 
 UPLOADS = "uploads"  # per-analysis copy of the original in elevate-clips, deleted after
 
 
-def court_calibration(calibration_input: dict | None, size: tuple[int, int], log) -> dict | None:
-    """match.v1.calibration from the session's corner taps, or None (never invented) when the
-    session has none or they define no homography. A tier C result is still sent: its tier says
-    how far to trust it, and foot metres are withheld for it."""
+def session_calibration(calibration_input: dict | None, size: tuple[int, int], log):
+    """(match.v1.calibration record, Calibration) from the session's corner taps, or
+    (None, None) (never invented) when the session has none or they define no homography."""
     from elevate_engine import calibration as cal
 
     if not calibration_input:
         log("calibration.none", reason="no calibration_input in session_spec")
-        return None
+        return None, None
     try:
         c = cal.from_calibration_input(calibration_input, *size)
     except cal.CalibrationError as exc:
         log("calibration.none", reason=str(exc)[:200])
-        return None
+        return None, None
     record = c.to_match(
         cal.calibration_id(calibration_input["points_px"], calibration_input["template"]),
         method=m if isinstance(m := calibration_input.get("method"), str) else "tap",
     )
     log("calibration.done", calibration_id=record["calibration_id"], tier=record["tier"],
         sigma_m=round(c.uncertainty.sigma_m, 3), visible=record["visible_fraction"])  # fmt: skip
-    return record
+    return record, c
+
+
+def court_calibration(calibration_input: dict | None, size: tuple[int, int], log) -> dict | None:
+    """match.v1.calibration from the session's corner taps, or None (never invented). A tier C
+    result is still sent: its tier says how far to trust it, and foot metres are withheld."""
+    return session_calibration(calibration_input, size, log)[0]
 
 
 @app.function(
@@ -123,6 +130,7 @@ def analyze(
     from elevate_engine import window as win
     from elevate_engine.api import InternalApi
     from elevate_engine.log import log
+    from elevate_engine.players import LivePlayers
     from elevate_engine.r2 import R2, WritesDisabled, track_key, window_key
     from elevate_engine.sports import BADMINTON
     from elevate_engine.tracknet.run import sample_background
@@ -147,13 +155,25 @@ def analyze(
         plans = pipeline.plan_windows(0, end)
         log("analyze.original", analysis_id=analysis_id, bytes=size, duration_ms=end,
             windows=len(plans))  # fmt: skip
+        # Before any window is posted, so player feet can be projected (failure-isolated: a
+        # calibration problem never fails an analysis; its windows carry null feet instead).
+        try:
+            calibration, cal = session_calibration(
+                session_spec.get("calibration_input"), source_size(local), log
+            )
+        except Exception as exc:
+            log("calibration.failed", analysis_id=analysis_id, reason=repr(exc)[:200])
+            calibration, cal = None, None
+        fmt = "doubles" if session_spec.get("format") == "doubles" else "singles"
+        live_players = LivePlayers(cal, fmt)
         models_ = Models()
         bg = sample_background(local, 0, end)  # on this CPU container, not a T4
         args = [(rel, list(p.decode), list(p.emit), bg) for p in plans]
         results: list[dict] = []
 
         def post(k: int) -> None:
-            w = pipeline.window_for_posting(analysis_id, plans, results, k, BADMINTON)
+            w = pipeline.window_for_posting(analysis_id, plans, results, k, BADMINTON,
+                                            WINDOW_MODELS, live_players)  # fmt: skip
             win.validate(w)
             stored = r2.put_json(
                 window_key(analysis_id, ENGINE_VERSION, k), (json.dumps(w) + "\n").encode()
@@ -167,7 +187,8 @@ def analyze(
             })  # fmt: skip
             events.extend(w["events"])
             posted.append({"window_seq": k, "artifact_id": art, "ball_rows": len(w["ball"]),
-                           "onsets": len(w["onsets"]), "hits": len(w["events"])})  # fmt: skip
+                           "player_rows": len(w["players"]), "onsets": len(w["onsets"]),
+                           "hits": len(w["events"])})  # fmt: skip
 
         for res in models_.candidates.starmap(args):  # results arrive in window order
             results.append(res)
@@ -188,13 +209,6 @@ def analyze(
             # null until player tracks exist (contracts 1.9.0, HW15): no empty file, no write.
             "player_tracks": None,
         }  # fmt: skip
-        try:  # a calibration problem never fails an analysis whose windows are posted
-            calibration = court_calibration(
-                session_spec.get("calibration_input"), source_size(local), log
-            )
-        except Exception as exc:
-            log("calibration.failed", analysis_id=analysis_id, reason=repr(exc)[:200])
-            calibration = None
         if match_id is None:
             log("finalize.skipped", analysis_id=analysis_id,
                 reason="no match_id in the submit body (API dispatch #82)")  # fmt: skip
@@ -202,7 +216,7 @@ def analyze(
             body = finalize.request(
                 analysis_id=analysis_id, match_id=match_id, r2_key=r2_key, sid=session_id,
                 session_spec=session_spec, engine_version=ENGINE_VERSION,
-                models=["tracknet_v3"], artifacts=artifacts, window_events=events,
+                models=list(WINDOW_MODELS), artifacts=artifacts, window_events=events,
                 calibration=calibration,
             )  # fmt: skip
             finalized = api.finalize(analysis_id, body)
@@ -219,6 +233,7 @@ def analyze(
         clips.commit()
     result = {"analysis_id": analysis_id, "duration_ms": end, "windows": posted,
               "hits": len(events), "finalized": finalized,
+              "player_track_ids": live_players.track_ids,
               "tracker": stats, "total_s": round(time.perf_counter() - started, 1)}  # fmt: skip
     log("analyze.done", **{k: v for k, v in result.items() if k != "windows"},
         windows_posted=len(posted))  # fmt: skip
@@ -523,6 +538,14 @@ class Models:
             self.tracknet = model.cuda()
         return self.tracknet, self.seq_len
 
+    def _dfine(self):
+        from elevate_engine.dfine import run as dfine
+
+        if not hasattr(self, "dfine"):
+            model, post = dfine.build(self.checkpoints["dfine_s_coco"]["model"])
+            self.dfine = (model.cuda(), post.cuda())
+        return self.dfine
+
     @modal.method()
     def background(self, clip: str, start_ms: int, end_ms: int):
         """Shared background for a whole range (pipeline step 2), float32 (3, 288, 512)."""
@@ -535,23 +558,42 @@ class Models:
     def candidates(self, clip: str, decode_ms: list, emit_ms: list, background) -> dict:
         """One window of the whole-video pipeline: TrackNet candidates (source px), measured
         camera motion / blur and audio onsets for the emitted range, using the shared
-        background."""
+        background; plus D-FINE-S person boxes [t_ms, x1, y1, x2, y2, score] (source px) on
+        the emitted frames sampled at about PERSON_FPS. One decode serves both models: a
+        sampled frame is kept at full size only until its batch of 8 is detected."""
         from elevate_engine import audio
         from elevate_engine import window as win
+        from elevate_engine.dfine import run as dfine
         from elevate_engine.log import log
         from elevate_engine.tracknet import infer
         from elevate_engine.tracknet import run as tracknet_run
-        from elevate_engine.video import frames_in_range, source_size
+        from elevate_engine.video import Frame, frames_in_range, source_size
 
         model, seq_len = self._tracknet()
+        detector = self._dfine()
         clips.reload()
         path = Path(CLIPS_PATH) / clip
-        decoded = list(frames_in_range(path, *decode_ms, infer.resize_chw_uint8))
+        lo, hi = emit_ms
+        keep = dfine.sampler(PERSON_FPS)
+        decoded, batch, persons = [], [], []
+
+        def detect_batch() -> None:
+            boxes = dfine.detect(*detector, [rgb for _, rgb in batch])
+            persons.extend([t, *b] for (t, _), fb in zip(batch, boxes, strict=True) for b in fb)
+            batch.clear()
+
+        for f in frames_in_range(path, *decode_ms):
+            decoded.append(Frame(f.t_ms, infer.resize_chw_uint8(f.image)))
+            if lo <= f.t_ms < hi and keep(f.t_ms):
+                batch.append((f.t_ms, f.image))
+                if len(batch) == 8:
+                    detect_batch()
+        if batch:
+            detect_batch()
         frames = [f.image for f in decoded]
         blobs = list(tracknet_run.track(model, seq_len, frames, background))
         src_w, src_h = source_size(path)
         sx, sy = src_w / infer.WIDTH, src_h / infer.HEIGHT
-        lo, hi = emit_ms
         emitted = [i for i, f in enumerate(decoded) if lo <= f.t_ms < hi]
         q = win.quality([frames[i] for i in emitted], 0, sx)
         out = {
@@ -564,9 +606,12 @@ class Models:
             "camera_motion_px": q["camera_motion_px"],
             "blur_index": q["blur_index"],
             "onsets": audio.onsets(path, lo, hi),
+            "persons": persons,
+            "source_size": [src_w, src_h],
         }
         log("window.candidates", emit=[lo, hi], frames=len(emitted),
-            candidates=sum(len(c) for c in out["cands"]), onsets=len(out["onsets"]))  # fmt: skip
+            candidates=sum(len(c) for c in out["cands"]), onsets=len(out["onsets"]),
+            persons=len(persons))  # fmt: skip
         return out
 
 
@@ -656,14 +701,18 @@ def window_clip(
 
 @app.local_entrypoint()
 def run_clip(
-    clip: str, start_s: float, end_s: float, out_dir: str, analysis_id: str = "a_offline"
-) -> None:
+    clip: str, start_s: float, end_s: float, out_dir: str, analysis_id: str = "a_offline",
+    calibration_input: str = "", format: str = "singles",
+) -> None:  # fmt: skip
     """Whole-video pipeline on [start_s, end_s) of a clip: parallel windows on T4s, one shared
-    background, tracking across windows; every window validated and saved in order."""
+    background, tracking across windows; every window validated and saved in order.
+    calibration_input: optional path to a session_spec.calibration_input JSON (real taps), so
+    player rows carry foot metres; without it their feet are null."""
     import time
 
     from elevate_engine import pipeline
     from elevate_engine import window as win
+    from elevate_engine.players import LivePlayers
     from elevate_engine.sports import BADMINTON
 
     t0 = time.perf_counter()
@@ -675,16 +724,40 @@ def run_clip(
     args = [(clip, list(p.decode), list(p.emit), bg) for p in plans]
     per_window = list(models_.candidates.starmap(args))
     t_win = time.perf_counter() - t0 - t_bg
-    windows, stats = pipeline.assemble(analysis_id, plans, per_window, BADMINTON)
+    cal_record, cal = None, None
+    if calibration_input:
+        cal_record, cal = session_calibration(
+            json.loads(Path(calibration_input).read_text()), tuple(per_window[0]["source_size"]),
+            lambda event, **kw: print(json.dumps({"event": event, **kw})),
+        )  # fmt: skip
+    players = LivePlayers(cal, format)
+    windows, stats = pipeline.assemble(analysis_id, plans, per_window, BADMINTON,
+                                       WINDOW_MODELS, players)  # fmt: skip
     out = Path(out_dir) / "windows"
     out.mkdir(parents=True, exist_ok=True)
     for w in windows:
         win.validate(w)
         (out / f"{w['window_seq']}.json").write_text(json.dumps(w) + "\n")
+    (Path(out_dir) / "persons.json").write_text(json.dumps({
+        "note": "Raw D-FINE-S person boxes [t_ms, x1, y1, x2, y2, score] (source px) per window, "
+                "as Models.candidates returned them.",
+        "windows": [{"emit": r["emit"], "rows": r["persons"]} for r in per_window],
+    }) + "\n")  # fmt: skip
+    feet_y: dict[str, list[float]] = {}
+    for w in windows:
+        for row in w["players"]:
+            if row[7] is not None:
+                feet_y.setdefault(row[1], []).append(row[7])
     summary = {
         "clip": clip, "range_ms": [lo, hi], "windows": len(windows),
         "frames": sum(len(r["t_ms"]) for r in per_window),
         "ball_rows": sum(len(w["ball"]) for w in windows), "tracker": stats,
+        "calibration": None if cal_record is None else {
+            k: cal_record[k] for k in ("calibration_id", "tier", "residual_px")},
+        "persons": sum(len(r["persons"]) for r in per_window),
+        "player_rows_per_window": [len(w["players"]) for w in windows],
+        "player_track_ids": sorted({r[1] for w in windows for r in w["players"]}),
+        "player_foot_y_m": {t: [min(v), max(v), len(v)] for t, v in sorted(feet_y.items())},
         "onsets": sum(len(w["onsets"]) for w in windows),
         "hits": sum(len(w["events"]) for w in windows),
         "background_s": round(t_bg, 1), "windows_s": round(t_win, 1),

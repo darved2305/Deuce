@@ -132,6 +132,56 @@ def _observed_duration(detections: Sequence[Sequence[float]], typical_step_ms: f
     )
 
 
+class _Associator:
+    """Frame-by-frame Hungarian association (causal: a frame only sees the frames before it), so
+    feeding the same detections in one call or window by window gives the same tracklets."""
+
+    def __init__(self, max_gap_ms: int, max_center_distance_px: float) -> None:
+        self.max_gap_ms = max_gap_ms
+        self.max_center_distance_px = max_center_distance_px
+        self.active: list[_Tracklet] = []
+        self.finished: list[_Tracklet] = []
+        self.next_index = 0
+        self.switch_frames: set[int] = set()
+
+    def tracklets(self) -> list[_Tracklet]:
+        return [*self.finished, *self.active]
+
+    def step(self, t_ms: int, frame: list[tuple[int, float, float, float, float, float]]) -> None:
+        eligible = [tr for tr in self.active if t_ms - tr.detections[-1][0] <= self.max_gap_ms]
+        self.finished.extend(tr for tr in self.active if tr not in eligible)
+        self.active = eligible
+        max_px = self.max_center_distance_px
+
+        assignments: list[tuple[int, int]] = []
+        if self.active and frame:
+            costs = np.full((len(self.active), len(frame)), _INVALID_COST, dtype=float)
+            for i, track in enumerate(self.active):
+                prediction = _predicted_box(track, t_ms, max_prediction_px=max_px * 1.5)
+                for j, detection in enumerate(frame):
+                    costs[i, j] = _association_cost(prediction, detection, max_px)
+            track_indices, detection_indices = linear_sum_assignment(costs)
+            for i, j in zip(track_indices, detection_indices, strict=True):
+                if costs[i, j] < _INVALID_COST:
+                    self.active[i].detections.append(frame[j])
+                    assignments.append((i, j))
+
+            # With boxes alone, only ambiguous two-track matches can be flagged as possible
+            # identity switches. Count one event per frame even if multiple pairs are ambiguous.
+            for (i, j), (k, ell) in combinations(assignments, 2):
+                direct = costs[i, j] + costs[k, ell]
+                crossed = costs[i, ell] + costs[k, j]
+                close_boxes = _iou(frame[j][1:5], frame[ell][1:5]) >= 0.1
+                if close_boxes and abs(direct - crossed) <= _SWITCH_AMBIGUITY_MARGIN:
+                    self.switch_frames.add(t_ms)
+
+        matched_detections = {j for _, j in assignments}
+        for j, detection in enumerate(frame):
+            if j not in matched_detections:
+                self.active.append(_Tracklet(self.next_index, [detection]))
+                self.next_index += 1
+
+
 def track_players(
     detections: Sequence[Sequence[float]],
     *,
@@ -159,48 +209,11 @@ def track_players(
     time_steps = [b - a for a, b in zip(times, times[1:], strict=False) if b > a]
     typical_step_ms = float(np.median(time_steps)) if time_steps else 1.0
 
-    active: list[_Tracklet] = []
-    finished: list[_Tracklet] = []
-    next_index = 0
-    switch_frames: set[int] = set()
-
+    assoc = _Associator(max_gap_ms, max_center_distance_px)
     for t_ms in times:
-        frame = grouped[t_ms]
-        eligible = [tr for tr in active if t_ms - tr.detections[-1][0] <= max_gap_ms]
-        finished.extend(tr for tr in active if tr not in eligible)
-        active = eligible
-
-        assignments: list[tuple[int, int]] = []
-        if active and frame:
-            costs = np.full((len(active), len(frame)), _INVALID_COST, dtype=float)
-            for i, track in enumerate(active):
-                prediction = _predicted_box(
-                    track, t_ms, max_prediction_px=max_center_distance_px * 1.5
-                )
-                for j, detection in enumerate(frame):
-                    costs[i, j] = _association_cost(prediction, detection, max_center_distance_px)
-            track_indices, detection_indices = linear_sum_assignment(costs)
-            for i, j in zip(track_indices, detection_indices, strict=True):
-                if costs[i, j] < _INVALID_COST:
-                    active[i].detections.append(frame[j])
-                    assignments.append((i, j))
-
-            # With boxes alone, only ambiguous two-track matches can be flagged as possible
-            # identity switches. Count one event per frame even if multiple pairs are ambiguous.
-            for (i, j), (k, ell) in combinations(assignments, 2):
-                direct = costs[i, j] + costs[k, ell]
-                crossed = costs[i, ell] + costs[k, j]
-                close_boxes = _iou(frame[j][1:5], frame[ell][1:5]) >= 0.1
-                if close_boxes and abs(direct - crossed) <= _SWITCH_AMBIGUITY_MARGIN:
-                    switch_frames.add(t_ms)
-
-        matched_detections = {j for _, j in assignments}
-        for j, detection in enumerate(frame):
-            if j not in matched_detections:
-                active.append(_Tracklet(next_index, [detection]))
-                next_index += 1
-
-    finished.extend(active)
+        assoc.step(t_ms, grouped[t_ms])
+    finished = assoc.tracklets()
+    switch_frames = assoc.switch_frames
     qualified = [tr for tr in finished if len(tr.detections) >= min_track_length]
     dropped_short = len(finished) - len(qualified)
     limit = 2 if format_ == "singles" else 4
@@ -303,3 +316,124 @@ def build_window_rows(
         "feet_withheld_tier_c": tier_c,
         "feet_withheld_off_court": off_court,
     }
+
+
+# A tracklet that starts after a player's tracklet ended joins that player's id when its first
+# foot point is within this many association radii of the player's last one (a player hidden
+# for more than max_gap_ms can have moved further than one frame step allows).
+_REJOIN_RADII = 2.0
+
+
+class LivePlayers:
+    """Player ids that stay the same across windows posted one by one, in time order.
+
+    Each window's person detections are fed once, in order (`feed_windows`); association is the
+    same causal Hungarian step as track_players, so the tracklets do not depend on how the
+    detections were split into windows. `rows(emit)` commits ids for the tracklets seen in that
+    range and never changes a committed id afterwards (a posted window is final):
+    - a tracklet with fewer than min_track_length boxes so far is not emitted;
+    - uncommitted tracklets are taken in order of first box (longest-observed first on a tie);
+      one joins the id whose current tracklet started before it and ended no later than
+      max_gap_ms after its first box (the associator often opens the successor a few frames
+      before the old tracklet stops), and whose foot point at that time is nearest (within
+      _REJOIN_RADII x max_center_distance_px); the old tracklet's boxes stop where the
+      successor starts. Else it opens a new id while fewer than 2 (singles) or 4 (doubles)
+      exist; else it is not emitted (a third person, e.g. an umpire, or a duplicate box).
+    Known limit: with ids still free, the first qualifying tracklets take them, so a third
+    person seen before a player would hold an id (on h13g both players are seen from 31 s).
+    Call rows for window k after feeding window k+1 when it exists, so tracklets that start
+    near the boundary have their next boxes.
+    """
+
+    def __init__(
+        self,
+        calibration_: calibration.Calibration | None,
+        format_: str = "singles",
+        *,
+        max_gap_ms: int = 500,
+        min_track_length: int = 3,
+        max_center_distance_px: float = 300.0,
+    ) -> None:
+        if format_ not in {"singles", "doubles"}:
+            raise ValueError("format_ must be 'singles' or 'doubles'")
+        self.calibration = calibration_
+        self.limit = 2 if format_ == "singles" else 4
+        self.min_track_length = min_track_length
+        self.max_gap_ms = max_gap_ms
+        self.rejoin_px = max_center_distance_px * _REJOIN_RADII
+        self._assoc = _Associator(max_gap_ms, max_center_distance_px)
+        self._windows_fed = 0
+        self._times: list[int] = []
+        self._slots: list[list[_Tracklet]] = []  # slot i carries track id t_{i+1}
+        self._slot_of: dict[int, int] = {}  # tracklet index -> slot
+
+    @property
+    def track_ids(self) -> list[str]:
+        """Ids committed so far, in the order they were opened."""
+        return [f"t_{i}" for i in range(1, len(self._slots) + 1)]
+
+    def feed_windows(self, results: Sequence[dict]) -> None:
+        """Feed the persons of the results not fed yet (results[i] is window i, in order)."""
+        for res in results[self._windows_fed :]:
+            grouped: dict[int, list] = defaultdict(list)
+            for row in _normalise_detections(res.get("persons", [])):
+                grouped[row[0]].append(row)
+            for t_ms in sorted(grouped):
+                if self._times and t_ms <= self._times[-1]:
+                    raise ValueError(f"person detections out of order: {t_ms} after "
+                                     f"{self._times[-1]}")  # fmt: skip
+                self._assoc.step(t_ms, grouped[t_ms])
+                self._times.append(t_ms)
+            self._windows_fed += 1
+
+    def _commit(self, lo: int, hi: int) -> None:
+        steps = [b - a for a, b in zip(self._times, self._times[1:], strict=False)]
+        typical = float(np.median(steps)) if steps else 1.0
+        pending = [
+            tr
+            for tr in self._assoc.tracklets()
+            if tr.index not in self._slot_of
+            and len(tr.detections) >= self.min_track_length
+            and any(lo <= d[0] < hi for d in tr.detections)
+        ]
+        pending.sort(
+            key=lambda tr: (
+                tr.detections[0][0],
+                -_observed_duration(tr.detections, typical),
+                -len(tr.detections),
+                tr.index,
+            )
+        )
+        for tr in pending:
+            first = tr.detections[0]
+            free = []
+            for i, slot in enumerate(self._slots):
+                last = slot[-1].detections
+                if last[-1][0] - first[0] > self.max_gap_ms or last[0][0] >= first[0]:
+                    continue  # the id's current tracklet goes on: a different person
+                before = [d for d in last if d[0] <= first[0]][-1]
+                free.append((float(np.linalg.norm(_foot(before[1:5]) - _foot(first[1:5]))), i))
+            near = [f for f in free if f[0] <= self.rejoin_px]
+            if near:
+                slot = min(near)[1]
+            elif len(self._slots) < self.limit:
+                self._slots.append([])
+                slot = len(self._slots) - 1
+            else:
+                continue
+            self._slots[slot].append(tr)
+            self._slot_of[tr.index] = slot
+
+    def rows(self, emit_range_ms: tuple[int, int]) -> tuple[list[list], dict]:
+        """window_result.v1 player rows for one emitted range, with committed stable ids."""
+        lo, hi = emit_range_ms
+        self._commit(lo, hi)
+        tracks = []
+        for i, slot in enumerate(self._slots, start=1):
+            # A tracklet's boxes count until its successor in the id starts (overlap <= gap).
+            ends = [nxt.detections[0][0] for nxt in slot[1:]] + [hi]
+            detections = tuple(d for tr, end in zip(slot, ends, strict=True)
+                               for d in tr.detections if lo <= d[0] < min(hi, end))  # fmt: skip
+            tracks.append(PlayerTrack(f"t_{i}", detections, observed_duration_ms=0.0))
+        rows, stats = build_window_rows(tracks, (lo, hi), self.calibration)
+        return rows, {**stats, "track_ids": self.track_ids}
