@@ -812,3 +812,31 @@ Template (copy to the end of the file):
   one fixed camera (our user), the burned-in score lets judges check rally winners, and singles is
   the format the rules confirm supports tonight. `eurogames_bern` is a low-resolution backup moment.
 - **Blast radius:** Person 2 tests and records on this clip (#84); demo script updated.
+
+## D-261011-VV2 · Person 1 covers Person 3's SDK, MCP and conflicted API PRs while Person 3 is away
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @VrajVed (Person 1) · **Supersedes:** none
+- **In one line:** With Person 3 (@nikhilpravinpise) asleep after the demo and the developer
+  platform not demo-able, Person 1 temporarily works in Person 3's folders on named items only,
+  rather than waiting, accepting that Person 3 reviews and deploys afterwards.
+- **Context:** #113 merged an SDK and an MCP server that cannot be used end to end yet: three MCP
+  tools call read routes that are not deployed, and auth needs #110 (developer keys), which now has
+  merge conflicts, as do #109 and #99. mcpkit (12 clients) finds no errors once the server starts,
+  but the server only starts inside the pnpm workspace.
+- **Decision:**
+  1. Person 1 may edit `sdk/`, `mcp/` and the files in conflict on #110, #109 and #99 under
+     `supabase/`, on `p3/…` branches only (CI's lane check reads the branch prefix). The local
+     `elevate.lane` is set to `p3` only while doing this and set back to `p1` after.
+  2. No contract, migration-semantics or auth-policy changes: conflict resolution keeps both sides'
+     intent; anything else waits for Person 3.
+  3. Person 1 cannot deploy the Supabase function; deployed-curl proof stays owed and is marked as
+     such in each PR. Person 3 reviews these PRs when back and may revert any of them.
+- **Alternatives:** (a) wait for Person 3, rejected: the developer platform stays broken; (b) a
+  `.claude/lanes.json` change, rejected: ownership should not change permanently.
+- **Blast radius:**
+  - Contracts: none.
+  - People and folders: Person 3 `supabase/`, `sdk/`, `mcp/` (review on return).
+  - Data/infra: no Supabase deploy, no secrets; no migration is added or changed in meaning.
+  - Containment: named PRs only; each revertible.
+- **Exit:** ends when Person 3 is back; revert any PR listed below.
+- **Proof / evidence:** mcpkit 0.6.0 report on `mcp/` (0 errors, 1 warning, 4 notes, 12 clients).
+- **PRs:** this PR; follow-ups listed in comments on #110, #109, #99 and the MCP/SDK PRs.

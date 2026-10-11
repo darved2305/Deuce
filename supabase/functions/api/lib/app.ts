@@ -6,7 +6,9 @@ import { env } from "./env.ts";
 import { defaultHook, notFound, onError } from "./errors.ts";
 import { registerAnalyses } from "../routes/analyses.ts";
 import { registerArtifacts } from "../routes/artifacts.ts";
+import { registerComparisons } from "../routes/comparisons.ts";
 import { registerCorrections } from "../routes/corrections.ts";
+import { registerDeveloperKeys } from "../routes/developer-keys.ts";
 import { registerHealth } from "../routes/health.ts";
 import { registerInternal } from "../routes/internal.ts";
 import { registerMatches } from "../routes/matches.ts";
@@ -27,9 +29,11 @@ export function createApp(deps: Deps = defaultDeps()): Hono {
   api.use("/v1/*", userAuth);
   registerHealth(api);
   registerAnalyses(api);
+  registerDeveloperKeys(api);
   registerArtifacts(api);
   registerMatches(api);
   registerReviews(api);
+  registerComparisons(api);
   registerCorrections(api);
   registerSessions(api);
   registerInternal(api);
@@ -37,7 +41,12 @@ export function createApp(deps: Deps = defaultDeps()): Hono {
   api.get("/v1/openapi.json", (c) => {
     const doc = api.getOpenAPIDocument({
       openapi: "3.0.4",
-      info: { title: "Elevate API", version: "0.1.0" },
+      info: {
+        title: "Elevate API",
+        version: "0.1.0",
+        description:
+          "X-API-Key is read-only and currently supports only GET /v1/analyses/{id}.",
+      },
       servers: [{ url: `${env("SUPABASE_URL")}/functions/v1/api` }],
     });
     const paths = Object.fromEntries(
