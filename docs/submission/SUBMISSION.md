@@ -33,7 +33,7 @@ No model is trained or fine-tuned.
 Repository: https://github.com/darved2305/ggw_elevate (README lists each claim with its link).
 - Phone to cloud to GPUs to streamed results: PRs #29, #50, #54, #74
 - Shuttle tracking numbers: PR #49. Hits: PRs #58, #76
-- 4-tap court calibration on real taps, grade B: issue #61 (pull request in progress, #80)
+- 4-tap court calibration on real taps, grade B: PR #87 (real taps on issue #61); the app and the engine agree to within 1 cm (PR #88)
 - Scoring rules and 45 vectors: PRs #40, #69, #70
 - Court lines, mini court, hit timeline, off-frame corners: PR #78
 - Cost guard (cloud use capped at 20% of the free tier, in code): docs/ops/cloudflare-budget.md
