@@ -20,6 +20,11 @@ from elevate_engine import calibration
 _INVALID_COST = 1e6
 _MAX_SPEED_PX_PER_MS = 2.5
 _SWITCH_AMBIGUITY_MARGIN = 0.08
+# A person's box height cannot double between frames ~80 ms apart. On h13g at 42520 ms the far
+# player stood right behind the near one: the near track's box overlapped the far box (IoU 0.37)
+# and the centres were close, but the heights were 343 vs 166 px. Without this gate the near
+# track jumped to the far player (5.4 m -> 13.2 m court y in one step).
+_MAX_HEIGHT_RATIO = 1.6
 
 
 @dataclass(frozen=True)
@@ -64,6 +69,15 @@ def _centre(box: Sequence[float]) -> np.ndarray:
     return np.array([(box[0] + box[2]) / 2, (box[1] + box[3]) / 2], dtype=float)
 
 
+def _foot(box: Sequence[float]) -> np.ndarray:
+    return np.array([(box[0] + box[2]) / 2, box[3]], dtype=float)
+
+
+def _height_ratio(a: Sequence[float], b: Sequence[float]) -> float:
+    ha, hb = max(a[3] - a[1], 1e-6), max(b[3] - b[1], 1e-6)
+    return max(ha, hb) / min(ha, hb)
+
+
 def _iou(a: Sequence[float], b: Sequence[float]) -> float:
     ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
     ix2, iy2 = min(a[2], b[2]), min(a[3], b[3])
@@ -98,8 +112,12 @@ def _association_cost(
     detection: Sequence[float],
     max_center_distance_px: float,
 ) -> float:
+    if _height_ratio(predicted_box, detection[1:5]) > _MAX_HEIGHT_RATIO:
+        return _INVALID_COST
     overlap = _iou(predicted_box, detection[1:5])
-    distance = float(np.linalg.norm(_centre(predicted_box) - _centre(detection[1:5])))
+    # Foot point (bottom centre): depth on court separates near and far players far better than
+    # the box centre, and it is the point the calibration projects.
+    distance = float(np.linalg.norm(_foot(predicted_box) - _foot(detection[1:5])))
     if distance > max_center_distance_px and overlap < 0.05:
         return _INVALID_COST
     distance_cost = min(distance / max_center_distance_px, 2.0)
@@ -245,30 +263,24 @@ def build_window_rows(
         for detection in track.detections
         if lo <= detection[0] < hi
     ]
-    if calibration_ is None:
-        count = len(emitted)
-        return [], {
-            "calibration_available": False,
-            "rows_emitted": 0,
-            "withheld_rows": count,
-            "withheld_no_calibration": count,
-            "withheld_tier_c": 0,
-            "withheld_off_court": 0,
-            "withholding_reason": "no_calibration",
-        }
-
-    rows, withheld_tier_c, withheld_off_court = [], 0, 0
+    # Contracts 1.8.0 (HW14 item 4): foot metres are nullable. A row is always emitted for an
+    # observed box; its feet are null (withheld) without a calibration, on a tier C calibration,
+    # above the court's horizon or more than OFF_COURT_MARGIN_M off the court.
+    rows, no_cal, tier_c, off_court = [], 0, 0, 0
     for track, detection in emitted:
         t_ms, x1, y1, x2, y2, score = detection
-        foot = calibration.player_metres(
-            calibration_.h, detection[1:5], calibration_.tier, calibration_.template
-        )
-        if foot is None:
-            if calibration_.tier == "C":
-                withheld_tier_c += 1
-            else:
-                withheld_off_court += 1
-            continue
+        foot = None
+        if calibration_ is None:
+            no_cal += 1
+        else:
+            foot = calibration.player_metres(
+                calibration_.h, detection[1:5], calibration_.tier, calibration_.template
+            )
+            if foot is None:
+                if calibration_.tier == "C":
+                    tier_c += 1
+                else:
+                    off_court += 1
         rows.append(
             [
                 t_ms,
@@ -277,19 +289,17 @@ def build_window_rows(
                 round(y1, 2),
                 round(x2, 2),
                 round(y2, 2),
-                round(foot[0], 4),
-                round(foot[1], 4),
+                None if foot is None else round(foot[0], 4),
+                None if foot is None else round(foot[1], 4),
                 round(score, 4),
             ]
         )
     rows.sort(key=lambda row: (row[0], int(row[1][2:])))
-    withheld = withheld_tier_c + withheld_off_court
     return rows, {
-        "calibration_available": True,
+        "calibration_available": calibration_ is not None,
         "rows_emitted": len(rows),
-        "withheld_rows": withheld,
-        "withheld_no_calibration": 0,
-        "withheld_tier_c": withheld_tier_c,
-        "withheld_off_court": withheld_off_court,
-        "withholding_reason": None,
+        "feet_withheld": no_cal + tier_c + off_court,
+        "feet_withheld_no_calibration": no_cal,
+        "feet_withheld_tier_c": tier_c,
+        "feet_withheld_off_court": off_court,
     }
