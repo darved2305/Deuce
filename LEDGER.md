@@ -127,3 +127,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T05:33Z | #158 | @HetanshWaghela | p4 | web: dev-site API reference shows all 29 live routes | none | 1.11.0 | ``` |
 | 2026-10-11T05:35Z | #160 | @HetanshWaghela | p4 | docs: business case (market, competition, pricing, real unit costs, scenarios) + | none | 1.11.0 | ``` |
 | 2026-10-11T06:04Z | #161 | @darved2305 | p2 | android: Tactics tab (readability, opponent scout, ghost base, point autopsy), l | none (D-007 labelling; D-261011-HW32 cap noted below) | 1.11.0 | **Real engine data:** `TacticsRealDataTest` runs on Person 1's committed run `engine/eval/runs/h13g_31_91_*` (Modal `ap- |
+| 2026-10-11T06:05Z | #162 | @VrajVed | p1 | engine: analyse segment uploads (Record live) on the original timeline | none | 1.11.0 | **Join on real pieces:** `h13g_singles` cut at its real keyframes 30.24 / 37.24 / 42.24 / 49.2 / 53.84 s (H.264 High wit |
