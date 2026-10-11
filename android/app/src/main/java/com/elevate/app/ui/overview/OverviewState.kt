@@ -186,7 +186,7 @@ object OverviewDerivation {
         }
         val singles = match?.format != "doubles"
         if (match == null) return CourtState.Badminton(singles, emptyList(), "No landings yet")
-        if (match.calibration.plane != "court") return CourtState.Badminton(singles, emptyList(), "No landings: calibration is not on the court plane")
+        if (match.calibration?.plane != "court") return CourtState.Badminton(singles, emptyList(), "No landings: ${if (match.calibration == null) "the match is not calibrated" else "calibration is not on the court plane"}")
         val all = match.shots
         val withLanding = all.filter { s ->
             val xy = s.chosen.landingXyM

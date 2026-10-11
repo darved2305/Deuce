@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createApp } from "../lib/app.ts";
 import type { Deps } from "../lib/deps.ts";
+import { createR2, type R2 } from "../lib/r2.ts";
 
 Deno.env.set("SUPABASE_URL", "https://test.supabase.co");
 Deno.env.set("INTERNAL_API_TOKEN", "tok");
@@ -62,6 +63,10 @@ export function fakeClient(handler: Handler, log: Call[] = []): SupabaseClient {
         state.payload = p;
         return chain;
       },
+      delete: () => {
+        state.op = "delete";
+        return chain;
+      },
       upsert: (p: unknown) => {
         state.op = "upsert";
         state.payload = p;
@@ -87,6 +92,13 @@ export function makeApp(
   fetchImpl: typeof fetch = () => Promise.reject(new Error("no network")),
   sleeps: number[] = [],
   adminLog: Call[] = [],
+  r2: R2 = createR2({
+    accountId: "acc",
+    accessKeyId: "AK",
+    secretAccessKey: "SK",
+    bucket: "bkt",
+    fetchImpl: () => Promise.reject(new Error("no r2 network")),
+  }),
 ) {
   Deno.env.set("INTERNAL_API_TOKEN", "tok");
   const deps: Deps = {
@@ -101,6 +113,7 @@ export function makeApp(
         return Promise.resolve();
       },
     }),
+    r2: () => r2,
     verifyJwt: () => Promise.resolve({ sub: "u1", isAnonymous: true }),
   };
   return createApp(deps);

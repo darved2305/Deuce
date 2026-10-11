@@ -298,3 +298,23 @@ test("1.7.0: engine reviews are unconfirmed; confirmations are all-or-none; matc
   const matchLevel = { ...m, metrics: [{ ...m.metrics[0], player_id: null }] };
   assert.equal(zodAccepts("match.v1", matchLevel), true, "match-level metric");
 });
+
+test("1.8.0: uncalibrated match, hits as events, withheld feet, segments session, windows_expected", () => {
+  const m = example("match.v1");
+  assert.equal(zodAccepts("match.v1", { ...m, calibration: null }), true, "uncalibrated match");
+  assert.equal(jsonAccepts("match.v1", { ...m, calibration: null }), true);
+  const hit = { event_id: "e_hit", type: "hit", t_ms: 21430, t_sigma_ms: 10, image_xy: [922.5, 723.8], cues: ["audio", "trajectory"], state: "candidate", evidence: [{ t_ms: 21430 }], track_id: "t_1" };
+  assert.equal(zodAccepts("match.v1", { ...m, events: [hit] }), true, "hit candidate without rally");
+  assert.equal(zodAccepts("match.v1", { ...m, calibration: { ...m.calibration, tier: "D" } }), false, "tier A|B|C");
+  assert.equal(zodAccepts("match.v1", { ...m, calibration: { ...m.calibration, H_cov: [1, 2] } }), false, "H_cov is 81 numbers");
+  const w = example("window_result.v1");
+  w.players = [[12000, "t_1", 410, 520, 470, 700, null, null, 0.97]];
+  assert.equal(zodAccepts("window_result.v1", w), true, "withheld foot metres");
+  assert.equal(jsonAccepts("window_result.v1", w), true);
+  const seg = { session_id: "s_doc", match_id: "m_doc", upload_mode: "segments", segments: { max_segment_bytes: 20971520, max_concurrency: 2, url_ttl_s: 600 } };
+  assert.equal(zodAccepts("session.create.response.v1", seg), true, "segments session");
+  assert.equal(zodAccepts("internal.event.request.v1", { type: "analysis.started", engine_version: "0.1.0", windows_expected: 81 }), true);
+  const fin = { vision_result: { ...m, calibration: null, rallies: [], shots: [], events: [], reviews: [], confirmed_points: [], score: { timeline: [], games: [] }, metrics: [], moments: [], clips: [], corrections: [] }, clip_artifact_ids: [] };
+  delete (fin.vision_result as any).insights;
+  assert.equal(zodAccepts("analysis.finalize.request.v1", fin), true, "minimal finalize body");
+});

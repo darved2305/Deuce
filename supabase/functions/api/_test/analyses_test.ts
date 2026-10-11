@@ -197,6 +197,23 @@ Deno.test("Modal network errors after retries keep the run queued", async () => 
   );
 });
 
+Deno.test("Modal timeouts after retries keep the run queued", async () => {
+  const timeout = () => {
+    throw new DOMException("timed out", "TimeoutError");
+  };
+  const t = build({ modal: [timeout, timeout, timeout, timeout] });
+  const res = await post(t.app);
+  assert.equal(res.status, 202);
+  assert.deepEqual(await res.json(), { analysis_id: "a_1", state: "queued" });
+  assert.equal(t.modalCalls(), 4);
+  assert.ok(
+    !t.log.some((c) =>
+      c.kind === "rpc" && c.name === "append_event" &&
+      c.args.p_type === "analysis.failed"
+    ),
+  );
+});
+
 Deno.test("idempotency replay returns stored 202 without touching Modal", async () => {
   const hash = await (await import("../lib/idempotency.ts")).canonicalHash({
     session_id: "s_1",

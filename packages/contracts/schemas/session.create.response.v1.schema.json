@@ -1,49 +1,103 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "match_id": {
-      "pattern": "^m_[A-Za-z0-9_-]+$",
-      "type": "string"
-    },
-    "session_id": {
-      "pattern": "^s_[A-Za-z0-9_-]+$",
-      "type": "string"
-    },
-    "upload": {
+  "anyOf": [
+    {
       "additionalProperties": false,
       "properties": {
-        "max_concurrency": {
-          "maximum": 9007199254740991,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "part_size": {
-          "maximum": 9007199254740991,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "r2_key": {
-          "pattern": "^orig\\/s_[A-Za-z0-9_-]+\\/source\\.mp4$",
+        "match_id": {
+          "pattern": "^m_[A-Za-z0-9_-]+$",
           "type": "string"
         },
-        "upload_id": {
+        "session_id": {
+          "pattern": "^s_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "upload": {
+          "additionalProperties": false,
+          "properties": {
+            "max_concurrency": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "part_size": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "r2_key": {
+              "pattern": "^orig\\/s_[A-Za-z0-9_-]+\\/source\\.mp4$",
+              "type": "string"
+            },
+            "upload_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "upload_id",
+            "r2_key",
+            "part_size",
+            "max_concurrency"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "session_id",
+        "match_id",
+        "upload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "match_id": {
+          "pattern": "^m_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "segments": {
+          "additionalProperties": false,
+          "properties": {
+            "max_concurrency": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "max_segment_bytes": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "url_ttl_s": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "max_segment_bytes",
+            "max_concurrency",
+            "url_ttl_s"
+          ],
+          "type": "object"
+        },
+        "session_id": {
+          "pattern": "^s_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "upload_mode": {
+          "const": "segments",
           "type": "string"
         }
       },
       "required": [
-        "upload_id",
-        "r2_key",
-        "part_size",
-        "max_concurrency"
+        "session_id",
+        "match_id",
+        "upload_mode",
+        "segments"
       ],
       "type": "object"
     }
-  },
-  "required": [
-    "session_id",
-    "match_id",
-    "upload"
-  ],
-  "type": "object"
+  ]
 }

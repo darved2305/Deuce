@@ -24,8 +24,8 @@ export const playerRowSchema = z.tuple([
   z.number(),
   z.number(),
   z.number(),
-  z.number(),
-  z.number(),
+  z.number().nullable(), // foot_x_m: null = withheld (uncalibrated or off-court), D-261011-HW14
+  z.number().nullable(), // foot_y_m
   z.number(),
 ]);
 
