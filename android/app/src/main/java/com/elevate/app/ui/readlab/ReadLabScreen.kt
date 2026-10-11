@@ -2,6 +2,10 @@ package com.elevate.app.ui.readlab
 
 import com.elevate.app.ui.components.Explanations
 import com.elevate.app.ui.components.ExplainBox
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -109,6 +113,33 @@ fun ReadLabRoute(vm: ReplayViewModel, drills: List<Drill>, cueSource: CueSource?
     val cue = remember(cueSource, frameUs) { if (frameUs != null) cueSource?.cueAt(frameUs) else null }
     val cueUi = cueSource?.let { CueUi(if (cueOn) cue else null, it.imageW, it.imageH, cueOn) { cueOn = !cueOn } }
 
+    // Reveal: once the answer is locked, play the real shot slowly from just before contact to the
+    // landing with the trail and the LANDING? mark on, then hold the landing frame.
+    val locked = s?.attempt?.locked == true
+    var replays by remember { mutableIntStateOf(0) }
+    LaunchedEffect(drillKey, locked, replays) {
+        val d = s?.drill ?: return@LaunchedEffect
+        if (!locked) {
+            vm.setOverlayVisible(false)
+            controller.setHitsVisible(false)
+            return@LaunchedEffect
+        }
+        vm.setOverlayVisible(true)
+        controller.setHitsVisible(true)
+        controller.pause()
+        controller.seekTo((d.challenge.contactMs - REVEAL_LEAD_MS).coerceAtLeast(0))
+        controller.setSpeed(REVEAL_SPEED)
+        delay(150)
+        controller.play()
+        val stopAt = d.landingMs + REVEAL_TAIL_MS
+        try {
+            while (controller.positionMs() < stopAt) delay(16)
+        } finally {
+            controller.pause()
+            controller.setSpeed(1f)
+        }
+    }
+
     BackHandler(onBack = onBack)
     ReadLabScreen(
         session = s,
@@ -117,11 +148,15 @@ fun ReadLabRoute(vm: ReplayViewModel, drills: List<Drill>, cueSource: CueSource?
         onPick = { z -> state.update { it.pick(z) } },
         onAnotherLook = { state.update { it.anotherLook() } },
         onNext = { controller.pause(); state.update { it.next() } },
-        onWatch = { controller.togglePlay() },
+        onWatch = { replays++ },
         onRestart = { state.restart() },
         onBack = onBack,
     )
 }
+
+private const val REVEAL_LEAD_MS = 400L
+private const val REVEAL_TAIL_MS = 300L
+private const val REVEAL_SPEED = 0.5f
 
 @UnstableApi
 @Composable
@@ -178,11 +213,14 @@ private fun Frozen(s: ReadLabSession, controller: PlayerController, cueUi: CueUi
         val player by controller.playerFlow.collectAsState()
         ContentFrame(player = player, modifier = Modifier.fillMaxSize().semantics { contentDescription = "Your match video, frozen just before a hit" })
         if (cueUi != null && !attempt.locked) ShuttleCueOverlay(cueUi.cue, cueUi.imageW, cueUi.imageH)
-        VideoChip("Drill ${s.index + 1} of ${s.drills.size} · frozen before the hit", Modifier.align(Alignment.TopStart).padding(12.dp))
+        VideoChip(
+            if (attempt.locked) "The real shot · ½× · stops where it landed" else "Drill ${s.index + 1} of ${s.drills.size} · frozen before the hit",
+            Modifier.align(Alignment.TopStart).padding(12.dp),
+        )
     }
     ExplainBox(Explanations.ZonePicker, Modifier.fillMaxWidth()) {
         Text(
-            if (attempt.locked) "Answer locked." else "Where will the shuttle land? Tap a zone.",
+            if (attempt.locked) "Answer locked. Watch the shot land, then check the orange mark below." else "Where will the shuttle land? Tap a zone.",
             style = MaterialTheme.typography.bodyMedium,
             color = c.ink,
         )
@@ -223,7 +261,7 @@ private fun Answer(s: ReadLabSession, onPick: (ZoneId) -> Unit, onAnotherLook: (
         SecondaryButton("Another look (a later frame)", onAnotherLook, Modifier.fillMaxWidth())
     }
     if (locked) {
-        SecondaryButton("Watch the real shot", onWatch, Modifier.fillMaxWidth())
+        SecondaryButton("Watch it land again", onWatch, Modifier.fillMaxWidth())
         PrimaryButton(if (s.isLast) "See summary" else "Next", onNext)
     }
 }

@@ -161,6 +161,7 @@ class PlayerController(context: Context) {
     }
 
     fun pause() = player.pause()
+    fun play() = player.play()
 
     /**
      * After the surface comes back or is resized while paused, the decoder may show a frame it had
