@@ -157,12 +157,17 @@ def hit_candidates(
     onset_sigma_ms: int = 10,
     min_event_gap_ms: int = 300,  # two hits need the shuttle to cross: ~300 ms minimum
     onset_offset_ms: int = 0,
+    owner_range: tuple[int, int] | None = None,
 ) -> list[dict]:
     """Fuse observed trajectory turns and nearby audio onsets into schema-shaped hits.
 
     ``track_id`` names the observed shuttle trail for this analysis. It does not associate a
     player; the current tracking output does not expose per-track IDs or player linkage.
     Onsets are shifted by -onset_offset_ms (estimate_av_offset_ms) before matching and fusing.
+    owner_range [lo, hi): keep only hits whose trajectory turn lies in it, with the fused time
+    clamped into it, so the window holding the turn owns the hit even when neighbouring windows
+    estimate slightly different audio offsets (a hit is then never dropped or duplicated at a
+    window boundary).
     """
     rows = _observed_rows(trail)
     turns = detect_direction_changes(trail)
@@ -186,7 +191,9 @@ def hit_candidates(
     track_id = shuttle_track_id(analysis_id)
     candidates = []
 
-    def add_candidate(t_ms: int, sigma_ms: int, xy: Sequence[float], cues: list[str]) -> None:
+    def add_candidate(
+        t_ms: int, sigma_ms: int, xy: Sequence[float], cues: list[str], turn_ms: int
+    ) -> None:
         event_hash = hashlib.sha256(f"{analysis_id}:{window_seq}:{t_ms}".encode()).hexdigest()[:24]
         candidates.append(
             {
@@ -198,6 +205,7 @@ def hit_candidates(
                 "image_xy": [float(xy[0]), float(xy[1])],
                 "cues": cues,
                 "state": "candidate",
+                "_turn_ms": turn_ms,
             }
         )
 
@@ -212,7 +220,7 @@ def hit_candidates(
             cues.append("audio")
         nearest = _nearest_row(rows, event_time, tolerance_ms)
         if nearest is not None:
-            add_candidate(event_time, sigma, nearest[1:3], cues)
+            add_candidate(event_time, sigma, nearest[1:3], cues, turn["t_ms"])
 
     # Audio-only onsets stay in window_result.onsets but do not become hit events: on real
     # footage many are footsteps or neighbouring courts. Merge turns closer than the gap.
@@ -220,4 +228,9 @@ def hit_candidates(
     for event in sorted(candidates, key=lambda e: (-len(e["cues"]), e["t_ms"])):
         if all(abs(event["t_ms"] - other["t_ms"]) >= min_event_gap_ms for other in kept):
             kept.append(event)
+    if owner_range is not None:
+        lo, hi = owner_range
+        kept = [{**e, "t_ms": min(max(e["t_ms"], lo), hi - 1)} for e in kept
+                if lo <= e["_turn_ms"] < hi]  # fmt: skip
+    kept = [{k: v for k, v in e.items() if k != "_turn_ms"} for e in kept]
     return sorted(kept, key=lambda event: (event["t_ms"], event["event_id"]))

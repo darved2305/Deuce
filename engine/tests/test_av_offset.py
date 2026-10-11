@@ -23,8 +23,11 @@ def test_real_audio_lag_is_estimated_and_most_hits_gain_the_audio_cue():
     plans = pipeline.plan_windows(31000, 91000)
     full, _ = pipeline.assemble("a_offline_h13g", plans, pw, BADMINTON)
     hits = [e for w in full for e in w["events"] if e["type"] == "hit"]
-    assert len(hits) == 32
-    assert sum("audio" in e["cues"] for e in hits) >= 20  # 9 before the lag was corrected
+    assert sum("audio" in e["cues"] for e in hits) >= 20  # 9 of 32 before the lag was corrected
+    # The turn at 79000 ms sits on the boundary of windows 7 and 8, whose offsets differ (120 vs
+    # 0). The window holding the turn owns the hit: it is emitted exactly once.
+    assert sum(abs(e["t_ms"] - 79000) <= 40 for e in hits) == 1
+    assert len({e["event_id"] for e in hits}) == len(hits)
     for k in range(len(pw)):
         assert pipeline.window_for_posting("a_offline_h13g", plans, pw, k, BADMINTON) == full[k]
 

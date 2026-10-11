@@ -131,7 +131,11 @@ def window_result(
 
 
 def window_hits(
-    analysis_id: str, k: int, rows: Sequence[list], results: Sequence[dict]
+    analysis_id: str,
+    k: int,
+    rows: Sequence[list],
+    results: Sequence[dict],
+    emit: tuple[int, int] | None = None,
 ) -> tuple[list[list], list[dict]]:
     """Audio onsets, candidate hits and candidate landings for window k, from tracked rows and
     the onsets of the given windows (k and its neighbours), so a turn near a boundary still finds
@@ -144,7 +148,8 @@ def window_hits(
     offset = estimate_av_offset_ms(detect_direction_changes(span_rows), onsets_)
     landed = landings.detect_landings(span_rows, known_until_ms=hi)
     landing_events = landings.window_events(landed, analysis_id, k, shuttle_track_id(analysis_id))
-    hits = hit_candidates(span_rows, onsets_, analysis_id, k, onset_offset_ms=offset)
+    hits = hit_candidates(span_rows, onsets_, analysis_id, k, onset_offset_ms=offset,
+                          owner_range=emit)  # fmt: skip
     events = hits + landing_events
     return onsets_, sorted(events, key=lambda e: (e["t_ms"], e["event_id"]))
 
@@ -157,7 +162,7 @@ def window_for_posting(
     h13g working clip this equals tracking the whole range at once for every window."""
     lo, hi = max(0, k - 1), min(len(results), k + 2)
     rows, _ = track_windows(results[lo:hi], cfg)
-    onsets_, events = window_hits(analysis_id, k, rows, results[lo:hi])
+    onsets_, events = window_hits(analysis_id, k, rows, results[lo:hi], plans[k].emit)
     return window_result(analysis_id, plans[k], results[k], rows, models, onsets_, events)
 
 
@@ -174,8 +179,7 @@ def assemble(
     windows = [
         window_result(analysis_id, plan, res, rows, models,
                       *window_hits(analysis_id, plan.seq, rows,
-                                   per_window[max(0, plan.seq - plans[0].seq - 1):
-                                              plan.seq - plans[0].seq + 2]))
-        for plan, res in zip(plans, per_window, strict=True)
+                                   per_window[max(0, i - 1):i + 2], plan.emit))
+        for i, (plan, res) in enumerate(zip(plans, per_window, strict=True))
     ]  # fmt: skip
     return windows, stats
