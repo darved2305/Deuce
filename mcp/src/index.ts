@@ -5,12 +5,24 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type * as ContractVendor from "../../supabase/functions/api/lib/contracts_vendor/index.ts";
 import * as z from "zod/v4";
+import {
+  countHits,
+  filterMoments,
+  landingZones,
+  rallyDetail,
+  rewatchPicks,
+  windowProgress,
+} from "./coach.ts";
 
 const contracts = createRequire(import.meta.url)(
   "../../supabase/functions/api/lib/contracts_vendor/index.ts",
 ) as typeof ContractVendor;
 const {
+  analysisIdSchema,
+  analysisGetResponseSchema,
+  analysisEventsPageSchema,
   capabilitiesResponseSchema,
+  comparisonsResponseSchema,
   errorEnvelopeSchema,
   matchIdSchema,
   matchV1Schema,
@@ -18,26 +30,75 @@ const {
   playerIdSchema,
   rallyDetailSchema,
   rallyIdSchema,
+  shotIdSchema,
 } = contracts;
 
 const DEFAULT_API_BASE =
   "https://zpwxjjsugujmihhkmfjx.supabase.co/functions/v1/api";
 
-const getMatchSummaryInput = z.object({
+export const getMatchSummaryInput = z.object({
   match_id: matchIdSchema.describe("Match ID from the Elevate API."),
 });
 
-const findMomentsInput = z.object({
-  match_id: matchIdSchema.optional(),
-  tags: z.array(z.string()).optional(),
-  player: playerIdSchema.optional(),
-  outcome: z.enum(["won", "lost"]).optional(),
-  limit: z.number().int().max(20).optional(),
+export const findMomentsInput = z.object({
+  match_id: matchIdSchema.optional().describe(
+    "Match to search. Required when any filter is used.",
+  ),
+  tags: z.array(z.string().min(1).max(40)).max(10).optional().describe(
+    "Keep moments that carry every one of these tags.",
+  ),
+  player: playerIdSchema.optional().describe(
+    "Keep moments whose shot was played by this player.",
+  ),
+  outcome: z.enum(["won", "lost"]).optional().describe(
+    "Keep moments from rallies the shot's player won or lost.",
+  ),
+  limit: z.number().int().min(1).max(20).optional().describe(
+    "Maximum moments to return (1 to 20, default 20).",
+  ),
 });
 
-const getRallyInput = z.object({
+export const getRallyInput = z.object({
   match_id: matchIdSchema,
   rally_id: rallyIdSchema,
+});
+
+export const getCapabilitiesInput = z.object({
+  match_id: matchIdSchema.optional().describe(
+    "Read the capability tiers recorded on this match instead of the build-wide ones.",
+  ),
+});
+
+export const rewatchPicksInput = z.object({
+  match_id: matchIdSchema,
+  focus: z.enum(["longest_rallies", "lost_rallies", "landings"]).default(
+    "longest_rallies",
+  ).describe(
+    "longest_rallies: ranked by shot count. lost_rallies: only rallies you did not win. landings: also returns where each player aimed.",
+  ),
+  limit: z.number().int().min(1).max(10).default(3),
+  player: playerIdSchema.optional().describe(
+    "The player to coach. Defaults to the player confirmed as you (user_confirmed).",
+  ),
+});
+
+export const getLandingZonesInput = z.object({
+  match_id: matchIdSchema,
+  player: playerIdSchema.optional(),
+});
+
+export const compareMomentInput = z.object({
+  match_id: matchIdSchema,
+  shot_id: shotIdSchema,
+  scope: z.enum(["own", "shared", "reference"]).default("own"),
+  limit: z.number().int().min(1).max(5).default(5),
+});
+
+export const getAnalysisProgressInput = z.object({
+  analysis_id: analysisIdSchema,
+  include_hits: z.boolean().default(true).describe(
+    "Download each finished window result and count its hit candidates (at most 20 windows).",
+  ),
 });
 
 const openApiPaths = new Map<string, Promise<Record<string, unknown>>>();
@@ -91,7 +152,7 @@ function authHeaders(): Headers {
   return headers;
 }
 
-async function requestApi(path: string): Promise<unknown> {
+export async function requestApi(path: string): Promise<unknown> {
   const response = await fetch(`${apiBase()}${path}`, {
     method: "GET",
     headers: authHeaders(),
@@ -175,20 +236,35 @@ async function requestContract<T>(
   return parsed.data;
 }
 
-async function findMomentsRoute(input: z.infer<typeof findMomentsInput>) {
-  if (
-    (input.tags?.length ?? 0) > 0 || input.player !== undefined ||
-    input.outcome !== undefined || input.limit !== undefined
-  ) {
-    throw new ToolUnavailable(
-      "Not available yet: the vendored API contract does not define a request schema for moments query filters.",
+async function getMatch(matchId: string) {
+  const parsed = matchV1Schema.safeParse(
+    await requestApi(`/v1/matches/${encodeURIComponent(matchId)}`),
+  );
+  if (!parsed.success) {
+    throw new Error(
+      "The API response did not match the vendored match.v1 schema.",
     );
   }
-  const route = input.match_id ? "/v1/matches/{id}/moments" : "/v1/moments";
-  const requestPath = input.match_id
-    ? `/v1/matches/${encodeURIComponent(input.match_id)}/moments`
-    : "/v1/moments";
-  const page = await requestContract(route, requestPath, momentsPageSchema);
+  return parsed.data;
+}
+
+async function findMomentsRoute(input: z.infer<typeof findMomentsInput>) {
+  const filtered = (input.tags?.length ?? 0) > 0 || input.player !== undefined ||
+    input.outcome !== undefined || input.limit !== undefined;
+  if (input.match_id) {
+    // match.v1 carries the moments, shots and rallies, so filters are applied here, typed.
+    return filterMoments(await getMatch(input.match_id), input);
+  }
+  if (filtered) {
+    throw new ToolUnavailable(
+      "Filters need a match_id: pass the match to search.",
+    );
+  }
+  const page = await requestContract(
+    "/v1/moments",
+    "/v1/moments",
+    momentsPageSchema,
+  );
   return {
     items: page.items.map((moment) => ({
       ...moment,
@@ -199,7 +275,7 @@ async function findMomentsRoute(input: z.infer<typeof findMomentsInput>) {
   };
 }
 
-function summarizeMatch(value: unknown) {
+export function summarizeMatch(value: unknown) {
   const parsed = matchV1Schema.safeParse(value);
   if (!parsed.success) {
     throw new Error(
@@ -277,18 +353,18 @@ export function createServer(): McpServer {
     {
       title: "Get rally",
       annotations: READ_ONLY,
-      description: "Read a rally and its shots.",
+      description:
+        "Read one rally of a match with its shots (landing zones, contact times, provenance states) and a deep link to its start.",
       inputSchema: getRallyInput,
     },
     ({ match_id, rally_id }) =>
-      handleTool("get_rally", () =>
-        requestContract(
-          "/v1/matches/{id}/rallies/{rid}",
-          `/v1/matches/${encodeURIComponent(match_id)}/rallies/${
-            encodeURIComponent(rally_id)
-          }`,
-          rallyDetailSchema,
-        )),
+      handleTool("get_rally", async () => {
+        const detail = rallyDetail(await getMatch(match_id), rally_id);
+        if (!detail) {
+          throw new Error(`Rally ${rally_id} is not in match ${match_id}.`);
+        }
+        return detail;
+      }),
   );
 
   server.registerTool(
@@ -296,16 +372,135 @@ export function createServer(): McpServer {
     {
       title: "Get capabilities",
       annotations: READ_ONLY,
-      description: "Read capability tiers and verification status.",
-      inputSchema: z.object({}),
+      description:
+        "Read capability tiers and verification status, build-wide or for one match.",
+      inputSchema: getCapabilitiesInput,
     },
-    () =>
-      handleTool("get_capabilities", () =>
-        requestContract(
-          "/v1/capabilities",
-          "/v1/capabilities",
-          capabilitiesResponseSchema,
-        )),
+    ({ match_id }) =>
+      handleTool("get_capabilities", async () =>
+        match_id
+          ? { capabilities: (await getMatch(match_id)).capabilities }
+          : await requestContract(
+            "/v1/capabilities",
+            "/v1/capabilities",
+            capabilitiesResponseSchema,
+          )),
+  );
+
+  server.registerTool(
+    "rewatch_picks",
+    {
+      title: "Rewatch picks",
+      annotations: READ_ONLY,
+      description:
+        "Answer 'which rallies should I rewatch and why?'. Ranks rallies by length (or only the ones you lost), gives a checkable reason for each, the match's top insights, and a deep link elevate://m/{match}/r/{rally}?t_ms= that opens the Elevate app at that moment. Counts come from the record; quote them, do not recompute.",
+      inputSchema: rewatchPicksInput,
+    },
+    (input) =>
+      handleTool("rewatch_picks", async () => {
+        const match = await getMatch(input.match_id);
+        const picks = rewatchPicks(match, input);
+        return input.focus === "landings"
+          ? { ...picks, landing_zones: landingZones(match, input.player) }
+          : picks;
+      }),
+  );
+
+  server.registerTool(
+    "get_landing_zones",
+    {
+      title: "Get landing zones",
+      annotations: READ_ONLY,
+      description:
+        "Where each player aimed their shots in a match: zone counts and shares with denominators, plus how many were observed versus inferred.",
+      inputSchema: getLandingZonesInput,
+    },
+    ({ match_id, player }) =>
+      handleTool("get_landing_zones", async () => ({
+        match_id,
+        players: landingZones(await getMatch(match_id), player),
+      })),
+  );
+
+  server.registerTool(
+    "compare_moment",
+    {
+      title: "Compare moment",
+      annotations: READ_ONLY,
+      description:
+        "The most similar moments to one shot (up to 5), from your own matches, shared ones or the reference set, with how often they worked and their provenance.",
+      inputSchema: compareMomentInput,
+    },
+    ({ match_id, shot_id, scope, limit }) =>
+      handleTool("compare_moment", async () => {
+        const path = `/v1/matches/${encodeURIComponent(match_id)}/shots/${
+          encodeURIComponent(shot_id)
+        }/comparisons?scope=${scope}&limit=${limit}`;
+        const parsed = comparisonsResponseSchema.safeParse(
+          await requestApi(path),
+        );
+        if (!parsed.success) {
+          throw new Error(
+            "The API response did not match the vendored comparisons schema.",
+          );
+        }
+        return parsed.data;
+      }),
+  );
+
+  server.registerTool(
+    "get_analysis_progress",
+    {
+      title: "Get analysis progress",
+      annotations: READ_ONLY,
+      description:
+        "Live progress of an analysis: state, windows done of expected, and hit candidates so far.",
+      inputSchema: getAnalysisProgressInput,
+    },
+    ({ analysis_id, include_hits }) =>
+      handleTool("get_analysis_progress", async () => {
+        const id = encodeURIComponent(analysis_id);
+        const analysis = analysisGetResponseSchema.parse(
+          await requestApi(`/v1/analyses/${id}`),
+        );
+        const events: Array<Record<string, unknown>> = [];
+        let after = 0;
+        for (let page = 0; page < 20; page++) {
+          const body = analysisEventsPageSchema.parse(
+            await requestApi(`/v1/analyses/${id}/events?after_seq=${after}&limit=100`),
+          );
+          events.push(...(body.events as Array<Record<string, unknown>>));
+          after = body.next_after_seq;
+          if (!body.has_more) break;
+        }
+        const progress = windowProgress(
+          events as unknown as Parameters<typeof windowProgress>[0],
+        );
+        let hits: number | null = null;
+        if (include_hits) {
+          hits = 0;
+          for (const artifactId of progress.window_artifact_ids.slice(0, 20)) {
+            const signed = await requestApi(
+              `/v1/artifacts/${encodeURIComponent(artifactId)}`,
+            ) as { url?: string };
+            if (!signed.url) continue;
+            const res = await fetch(signed.url);
+            if (res.ok) hits += countHits(await res.json());
+          }
+        }
+        return {
+          analysis_id: analysis.analysis_id,
+          match_id: analysis.match_id,
+          state: analysis.state,
+          engine_version: analysis.engine_version,
+          failure_reason: analysis.failure_reason,
+          windows_expected: progress.windows_expected,
+          windows_done: progress.windows_done,
+          windows_failed: progress.windows_failed,
+          hit_candidates_so_far: hits,
+          last_seq: analysis.last_seq,
+        };
+      }),
   );
 
   return server;

@@ -144,10 +144,14 @@ test("stdio server lists tools and validates capability responses", async (t) =>
     assert.equal(listed.error, undefined, JSON.stringify(listed));
     const names = listed.result?.tools?.map((tool) => tool.name) ?? [];
     assert.deepEqual(names.sort(), [
+      "compare_moment",
       "find_moments",
+      "get_analysis_progress",
       "get_capabilities",
+      "get_landing_zones",
       "get_match_summary",
       "get_rally",
+      "rewatch_picks",
     ]);
     t.diagnostic(`tools/list: ${names.join(", ")}`);
 
