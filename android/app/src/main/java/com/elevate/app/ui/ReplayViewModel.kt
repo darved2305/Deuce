@@ -445,7 +445,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     private var adopted: com.elevate.app.data.history.MatchHistoryEntry? = null
 
     /** Opens a remembered analysis: its Analysing/Overview panel at once, and its video if still readable. */
-    fun openHistory(analysisId: String) {
+    fun openHistory(analysisId: String, seekMs: Long? = null) {
         val p = _pipeline.value
         if (p == Screen.Pipeline.Uploading || p is Screen.Pipeline.StartingAnalysis) { _panel.value = Screen.Panel.Analysing; return }
         // A restore still finishing in the background must not switch the screen to its own analysis
@@ -462,8 +462,35 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 uri, e.durationMs, e.title,
             )
             _pipeline.value = Screen.Pipeline.Started(e.analysisId, e.sessionId, e.matchId, dispatched = true, state = e.lastState ?: "queued")
+            // A deep link with a moment goes straight to the video there (paused), not to the overview.
+            val atMoment = seekMs != null && uri != null
+            if (atMoment) pendingSeekMs = seekMs
             uri?.let { onPicked(it) }
-            showPanel(if (e.status() == com.elevate.app.data.history.HistoryStatus.Analysing) Screen.Panel.Analysing else Screen.Panel.Overview)
+            showPanel(
+                when {
+                    atMoment -> Screen.Panel.None
+                    e.status() == com.elevate.app.data.history.HistoryStatus.Analysing -> Screen.Panel.Analysing
+                    else -> Screen.Panel.Overview
+                },
+            )
+        }
+    }
+
+    /**
+     * An `elevate://m/...` link: finds the match by id in this phone's history and opens it, at the
+     * link's moment when it has one. A match that is not here says so on the home screen.
+     */
+    fun openDeepLink(target: com.elevate.app.domain.link.DeepLinkTarget) {
+        viewModelScope.launch {
+            val e = withContext(Dispatchers.IO) {
+                runCatching { history.history.list().firstOrNull { it.matchId == target.matchId } }.getOrNull()
+            }
+            if (e == null) {
+                showPanel(Screen.Panel.None)
+                _screen.value = Screen.Import(error = "This match isn't on this phone yet")
+                return@launch
+            }
+            openHistory(e.analysisId, target.tMs)
         }
     }
 
