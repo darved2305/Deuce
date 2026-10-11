@@ -77,6 +77,17 @@ test("rally detail orders shots and returns null for an unknown rally", () => {
   assert.equal(rallyDetail(match, "r_zzz"), null);
 });
 
+test("window progress reads windows_expected from window.completed when analysis.started has none", () => {
+  // Shape seen on the deployed API for run a_1549d3f005ce4e098e205526e86fcaa5.
+  const p = windowProgress([
+    { type: "analysis.started", seq: 2 },
+    { type: "window.completed", seq: 3, window_seq: 0, windows_expected: 11, artifact_id: "art_1" },
+    { type: "window.completed", seq: 4, window_seq: 1, windows_expected: 11, artifact_id: "art_2" },
+  ]);
+  assert.equal(p.windows_expected, 11);
+  assert.equal(p.windows_done, 2);
+});
+
 test("window progress reads windows_expected, done and failed from the events", () => {
   const p = windowProgress([
     { type: "analysis.queued", seq: 1 },
