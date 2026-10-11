@@ -23,6 +23,7 @@ const {
   analysisEventsPageSchema,
   capabilitiesResponseSchema,
   comparisonsResponseSchema,
+  feedPageSchema,
   errorEnvelopeSchema,
   matchIdSchema,
   matchV1Schema,
@@ -38,6 +39,10 @@ const DEFAULT_API_BASE =
 
 export const getMatchSummaryInput = z.object({
   match_id: matchIdSchema.describe("Match ID from the Elevate API."),
+});
+
+export const getFriendFeedInput = z.object({
+  cursor: z.string().min(1).optional().describe("Opaque cursor from the previous feed page."),
 });
 
 export const findMomentsInput = z.object({
@@ -319,6 +324,24 @@ const READ_ONLY = {
 
 export function createServer(): McpServer {
   const server = new McpServer({ name: "elevate", version: "1.0.0" });
+
+  server.registerTool(
+    "get_friend_feed",
+    {
+      title: "Get friend feed",
+      annotations: READ_ONLY,
+      description:
+        "Read the caller's and friends' frozen match posts, newest first. Landing counts remain MODEL ESTIMATE values.",
+      inputSchema: getFriendFeedInput,
+    },
+    ({ cursor }) =>
+      handleTool("get_friend_feed", () =>
+        requestContract(
+          "/v1/feed",
+          cursor ? `/v1/feed?cursor=${encodeURIComponent(cursor)}` : "/v1/feed",
+          feedPageSchema,
+        )),
+  );
 
   server.registerTool(
     "get_match_summary",

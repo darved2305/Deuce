@@ -25,6 +25,7 @@ export const developerKeyIdSchema = idSchema("k_");
 export const calibrationIdSchema = idSchema("cal_");
 export const insightIdSchema = idSchema("in_");
 export const challengeIdSchema = idSchema("ch_");
+export const postIdSchema = idSchema("po_");
 
 export const idSchemas = {
   m_: matchIdSchema,
@@ -48,6 +49,7 @@ export const idSchemas = {
   cal_: calibrationIdSchema,
   in_: insightIdSchema,
   ch_: challengeIdSchema,
+  po_: postIdSchema,
 } as const;
 
 export const provenanceStateSchema = z.enum([

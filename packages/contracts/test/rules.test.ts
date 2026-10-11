@@ -378,3 +378,42 @@ test("1.11.0 (D-261011-HW31): friends and challenges shapes", () => {
   assert.equal(jsonAccepts("friends.response.v1", friends), true);
   assert.equal(zodAccepts("friends.response.v1", { items: [{ ...friends.items[0], wins: -1 }] }), false);
 });
+
+test("1.12.0 (D-261011-HW34): match post and feed shapes", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const request = { caption: "Match summary" };
+  assert.equal(zodAccepts("post.create.request.v1", request), true);
+  assert.equal(jsonAccepts("post.create.request.v1", request), true);
+  assert.equal(zodAccepts("post.create.request.v1", {}), true);
+  assert.equal(zodAccepts("post.create.request.v1", { caption: "x".repeat(141) }), false);
+  assert.equal(zodAccepts("post.create.request.v1", { caption: "x", extra: true }), false);
+
+  const summary = {
+    title: null,
+    duration_ms: null,
+    rally_count: null,
+    hit_count: null,
+    landings_in: null,
+    landings_out: null,
+    longest_rally_ms: null,
+    top_coach_points: [],
+    landing_points_m: [],
+    owner_display_name: "Asha",
+  };
+  const post = {
+    post_id: "po_doc",
+    match_id: "m_doc",
+    owner: { player_id: uid, display_name: "Asha" },
+    created_at: "2026-10-11T10:00:00Z",
+    caption: null,
+    summary,
+  };
+  assert.equal(zodAccepts("post.v1", post), true);
+  assert.equal(jsonAccepts("post.v1", post), true);
+  assert.equal(zodAccepts("post.v1", { ...post, post_id: "m_doc" }), false);
+  assert.equal(zodAccepts("post.summary.v1", { ...summary, top_coach_points: ["a", "b", "c", "d"] }), false);
+  const feed = { items: [post], next_cursor: "cursor" };
+  assert.equal(zodAccepts("feed.page.v1", feed), true);
+  assert.equal(jsonAccepts("feed.page.v1", feed), true);
+  assert.equal(zodAccepts("feed.page.v1", { items: [], next_cursor: null }), true);
+});

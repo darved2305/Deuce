@@ -148,6 +148,7 @@ test("stdio server lists tools and validates capability responses", async (t) =>
       "find_moments",
       "get_analysis_progress",
       "get_capabilities",
+      "get_friend_feed",
       "get_landing_zones",
       "get_match_summary",
       "get_rally",

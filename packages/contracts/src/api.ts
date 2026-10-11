@@ -22,6 +22,7 @@ import {
   microsecondsSchema,
   momentIdSchema,
   playerIdSchema,
+  postIdSchema,
   provenanceStateSchema,
   rallyClipIdSchema,
   rallyIdSchema,
@@ -68,6 +69,7 @@ export const knownErrorCodes = {
   daily_upload_limit: 429,
   too_many_part_requests: 429,
   daily_download_limit: 429,
+  daily_post_limit: 429,
   analysis_limit_reached: 429,
   internal: 500,
   segment_gap: 409,
@@ -930,6 +932,42 @@ export const friendSchema = strictObject({
 });
 export const friendsResponseSchema = strictObject({ items: z.array(friendSchema) });
 
+const postOwnerSchema = strictObject({
+  player_id: z.uuid(),
+  display_name: z.string().nullable(),
+});
+
+export const postCreateRequestSchema = strictObject({
+  caption: z.string().max(140).optional(),
+});
+
+export const postSummarySchema = strictObject({
+  title: z.string().nullable(),
+  duration_ms: millisecondsSchema.nullable(),
+  rally_count: nonNegativeInteger.nullable(),
+  hit_count: nonNegativeInteger.nullable(),
+  landings_in: nonNegativeInteger.nullable(),
+  landings_out: nonNegativeInteger.nullable(),
+  longest_rally_ms: millisecondsSchema.nullable(),
+  top_coach_points: z.array(z.string()).max(3),
+  landing_points_m: z.array(strictObject({ x_m: z.number(), y_m: z.number() })),
+  owner_display_name: z.string().nullable(),
+});
+
+export const postV1Schema = strictObject({
+  post_id: postIdSchema,
+  match_id: matchIdSchema,
+  owner: postOwnerSchema,
+  created_at: isoTimestampSchema,
+  caption: z.string().max(140).nullable(),
+  summary: postSummarySchema,
+});
+
+export const feedPageSchema = strictObject({
+  items: z.array(postV1Schema),
+  next_cursor: nextCursorSchema,
+});
+
 export const simulationRunRequestSchema = strictObject({
   moment_id: momentIdSchema,
   mode: z.enum(["read", "decide"]),
@@ -991,3 +1029,7 @@ export type ChallengeCreateRequest = z.infer<typeof challengeCreateRequestSchema
 export type ChallengeEntryRequest = z.infer<typeof challengeEntryRequestSchema>;
 export type Challenge = z.infer<typeof challengeSchema>;
 export type FriendsResponse = z.infer<typeof friendsResponseSchema>;
+export type PostCreateRequest = z.infer<typeof postCreateRequestSchema>;
+export type PostSummary = z.infer<typeof postSummarySchema>;
+export type PostV1 = z.infer<typeof postV1Schema>;
+export type FeedPage = z.infer<typeof feedPageSchema>;
