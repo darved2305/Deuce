@@ -70,6 +70,8 @@ class OverviewDerivationTest {
     }
 
     @Test fun `court draws only real landings, with counts and denominators`() {
+        // Shot landings are the fallback when the record has no landing events.
+        val example = example.copy(events = emptyList())
         val c = OverviewDerivation.court(example) as CourtState.Badminton
         assertThat(c.singles).isTrue()
         assertThat(c.marks.single().xM).isEqualTo(3.0)
@@ -79,7 +81,7 @@ class OverviewDerivationTest {
         assertThat(cf.marks).isEmpty()
         assertThat(cf.note).isEqualTo("No landings to draw from 1 shot")
         val none = OverviewDerivation.court(example.copy(shots = emptyList())) as CourtState.Badminton
-        assertThat(none.note).isEqualTo("No landings yet")
+        assertThat(none.note).isEqualTo("No landings in this match")
         assertThat(OverviewDerivation.court(example.copy(sport = "table_tennis"))).isInstanceOf(CourtState.NotApplicable::class.java)
     }
 
