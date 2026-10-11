@@ -13,6 +13,8 @@ import hashlib
 import re
 from collections.abc import Sequence
 
+from elevate_engine.landings import court_point
+
 SESSION_FROM_KEY = re.compile(r"^(?:orig|seg)/(s_[A-Za-z0-9_-]+)/")
 
 
@@ -39,14 +41,18 @@ def players(match_id: str, session_spec: dict) -> list[dict]:
     ]
 
 
-def match_events(window_events: Sequence[dict]) -> list[dict]:
-    """window_result hit events -> match.v1 events. The shuttle-trail track_id is not carried
-    over: in match.v1 a hit's track_id means the hitter, which the engine does not know yet."""
+def match_events(window_events: Sequence[dict], calibration: dict | None = None) -> list[dict]:
+    """window_result events -> match.v1 events. The shuttle-trail track_id is not carried over:
+    in match.v1 a hit's track_id means the hitter, which the engine does not know yet. A landing
+    gets court metres and their covariance only from a tier A/B calibration."""
     keep = ("event_id", "type", "t_ms", "t_sigma_ms", "image_xy", "cues", "state")
-    return [
-        {**{k: e[k] for k in keep}, "evidence": [{"t_ms": e["t_ms"]}]}
-        for e in sorted(window_events, key=lambda e: (e["t_ms"], e["event_id"]))
-    ]
+    out = []
+    for e in sorted(window_events, key=lambda e: (e["t_ms"], e["event_id"])):
+        m = {**{k: e[k] for k in keep}, "evidence": [{"t_ms": e["t_ms"]}]}
+        if e["type"] == "landing":
+            m.update(court_point(calibration, e["image_xy"]) or {})
+        out.append(m)
+    return out
 
 
 def request(
@@ -89,7 +95,7 @@ def request(
         },
         "rallies": [],
         "shots": [],
-        "events": match_events(window_events),
+        "events": match_events(window_events, calibration),
         "reviews": [],
         "confirmed_points": [],
         "score": {"timeline": [], "games": []},

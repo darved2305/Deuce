@@ -23,8 +23,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from elevate_engine import landings
 from elevate_engine import window as win
-from elevate_engine.hits import hit_candidates
+from elevate_engine.hits import hit_candidates, shuttle_track_id
 from elevate_engine.sports import TrackingConfig
 from elevate_engine.tracking import track
 
@@ -127,12 +128,16 @@ def window_result(
 def window_hits(
     analysis_id: str, k: int, rows: Sequence[list], results: Sequence[dict]
 ) -> tuple[list[list], list[dict]]:
-    """Audio onsets and candidate hit events for window k, from tracked rows and the onsets of
-    the given windows (k and its neighbours), so a turn near a boundary still finds its onset.
+    """Audio onsets, candidate hits and candidate landings for window k, from tracked rows and
+    the onsets of the given windows (k and its neighbours), so a turn near a boundary still finds
+    its onset; a landing needs QUIET_MS without the shuttle inside the known range.
     window.build keeps only those inside window k's emitted range. A result without an
     "onsets" key (no audio measured) gives trajectory-only candidates."""
     onsets_ = sorted(o for res in results for o in res.get("onsets", []))
-    return onsets_, hit_candidates(rows, onsets_, analysis_id, k)
+    landed = landings.detect_landings(rows, known_until_ms=max(r["emit"][1] for r in results))
+    landing_events = landings.window_events(landed, analysis_id, k, shuttle_track_id(analysis_id))
+    events = hit_candidates(rows, onsets_, analysis_id, k) + landing_events
+    return onsets_, sorted(events, key=lambda e: (e["t_ms"], e["event_id"]))
 
 
 def window_for_posting(
