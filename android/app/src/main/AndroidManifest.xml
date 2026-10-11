@@ -14,6 +14,13 @@
     <!-- Upload progress notification (runtime permission on API 33+; the app asks before uploading). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Voice coach: Android 11+ needs this to find the phone's text to speech engine. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -32,7 +39,25 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Links from the AI assistant: elevate://m/{match_id}[/r/{rally_id}?t_ms={ms}] (domain/link/DeepLink.kt). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="elevate" android:host="m" />
+            </intent-filter>
         </activity>
+
+        <!-- Share your match card: the cached PNG goes to the share sheet through this provider. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/share_paths" />
+        </provider>
 
         <!-- API 34+ upload: user-initiated data transfer job (data/upload/UploadJobService.kt). -->
         <service
