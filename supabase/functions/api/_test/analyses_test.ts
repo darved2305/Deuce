@@ -21,7 +21,7 @@ type Opts = {
   curState?: string;
   attempts?: number;
   spec?: unknown;
-  modal?: Array<() => Response>;
+  modal?: Array<(init?: RequestInit) => Response>;
   events?: unknown[];
 };
 
@@ -78,11 +78,11 @@ function build(o: Opts = {}) {
     }
     return ok(null);
   };
-  const fetchImpl = (() => {
+  const fetchImpl = ((_input: unknown, init?: RequestInit) => {
     const r = (o.modal ?? [() => jsonRes(200, { modal_call_id: "fc-1" })])[
       modalCalls++
     ];
-    return Promise.resolve(r());
+    return Promise.resolve(r(init));
   }) as typeof fetch;
   const app = makeApp(user, admin, fetchImpl, sleeps, log);
   return { app, log, sleeps, modalCalls: () => modalCalls };
@@ -106,6 +106,22 @@ function post(app: ReturnType<typeof build>["app"], headers: HeadersInit = {
 
 const names = (log: Call[]) =>
   log.filter((c) => c.kind === "rpc").map((c) => (c as { name: string }).name);
+
+Deno.test("dispatch sends the run's match_id and session_id to Modal (contracts 1.9.0)", async () => {
+  let sent: Record<string, unknown> = {};
+  const t = build({
+    run: ok({ ...RUN, match_id: "m_1" }),
+    modal: [(init) => {
+      sent = JSON.parse(String(init?.body));
+      return jsonRes(200, { modal_call_id: "fc-1" });
+    }],
+  });
+  const res = await post(t.app);
+  assert.equal(res.status, 202);
+  assert.equal(sent.match_id, "m_1");
+  assert.equal(sent.session_id, "s_1");
+  assert.equal(sent.analysis_id, "a_1");
+});
 
 Deno.test("dispatch happy path -> 202, ordered steps, modal_call_id stored", async () => {
   const t = build();
