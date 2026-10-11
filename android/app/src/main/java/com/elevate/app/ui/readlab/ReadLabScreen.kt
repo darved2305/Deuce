@@ -68,7 +68,7 @@ import com.elevate.app.ui.theme.Elevate
 @Composable
 fun ReadLabEntryButton(drills: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
     if (drills < 1) return
-    ExplainBox(Explanations.ReadLab, modifier) { PrimaryButton(ReadLabText.entry(drills), onClick, Modifier.fillMaxWidth()) }
+    ExplainBox(Explanations.ReadLab, modifier) { PrimaryButton(ReadLabText.entry(drills), onClick, Modifier.fillMaxWidth().semantics { contentDescription = "Train your read, $drills drill${if (drills == 1) "" else "s"}" }) }
 }
 
 /**

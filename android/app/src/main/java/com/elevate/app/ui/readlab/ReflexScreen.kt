@@ -104,7 +104,7 @@ fun ReflexEntryButton(rounds: Int, onClick: () -> Unit, modifier: Modifier = Mod
     // Locked rather than hidden, so the game never seems to disappear: it needs 3 shots with a clear landing.
     val ready = rounds >= ReflexRounds.MIN_ROUNDS
     val label = if (ready) ReflexText.entry(rounds) else "Reflex · needs ${ReflexRounds.MIN_ROUNDS} clear shots ($rounds)"
-    ExplainBox(Explanations.Reflex, modifier.fillMaxWidth()) { SecondaryButton(label, onClick, Modifier.fillMaxWidth(), enabled = ready) }
+    ExplainBox(Explanations.Reflex, modifier.fillMaxWidth()) { SecondaryButton(label, onClick, Modifier.fillMaxWidth().semantics { contentDescription = if (ready) "Reflex challenge, $rounds shots" else label }, enabled = ready) }
 }
 
 /** A stopwatch that can be paused; the reaction time is read from it at the moment of the tap. */
