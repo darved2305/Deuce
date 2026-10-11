@@ -303,6 +303,20 @@ class UploadCoordinatorTest {
         assertThat(fake.calls("/upload/parts")).isAtLeast(2)
     }
 
+    @Test fun `a dropped connection while creating the session is retried, same session`() = runBlocking<Unit> {
+        // A55: SSLHandshakeException on POST /v1/sessions right after Wi-Fi came back stopped the upload.
+        // 4 failures: more than the HTTP layer's own 3 quick attempts, so the session-level retry
+        // (with the coordinator's backoff) is what recovers.
+        fake.apiFault("/v1/sessions", Fault.Throw(offline = false), Fault.Throw(offline = false), Fault.Throw(offline = false), Fault.Throw(offline = false))
+        val f = file(500)
+        val c = coordinator(f)
+        prepare(c, f)
+        val s = c.resume()!!
+        assertThat(s.phase).isEqualTo(UploadPhase.Completed)
+        assertThat(fake.uploads).hasSize(1)
+        assertThat(sleeps).contains(500L)
+    }
+
     @Test fun `too_many_part_requests stops the upload without retrying`() = runBlocking<Unit> {
         fake.apiFault("/upload/parts", Fault.Status(429, """{"error":{"code":"too_many_part_requests","message":"spent"}}"""))
         val f = file(500)

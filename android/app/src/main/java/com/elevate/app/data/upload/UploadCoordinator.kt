@@ -101,18 +101,35 @@ class UploadCoordinator(
     private suspend fun createSession(s: UploadState): UploadState? {
         _progress.value = UploadProgress.Preparing("Creating session")
         val request = com.elevate.app.data.session.requestJson.decodeFromString(SessionCreateRequest.serializer(), s.createRequestJson)
-        val r: SessionCreateResponse = try {
-            api.createSession(request, s.idempotencyKey)
-        } catch (e: ApiException) {
-            failBeforeSession(s, MultipartUploader.failureOf(e, null))
-            return null
-        } catch (e: AuthException) {
-            failBeforeSession(s, UploadFailure("auth", e.message ?: "sign-in failed", retryable = true))
-            return null
-        } catch (e: IOException) {
-            failBeforeSession(s, MultipartUploader.networkFailure(e, null))
-            return null
+        // A dropped connection (seen on the A55: SSLHandshakeException right after Wi-Fi came back) or
+        // a transient 5xx/429 is retried here with backoff; the Idempotency-Key makes a retried create
+        // return the same session.
+        var attempt = 0
+        var created: SessionCreateResponse? = null
+        while (created == null) {
+            attempt++
+            try {
+                created = api.createSession(request, s.idempotencyKey)
+                break
+            } catch (e: ApiException) {
+                if (!e.transient || attempt >= policy.maxAttempts) {
+                    failBeforeSession(s, MultipartUploader.failureOf(e, null))
+                    return null
+                }
+            } catch (e: AuthException) {
+                failBeforeSession(s, UploadFailure("auth", e.message ?: "sign-in failed", retryable = true))
+                return null
+            } catch (e: IOException) {
+                val f = MultipartUploader.networkFailure(e, null)
+                if (f.code == MultipartUploader.OFFLINE || attempt >= policy.maxAttempts) {
+                    failBeforeSession(s, f)
+                    return null
+                }
+            }
+            _progress.value = UploadProgress.Preparing("Creating session · retry ${attempt + 1}/${policy.maxAttempts}")
+            sleep(policy.backoffMs(attempt + 1))
         }
+        val r: SessionCreateResponse = created ?: return null
         // Re-validate the server's plan (part size, part count) before using it.
         PartPlan(s.bytes, r.upload.partSize)
         val next = s.copy(

@@ -74,7 +74,7 @@ class OverviewViewModel(
     val artifactAccess: StateFlow<com.elevate.app.data.analysis.ArtifactAccess> = this.sync.artifactAccess
 
     val overview: StateFlow<MatchOverviewState> =
-        combine(this.sync.state, match, matchProblem, thumbnail) { a, m, p, t ->
+        combine(this.sync.state, match, matchProblem, thumbnail, this.sync.ballTrack) { a, m, p, t, _ ->
             OverviewDerivation.derive(
                 title = title,
                 match = m,
@@ -84,11 +84,12 @@ class OverviewViewModel(
                 sourceFrameTimesUs = sourceFrameTimesUs,
                 sourceDurationMs = durationMs,
                 thumbnail = t,
+                hitTimeline = hitTimeline(a),
             )
         }.stateIn(
             viewModelScope,
             SharingStarted.Eagerly,
-            OverviewDerivation.derive(title, null, this.sync.state.value, fixture, sourceFrameTimesUs = sourceFrameTimesUs, sourceDurationMs = durationMs, thumbnail = thumbnail.value),
+            OverviewDerivation.derive(title, null, this.sync.state.value, fixture, sourceFrameTimesUs = sourceFrameTimesUs, sourceDurationMs = durationMs, thumbnail = thumbnail.value, hitTimeline = hitTimeline(this.sync.state.value)),
         )
 
     private var pollJob: Job? = null
@@ -128,6 +129,22 @@ class OverviewViewModel(
     fun engineTrail(clip: ClipIdentity): WindowTrailAdapter.EngineTrail? {
         val engine = sync.engineVersion ?: return null
         return WindowTrailAdapter.toTrail(sync.ballTrack.value, clip, engine, sync.downloadedCoverageUs, sourceFrameTimesUs)
+    }
+
+    /**
+     * Track T from the stored windows. [AnalysisSync.ballTrack] is the change signal: it is rebuilt
+     * whenever a window result is stored, which is also when hits change.
+     */
+    private fun hitTimeline(a: AnalysisUiState): HitTimelineState {
+        val store = sync.windowStore()
+        return OverviewDerivation.hitTimeline(
+            hits = store.hits(),
+            windowsRead = store.stored.size,
+            windowsReported = a.windowsDone + a.windowsFailed,
+            windowsExpected = a.windowsExpected,
+            coverageUs = store.coverageUs,
+            sourceDurationMs = durationMs,
+        )
     }
 
     private fun onState(s: AnalysisUiState) {

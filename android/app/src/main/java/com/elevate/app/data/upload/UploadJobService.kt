@@ -70,7 +70,9 @@ class UploadJobService : JobService() {
             }
             if (stopped) return@launch
             UploadNotifications.notify(this@UploadJobService, coordinator.progress.value)
-            val reschedule = result?.phase == UploadPhase.Failed && result.failure?.code == MultipartUploader.OFFLINE
+            // Any retryable stop (offline, connection lost after the in-run retries) is rescheduled by
+            // JobScheduler with its backoff, so the upload resumes without the user tapping Retry.
+            val reschedule = result?.phase == UploadPhase.Failed && result.failure?.retryable == true
             jobFinished(params, reschedule)
         }
         return true

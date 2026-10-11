@@ -1,5 +1,6 @@
 package com.elevate.app.domain.analysis
 
+import com.elevate.app.data.api.WindowEvent
 import com.elevate.app.data.api.WindowResult
 import com.elevate.app.data.events.EventLog
 import kotlinx.serialization.json.JsonArray
@@ -87,6 +88,8 @@ class WindowResultStore(
         val rejected: Int,
         val rejectReasons: List<String>,
         val ballCoverage: Double,
+        /** Kept `type: "hit"` events in t order, inside [emitUs]. Other event types are ignored. */
+        val hits: List<HitCandidate> = emptyList(),
     )
 
     data class Row(val tUs: Long, val x: Float, val y: Float, val conf: Float, val state: Byte)
@@ -104,6 +107,9 @@ class WindowResultStore(
 
     val stored: List<Window> get() = windows.values.toList()
     val failedWindows: Map<Int, String> get() = failed.toMap()
+    /** Hit candidates of every stored window, by time. Each window owns only its emit range. */
+    fun hits(): List<HitCandidate> = windows.values.flatMap { it.hits }.sortedBy { it.tMs }
+
     val rejectedRows: Int get() = windows.values.sumOf { it.rejected }
     val droppedOutsideEmit: Int get() = windows.values.sumOf { it.droppedOutsideEmit }
 
@@ -144,6 +150,16 @@ class WindowResultStore(
                 else -> reasons += "t ${group[0].tUs} µs given ${group.size} times with different values"
             }
         }
+        val hits = ArrayList<HitCandidate>()
+        val seenEvents = HashSet<String>()
+        for (ev in result.events) {
+            if (ev.type != HIT_EVENT) continue
+            if (!seenEvents.add(ev.eventId)) continue
+            val hit = parseHit(ev) { reasons += it } ?: continue
+            if (hit.tMs * 1000 !in emit) continue // another window owns it (decode context)
+            hits += hit
+        }
+        hits.sortBy { it.tMs }
         val players = result.players.count { p -> (p.getOrNull(0) as? JsonPrimitive)?.longOrNull?.let { it * 1000 in emit } == true }
         val w = Window(
             windowSeq = result.windowSeq,
@@ -156,6 +172,7 @@ class WindowResultStore(
             rejected = reasons.size,
             rejectReasons = reasons.take(MAX_REASONS),
             ballCoverage = result.quality.ballCoverage,
+            hits = hits,
         )
         windows[result.windowSeq] = w
         failed.remove(result.windowSeq)
@@ -191,6 +208,16 @@ class WindowResultStore(
         ).also { cached = it }
     }
 
+    private fun parseHit(ev: WindowEvent, reject: (String) -> Unit): HitCandidate? {
+        val xy = ev.imageXy.takeIf { it.size == 2 && it.all(Double::isFinite) }?.let { it[0] to it[1] }
+        return when {
+            ev.tMs < 0 -> { reject("hit ${ev.eventId}: t_ms is negative"); null }
+            ev.tSigmaMs < 0 -> { reject("hit ${ev.eventId}: t_sigma_ms is negative"); null }
+            BallTrack.code(ev.state) == null -> { reject("hit ${ev.eventId}: state not observed|candidate|inferred|user"); null }
+            else -> HitCandidate(ev.tMs, ev.tSigmaMs, ev.trackId.ifBlank { null }, xy, ev.cues, ev.state)
+        }
+    }
+
     private fun parseRow(r: JsonArray, reject: (String) -> Unit): Row? {
         if (r.size != 5) { reject("ball row has ${r.size} items, not 5"); return null }
         val t = (r[0] as? JsonPrimitive)?.takeUnless { it.isString }?.longOrNull
@@ -212,6 +239,7 @@ class WindowResultStore(
 
     companion object {
         private const val MAX_REASONS = 20
+        private const val HIT_EVENT = "hit"
 
         /**
          * Dotted numeric comparison ("0.10.0" > "0.9.1"); null or non-numeric parts compare as 0 /

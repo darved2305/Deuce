@@ -226,6 +226,7 @@ fun MatchOverviewScreen(
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
                             OverviewCourt(state)
                             OverviewRallies(state, onOpenRally)
+                            OverviewHits(state, onOpenRally)
                         }
                     }
                 } else {
@@ -236,6 +237,7 @@ fun MatchOverviewScreen(
                         OverviewTop(state, hero, play)
                         OverviewCourt(state)
                         OverviewRallies(state, onOpenRally)
+                        OverviewHits(state, onOpenRally)
                     }
                 }
             }
@@ -297,6 +299,14 @@ private fun OverviewCourt(s: MatchOverviewState) {
         is CourtState.Badminton -> ElevateCard { MiniCourt(ct, Modifier.fillMaxWidth()) }
         is CourtState.NotApplicable -> Text(ct.reason, style = MaterialTheme.typography.bodyMedium)
     }
+}
+
+
+/** Track T: engine hit candidates and the rally candidates grouped from them (candidates only). */
+@Composable
+private fun OverviewHits(s: MatchOverviewState, onOpenRally: (String, Long, Long) -> Unit) {
+    SectionTitle("Hit candidates")
+    HitTimeline(s.hitTimeline, onOpenRally)
 }
 
 @Composable

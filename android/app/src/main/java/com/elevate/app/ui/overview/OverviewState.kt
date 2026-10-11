@@ -4,6 +4,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import com.elevate.app.data.api.MatchCapability
 import com.elevate.app.data.api.MatchRecord
 import com.elevate.app.domain.analysis.AnalysisUiState
+import com.elevate.app.domain.analysis.HitCandidate
+import com.elevate.app.domain.analysis.HitRallies
+import com.elevate.app.domain.analysis.RallyCandidate
 import com.elevate.app.domain.model.TrailTrack
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -64,6 +67,29 @@ sealed interface CourtState {
     data class Badminton(val singles: Boolean, val marks: List<CourtMark>, val note: String) : CourtState
 }
 
+/**
+ * Track T: the engine's hit candidates and the rally candidates grouped from them. Candidates only.
+ * [windowsRead] of [windowsTotal] is the denominator: windows whose result file is on this phone out
+ * of the windows the engine said it will emit ([totalIsExpected]); until it says, out of the windows
+ * the server has reported on so far.
+ */
+data class HitTimelineState(
+    val hits: List<HitCandidate> = emptyList(),
+    val rallies: List<RallyCandidate> = emptyList(),
+    val windowsRead: Int = 0,
+    val windowsTotal: Int = 0,
+    /** True when [windowsTotal] is the engine's `windows_expected`, false when it is only "reported so far". */
+    val totalIsExpected: Boolean = false,
+    /** Length of the timeline: the clip when its length is known, else what the windows cover. */
+    val timelineMs: Long = 0,
+    /** Merged `emit_range_us` of the windows read, in ms: what the ticks can claim to cover. */
+    val coveredMs: List<LongRange> = emptyList(),
+) {
+    companion object {
+        val EMPTY = HitTimelineState()
+    }
+}
+
 data class MatchOverviewState(
     val source: OverviewSource,
     val title: String,
@@ -81,6 +107,7 @@ data class MatchOverviewState(
     val referenceDetail: String? = null,
     /** The hand-labelled range in source ms (first..last labelled frame), for its replay button. */
     val referenceRange: LongRange? = null,
+    val hitTimeline: HitTimelineState = HitTimelineState.EMPTY,
 )
 
 /** Pure derivations: every displayed count with its denominator, nothing invented. */
@@ -104,6 +131,7 @@ object OverviewDerivation {
         sourceFrameTimesUs: LongArray? = null,
         sourceDurationMs: Long? = null,
         thumbnail: ThumbnailState = ThumbnailState.Loading,
+        hitTimeline: HitTimelineState = HitTimelineState.EMPTY,
     ): MatchOverviewState {
         val source = when {
             match != null && recordedMatchDocument != null -> OverviewSource.RecordedMatch(recordedMatchDocument)
@@ -126,6 +154,34 @@ object OverviewDerivation {
             matchProblem = matchProblem,
             referenceDetail = fixture?.second?.let(::referenceDetail),
             referenceRange = fixture?.second?.let { (it.rangeStartUs / 1000)..((it.rangeEndUs + 999) / 1000) },
+            hitTimeline = hitTimeline,
+        )
+    }
+
+    /**
+     * Hit candidates from the downloaded windows, grouped into rally candidates. The total is
+     * [windowsExpected] when the engine gave it, else [windowsReported]; never below [windowsRead]
+     * (a window cannot be read before it is reported).
+     */
+    fun hitTimeline(
+        hits: List<HitCandidate>,
+        windowsRead: Int,
+        windowsReported: Int,
+        windowsExpected: Int?,
+        coverageUs: List<LongRange>,
+        sourceDurationMs: Long?,
+    ): HitTimelineState {
+        val sorted = hits.sortedBy { it.tMs }
+        val coveredMs = coverageUs.map { (it.first / 1000)..((it.last + 999) / 1000) }
+        val timeline = maxOf(sourceDurationMs ?: 0, coveredMs.maxOfOrNull { it.last } ?: 0, sorted.lastOrNull()?.tMs ?: 0)
+        return HitTimelineState(
+            hits = sorted,
+            rallies = HitRallies.group(sorted),
+            windowsRead = windowsRead,
+            windowsTotal = maxOf(windowsExpected ?: windowsReported, windowsRead),
+            totalIsExpected = windowsExpected != null,
+            timelineMs = timeline,
+            coveredMs = coveredMs,
         )
     }
 
