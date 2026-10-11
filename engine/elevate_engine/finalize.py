@@ -27,7 +27,9 @@ def players(match_id: str, session_spec: dict) -> list[dict]:
     """match.v1 identity records (HW14 item 4; #65 B4b; #92). Singles with a who_is_me tap: the
     user (`user_confirmed`, from their own tap) and the opponent (`engine`), in that order so the
     API's teams are [[you], [opponent]]. track_ids stay empty until live player tracks link them:
-    no track is claimed that the engine has not associated. Otherwise no players."""
+    no track is claimed that the engine has not associated. The opponent record exists only
+    because the user chose singles; it carries no detection, so a reader must not show it as
+    "detected" until track_ids are filled. Otherwise no players."""
     if session_spec.get("format") != "singles" or not session_spec.get("who_is_me"):
         return []
     pid = lambda role: "p_" + hashlib.sha256(f"{match_id}:{role}".encode()).hexdigest()[:16]  # noqa: E731
