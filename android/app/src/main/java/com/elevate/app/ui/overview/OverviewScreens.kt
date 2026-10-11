@@ -2,6 +2,22 @@ package com.elevate.app.ui.overview
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Tab
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -174,12 +190,13 @@ private fun SendCardView(card: SendCard) {
     }
 }
 
-/** The user's real video frame as a rounded card; hidden when no frame can be read. */
+/** The user's real video frame as a rounded card; hidden when no frame can be read. [compact] is the small tappable thumbnail. */
 @Composable
-private fun HeroVideo(hero: AnalysingHero, onPlay: (() -> Unit)?) {
+private fun HeroVideo(hero: AnalysingHero, onPlay: (() -> Unit)?, modifier: Modifier = Modifier, compact: Boolean = false) {
     val t = hero.thumbnail ?: return
     if (t is ThumbnailState.Unavailable) return
-    VideoCard(Modifier.aspectRatio(16f / 9f)) {
+    val tap = if (compact && onPlay != null) Modifier.clickable(onClickLabel = "Play the first rally", role = Role.Button, onClick = onPlay) else Modifier
+    VideoCard(modifier.aspectRatio(16f / 9f).then(tap), corner = if (compact) 16.dp else 24.dp) {
         when (t) {
             is ThumbnailState.Ready -> Image(
                 t.image,
@@ -189,16 +206,28 @@ private fun HeroVideo(hero: AnalysingHero, onPlay: (() -> Unit)?) {
             )
             else -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White, strokeWidth = 2.dp)
         }
-        VideoChip(hero.fileName ?: "Your video", Modifier.align(Alignment.TopStart).padding(12.dp), icon = ElevateIcons.Film)
-        if (onPlay != null) {
-            CircleButton(ElevateIcons.Play, "Play", onPlay, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp))
+        if (compact) {
+            if (onPlay != null) {
+                Box(Modifier.align(Alignment.Center).size(32.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.9f)), contentAlignment = Alignment.Center) {
+                    Icon(ElevateIcons.Play, contentDescription = null, tint = Elevate.colors.ink, modifier = Modifier.size(18.dp))
+                }
+            }
+        } else {
+            VideoChip(hero.fileName ?: "Your video", Modifier.align(Alignment.TopStart).padding(12.dp), icon = ElevateIcons.Film)
+            if (onPlay != null) {
+                CircleButton(ElevateIcons.Play, "Play", onPlay, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp))
+            }
         }
     }
 }
 
+private enum class OverviewTab(val label: String) { Coach("Coach"), Rallies("Rallies"), Court("Court") }
+
 /**
- * Match overview (reference 18-overview): the real video, how much of it is analysed, the court
- * with real landings only, and the rallies from `match.v1` (one line until they exist). Stateless.
+ * Match overview (reference 18-overview), laid out so nothing important is below the fold: a short
+ * hero and the two training buttons stay on screen, and the coach report (the default tab), the
+ * rallies and the court each scroll on their own. In landscape the hero is a left pane and the
+ * tabs are the right pane. Stateless apart from the remembered tab.
  */
 @Composable
 fun MatchOverviewScreen(
@@ -220,6 +249,10 @@ fun MatchOverviewScreen(
             state.live?.rallies?.firstOrNull()?.let { first -> { onOpenRally(first.rallyId, first.startMs, first.endMs) } }
                 ?: state.referenceRange?.let { ref -> { onOpenRally(REFERENCE_RALLY_ID, ref.first, ref.last) } }
     }
+    var tabIndex by rememberSaveable { mutableIntStateOf(OverviewTab.Coach.ordinal) }
+    val tabs: @Composable () -> Unit = { OverviewTabRow(tabIndex) { tabIndex = it } }
+    val body: @Composable (Modifier) -> Unit = { m -> OverviewTabBody(OverviewTab.entries[tabIndex], state, onOpenRally, m) }
+    val ctas: @Composable () -> Unit = { TrainingButtons(readLabDrills, onTrainRead, reflexRounds, onReflex) }
     PeachPage {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
             val landscape = maxWidth > maxHeight
@@ -227,28 +260,24 @@ fun MatchOverviewScreen(
                 ElevateHeader("Match", onBack = onBack)
                 if (landscape) {
                     Row(Modifier.fillMaxSize().padding(horizontal = ScreenGutter), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
-                            OverviewTop(state, hero, play)
-                            com.elevate.app.ui.readlab.ReadLabEntryButton(readLabDrills, onTrainRead)
-                            com.elevate.app.ui.readlab.ReflexEntryButton(reflexRounds, onReflex)
+                        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OverviewHero(state, hero, play, compact = false)
+                            ctas()
                         }
-                        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
-                            OverviewCourt(state)
-                            OverviewRallies(state, onOpenRally)
-                            OverviewHits(state, onOpenRally)
+                        Column(Modifier.weight(1.2f).fillMaxHeight()) {
+                            tabs()
+                            body(Modifier.weight(1f).fillMaxWidth())
                         }
                     }
                 } else {
-                    Column(
-                        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = ScreenGutter).padding(bottom = 24.dp),
-                        verticalArrangement = ScreenSpacing,
-                    ) {
-                        OverviewTop(state, hero, play)
-                        com.elevate.app.ui.readlab.ReadLabEntryButton(readLabDrills, onTrainRead)
-                        com.elevate.app.ui.readlab.ReflexEntryButton(reflexRounds, onReflex)
-                        OverviewCourt(state)
-                        OverviewRallies(state, onOpenRally)
-                        OverviewHits(state, onOpenRally)
+                    Column(Modifier.fillMaxSize()) {
+                        Column(Modifier.padding(horizontal = ScreenGutter), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OverviewHero(state, hero, play, compact = true)
+                            ctas()
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        tabs()
+                        body(Modifier.weight(1f).fillMaxWidth().padding(horizontal = ScreenGutter))
                     }
                 }
             }
@@ -256,46 +285,118 @@ fun MatchOverviewScreen(
     }
 }
 
+/** "Train your read" and "Reflex challenge" side by side; each appears only when it has something to play. */
 @Composable
-private fun OverviewTop(s: MatchOverviewState, hero: AnalysingHero, play: (() -> Unit)?) {
+private fun TrainingButtons(readLabDrills: Int, onTrainRead: () -> Unit, reflexRounds: Int, onReflex: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        com.elevate.app.ui.readlab.ReadLabEntryButton(readLabDrills, onTrainRead, Modifier.weight(1f))
+        com.elevate.app.ui.readlab.ReflexEntryButton(reflexRounds, onReflex, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun OverviewTabRow(selected: Int, onSelect: (Int) -> Unit) {
     val c = Elevate.colors
-    s.source.badge?.let { Pill(it, c.lavender, c.ink) }
-    val live = s.live
-    if (live != null && s.source.badge == null) Pill("From the engine windows · candidates", c.lavender, c.ink)
-    // capabilities come only from match.v1: non-empty means the record was read.
-    val matchKnown = s.capabilities.isNotEmpty()
-    Headline("Your match", if (matchKnown) s.sourceLine else hero.eyebrow ?: s.sourceLine)
-    ElevateCard(tint = c.peach) {
-        HeroVideo(hero, play)
-        if (live?.shuttleLine != null) {
-            Spacer(Modifier.height(14.dp))
-            LiveShuttleStat(live)
-            Spacer(Modifier.height(10.dp))
-            WindowStrip(live)
-        } else {
-            s.analysis?.let { a ->
-                Spacer(Modifier.height(14.dp))
-                AnalysedStat(a)
-            }
-            if (live != null) {
-                Spacer(Modifier.height(10.dp))
-                WindowStrip(live)
+    PrimaryTabRow(selectedTabIndex = selected, containerColor = Color.Transparent, contentColor = c.ink) {
+        OverviewTab.entries.forEachIndexed { i, tab ->
+            Tab(
+                selected = selected == i,
+                onClick = { onSelect(i) },
+                selectedContentColor = c.orangeText,
+                unselectedContentColor = c.inkMuted,
+                text = { Text(tab.label, style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp)) },
+            )
+        }
+    }
+}
+
+/** One tab's content, scrolling on its own so the hero and the tab row never move. */
+@Composable
+private fun OverviewTabBody(tab: OverviewTab, s: MatchOverviewState, onOpenRally: (String, Long, Long) -> Unit, modifier: Modifier) {
+    key(tab) {
+        Column(
+            modifier.verticalScroll(rememberScrollState()).padding(top = 12.dp, bottom = 24.dp),
+            verticalArrangement = ScreenSpacing,
+        ) {
+            when (tab) {
+                OverviewTab.Coach -> {
+                    OverviewProgress(s)
+                    CoachSection(s)
+                }
+                OverviewTab.Rallies -> {
+                    OverviewRallies(s, onOpenRally)
+                    OverviewHits(s, onOpenRally)
+                }
+                OverviewTab.Court -> OverviewCourt(s)
             }
         }
-        if (matchKnown) {
-            Spacer(Modifier.height(10.dp))
-            Text(s.selectedPlayer, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
-            s.opponent?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted) }
-            s.score?.takeIf { it.confirmed }?.let { sc ->
+    }
+}
+
+/** Where the analysis stands: live windows or the analysed-seconds stat, and why anything is still pending. */
+@Composable
+private fun OverviewProgress(s: MatchOverviewState) {
+    val live = s.live
+    val analysis = s.analysis
+    val showLive = live != null && live.shuttleLine != null
+    if (showLive || analysis != null || live != null) {
+        ElevateCard(tint = Elevate.colors.peach) {
+            if (live != null && live.shuttleLine != null) {
+                LiveShuttleStat(live)
                 Spacer(Modifier.height(10.dp))
-                Text(sc.headline, style = MaterialTheme.typography.titleMedium, color = c.ink)
-                sc.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted) }
+                WindowStrip(live)
+            } else {
+                analysis?.let { AnalysedStat(it) }
+                if (live != null) {
+                    if (analysis != null) Spacer(Modifier.height(10.dp))
+                    WindowStrip(live)
+                }
             }
         }
     }
     live?.pendingLine?.let { PendingLine(it) }
     s.matchProblem?.let { PendingLine(it) }
-    CoachSection(s)
+}
+
+/** Short hero: the video frame and the facts that fit on a few lines (what, how much, who, score). */
+@Composable
+private fun OverviewHero(s: MatchOverviewState, hero: AnalysingHero, play: (() -> Unit)?, compact: Boolean) {
+    if (compact) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            val hasThumb = hero.thumbnail != null && hero.thumbnail !is ThumbnailState.Unavailable
+            if (hasThumb) HeroVideo(hero, play, Modifier.width(132.dp), compact = true)
+            HeroInfo(s, hero, Modifier.weight(1f))
+        }
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HeroVideo(hero, play)
+            HeroInfo(s, hero, Modifier.fillMaxWidth())
+        }
+    }
+}
+
+@Composable
+private fun HeroInfo(s: MatchOverviewState, hero: AnalysingHero, modifier: Modifier) {
+    val c = Elevate.colors
+    val live = s.live
+    // capabilities come only from match.v1: non-empty means the record was read.
+    val matchKnown = s.capabilities.isNotEmpty()
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        val badge = s.source.badge ?: if (live != null) "From the engine windows · candidates" else null
+        badge?.let { Pill(it, c.lavender, c.ink) }
+        Text("Your match", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.semantics { heading() })
+        val line = if (matchKnown) s.sourceLine else hero.eyebrow ?: s.sourceLine
+        Text(line, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted, maxLines = 2)
+        s.analysis?.let { a -> Text(AnalysingText.coverage(a), style = MaterialTheme.typography.labelMedium, color = c.inkMuted) }
+        if (matchKnown) {
+            Text(s.selectedPlayer, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
+            s.opponent?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted) }
+            s.score?.takeIf { it.confirmed }?.let { sc ->
+                Text(sc.headline, style = MaterialTheme.typography.titleMedium, color = c.ink)
+                sc.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted) }
+            }
+        }
+    }
 }
 
 /** "18/485 seconds of your video analysed": covered seconds over the known clip length, never a percentage. */

@@ -90,6 +90,8 @@ internal fun CoachSection(s: MatchOverviewState) {
     }
     if (voice.unavailable) Text("Voice not available on this phone", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
     if (shareProblem) Text("Could not share the card", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+    report.suggestions.forEach { SuggestionCard(it) }
+    RhythmCard(report.rhythm)
     ElevateCard {
         Pill(SOURCE_TAG, c.lavender, c.ink)
         Spacer(Modifier.height(10.dp))
@@ -99,8 +101,6 @@ internal fun CoachSection(s: MatchOverviewState) {
         Spacer(Modifier.height(8.dp))
         Text(report.heat.caption, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
     }
-    RhythmCard(report.rhythm)
-    report.suggestions.forEach { SuggestionCard(it) }
 }
 
 private val GRID_ROWS = listOf(ZoneRow.BACK to "Back", ZoneRow.MIDDLE to "Mid", ZoneRow.FRONT to "Front")
