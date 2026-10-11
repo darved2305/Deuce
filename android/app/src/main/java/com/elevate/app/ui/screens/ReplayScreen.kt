@@ -1,5 +1,6 @@
 package com.elevate.app.ui.screens
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.pm.ApplicationInfo
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -246,7 +247,7 @@ private fun ControlsSheet(
             SpeedSelector(state.speed) { controller.setSpeed(it) }
         }
         Spacer(Modifier.height(4.dp))
-        AnnotationRow(screen, onOverlayVisible)
+        if (screen.live == null) AnnotationRow(screen, onOverlayVisible)
         LiveRow(screen.live, onShowLive)
         EngineRow(screen.engine, onShowEngine)
         CourtSection(screen)
@@ -388,9 +389,9 @@ private fun DetailText(text: String, color: Color = Elevate.colors.inkMuted) {
 private fun AnnotationRow(screen: Screen.Replay, onOverlayVisible: (Boolean) -> Unit) {
     val c = Elevate.colors
     when (val a = screen.annotations) {
-        AnnotationState.Checking -> CompactRow(ElevateIcons.Trail, "Looking for a trail…", c.cream, c.inkMuted)
-        AnnotationState.NoneForThisVideo -> CompactRow(ElevateIcons.Trail, "No trail for this video", c.cream, c.inkMuted) {
-            DetailText("Only the original footage is shown.")
+        AnnotationState.Checking -> CompactRow(ElevateIcons.Trail, "Reading the video…", c.cream, c.inkMuted)
+        AnnotationState.NoneForThisVideo -> CompactRow(ElevateIcons.Trail, "Not analysed yet", c.cream, c.inkMuted) {
+            DetailText("Set up the court and analyse: the shuttle trail, hits and court positions are drawn on this video as each part finishes.")
         }
         is AnnotationState.Failed -> CompactRow(ElevateIcons.Trail, "Trail unavailable", c.errorSurface, c.error) { DetailText(a.reason, c.ink) }
         AnnotationState.UnsupportedHdr -> CompactRow(ElevateIcons.Trail, "No trail on HDR video yet", c.cream, c.inkMuted) {
@@ -545,7 +546,9 @@ private fun CourtSection(screen: Screen.Replay) {
         }
     }
     Spacer(Modifier.height(8.dp))
-    MiniCourt(cal)
+    val vm: ReplayViewModel = viewModel()
+    val landings by vm.courtLandings.collectAsStateWithLifecycle()
+    MiniCourt(cal, landings = landings.map { Triple(it.xM, it.yM, it.state) })
 }
 
 /** What the replay screen needs to drive upload → analysis (state lives in the ViewModel). */

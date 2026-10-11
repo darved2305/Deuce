@@ -74,6 +74,7 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
     val pill by vm.pipelinePill.collectAsStateWithLifecycle()
     val analysedSha by vm.analysedSha.collectAsStateWithLifecycle()
     val matches by vm.matches.collectAsStateWithLifecycle()
+    val thumbs by vm.matchThumbs.collectAsStateWithLifecycle()
     val liveHits by vm.liveHitsMs.collectAsStateWithLifecycle()
     // The analysis on record is of the open file (same sha256): don't offer to analyse it again.
     val openShaForCta = (screen as? Screen.Replay)?.sha256
@@ -109,6 +110,9 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
         LaunchedEffect(ovm, openSha, openW, openH) {
             ovm.sync.hits.collect { vm.onLiveHits(it) }
         }
+        LaunchedEffect(ovm, openSha, openW, openH) {
+            ovm.matchRecord.collect { vm.onMatchRecord(it) }
+        }
     }
 
     if (panel != Screen.Panel.None && pipeline != Screen.Pipeline.Idle) {
@@ -119,7 +123,7 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
     when (val s = screen) {
         is Screen.Import -> ImportScreen(
             opening = s.opening, error = s.error, onChoose = pickVideo, backend = backend,
-            matches = matches.map { com.elevate.app.ui.screens.matchCardOf(it) },
+            matches = matches.map { com.elevate.app.ui.screens.matchCardOf(it, thumbs[it.analysisId]) },
             onOpenMatch = vm::openHistory,
         ) {
             if (pipeline != Screen.Pipeline.Idle) PipelineStatus(pipelineUi)
@@ -176,6 +180,7 @@ private fun rememberAnalysis(vm: ReplayViewModel, started: Screen.Pipeline.Start
                 sourceHeight = saved?.third ?: openFacts?.displayHeight,
                 // Real frame times of the open file: rows snap to frames and counts get a frame denominator.
                 sourceFrameTimesUs = openFacts?.frameTimesUs,
+                windowCache = com.elevate.app.data.analysis.WindowCache.forAnalysis(filesDir, started.analysisId),
                 thumbnailLoader = uri?.let { u -> { atMs -> withContext(Dispatchers.IO) { FrameThumbnail.load(resolver, u, atMs) } } },
             )
         },
@@ -227,12 +232,15 @@ private fun AnalysisPanels(
     }
     val analysis: AnalysisUiState?
     val artifacts: ArtifactAccess
+    val cache: com.elevate.app.data.analysis.CacheInfo?
     if (ovm != null) {
         analysis = ovm.analysis.collectAsStateWithLifecycle().value
         artifacts = ovm.artifactAccess.collectAsStateWithLifecycle().value
+        cache = ovm.sync.cache.collectAsStateWithLifecycle().value
     } else {
         analysis = null
         artifacts = ArtifactAccess.Unknown
+        cache = null
     }
     val resolver = LocalContext.current.applicationContext.contentResolver
     val uri = hero.sourceUri
@@ -240,7 +248,7 @@ private fun AnalysisPanels(
     val thumbnail by produceState<ThumbnailState?>(if (uri == null) null else ThumbnailState.Loading, uri) {
         value = uri?.let { u -> withContext(Dispatchers.IO) { FrameThumbnail.load(resolver, u, (hero.durationMs ?: 0) / 2) } }
     }
-    val flow = remember(pipeline, step, upload, analysis, artifacts) { AnalysingFlow.state(pipeline, step, upload, analysis, artifacts) }
+    val flow = remember(pipeline, step, upload, analysis, artifacts, cache) { AnalysingFlow.state(pipeline, step, upload, analysis, artifacts, cache) }
     AnalysingScreen(
         flow = flow,
         hero = AnalysingHero(hero.eyebrow, thumbnail, hero.fileName),

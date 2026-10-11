@@ -208,7 +208,9 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             val annotations = try {
                 val fp = withContext(Dispatchers.IO) { inspector.fingerprint(uri) }
                 _screen.update { s -> if (s is Screen.Replay && s.uri == uri) s.copy(sha256 = fp.sha256) else s }
-                repository.annotationsFor(fp)
+                // Every video takes the same path: the trail comes from the live analysis of this file.
+                // The bundled hand-labelled reference (one clip) is for engine evaluation, not users.
+                if (SHOW_REFERENCE_FIXTURES) repository.annotationsFor(fp) else AnnotationState.NoneForThisVideo
             } catch (e: IOException) {
                 AnnotationState.Failed("could not read the file to identify it: ${e.message}")
             } catch (e: SecurityException) {
@@ -419,8 +421,20 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     // After _matches exists (init blocks run in declaration order).
     init { refreshMatches() }
 
+    private val _matchThumbs = MutableStateFlow<Map<String, androidx.compose.ui.graphics.ImageBitmap>>(emptyMap())
+    /** Real middle frames of remembered matches whose video is still readable, by analysisId. */
+    val matchThumbs: StateFlow<Map<String, androidx.compose.ui.graphics.ImageBitmap>> = _matchThumbs.asStateFlow()
+
     fun refreshMatches() {
-        viewModelScope.launch(Dispatchers.IO) { _matches.value = runCatching { history.history.list() }.getOrDefault(emptyList()) }
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = runCatching { history.history.list() }.getOrDefault(emptyList())
+            _matches.value = list
+            for (e in list) {
+                if (_matchThumbs.value.containsKey(e.analysisId)) continue
+                val img = runCatching { history.thumbnail(getApplication(), e) }.getOrNull() ?: continue
+                _matchThumbs.value = _matchThumbs.value + (e.analysisId to img)
+            }
+        }
     }
 
     /** A history entry being viewed (not the latest upload): source facts and sha come from it. */
@@ -454,6 +468,9 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     val liveHitsMs: StateFlow<List<Long>> = _liveHitsMs.asStateFlow()
 
     private fun clearLiveHits() {
+        overlayHits = emptyList()
+        overlayLandings = emptyList()
+        _courtLandings.value = emptyList()
         controller.setHits(emptyList())
         _liveHitsMs.value = emptyList()
     }
@@ -464,8 +481,64 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         val live = com.elevate.app.domain.analysis.LiveHits.forFile(
             hits, pipelineSha256(), s.sha256, facts?.durationMs, facts?.displayWidth, facts?.displayHeight,
         )
-        controller.setHits(live, facts?.displayWidth, facts?.displayHeight)
+        overlayHits = live
+        controller.setHits(overlayHits + overlayLandings, facts?.displayWidth, facts?.displayHeight)
         _liveHitsMs.value = live.map { it.tMs }
+    }
+
+    private var overlayHits: List<com.elevate.app.domain.analysis.LiveHit> = emptyList()
+    private var overlayLandings: List<com.elevate.app.domain.analysis.LiveHit> = emptyList()
+
+    /** A landing candidate on the court plane, from `match.v1` (metres in the calibration template's frame). */
+    data class CourtLanding(val tMs: Long, val xM: Double, val yM: Double, val state: String)
+
+    private val _courtLandings = MutableStateFlow<List<CourtLanding>>(emptyList())
+    /** Landings of the analysed match on the open file; empty for any other file. */
+    val courtLandings: StateFlow<List<CourtLanding>> = _courtLandings.asStateFlow()
+
+    /**
+     * The served `match.v1` of the analysed file: its landing candidates are drawn on the video at
+     * their frame ("LANDING?") and on the mini court; when the open video was not set up here, its
+     * calibration H draws the court lines. Nothing is drawn on a file other than the analysed one.
+     */
+    fun onMatchRecord(match: com.elevate.app.data.api.MatchRecord?) {
+        val s = _screen.value as? Screen.Replay ?: return
+        val facts = (s.preflight as? PreflightState.Done)?.facts
+        val sameFile = !s.sha256.isNullOrBlank() && pipelineSha256().equals(s.sha256, ignoreCase = true)
+        if (match == null || !sameFile) {
+            overlayLandings = emptyList()
+            _courtLandings.value = emptyList()
+            controller.setHits(overlayHits, facts?.displayWidth, facts?.displayHeight)
+            return
+        }
+        val landings = match.events.filter { it.type == "landing" }
+        overlayLandings = com.elevate.app.domain.analysis.LiveHits.forFile(
+            landings.map { e ->
+                com.elevate.app.domain.analysis.HitCandidate(
+                    e.tMs, e.tSigmaMs, e.trackId,
+                    e.imageXy?.takeIf { it.size == 2 }?.let { it[0] to it[1] }, e.cues, e.state,
+                )
+            },
+            pipelineSha256(), s.sha256, facts?.durationMs, facts?.displayWidth, facts?.displayHeight,
+        ).map { it.copy(landing = true) }
+        _courtLandings.value = landings.mapNotNull { e ->
+            val xy = e.contactXyM
+            if (xy == null || xy.size != 2 || !xy.all(Double::isFinite) || (e.plane != null && e.plane != "court")) null
+            else CourtLanding(e.tMs, xy[0], xy[1], e.state)
+        }
+        controller.setHits(overlayHits + overlayLandings, facts?.displayWidth, facts?.displayHeight)
+        val cal = match.calibration
+        val w = facts?.displayWidth
+        val h = facts?.displayHeight
+        if (s.court == null && cal != null && cal.plane == "court" && w != null && h != null) {
+            val court = Homography.fromImageToCourt(cal.h, w, h)?.let { CourtCalibration(cal.template, it, w, h) }
+            if (court != null) {
+                courtOverlay.setCalibration(court)
+                courtOverlay.visible = true
+                _screen.update { cur -> if (cur is Screen.Replay && cur.uri == s.uri) cur.copy(court = court, courtVisible = true) else cur }
+            }
+        }
+        redrawOverlay()
     }
 
     /**
@@ -793,6 +866,9 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         const val FIXTURE_DIR = "fixtures"
+
+        /** Off for users: the hand-labelled reference clip and its recorded run stay out of the app. */
+        const val SHOW_REFERENCE_FIXTURES = false
         const val ENGINE_DIR = "engine_runs"
     }
 
