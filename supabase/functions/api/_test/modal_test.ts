@@ -4,12 +4,12 @@ import {
   ModalUnavailable,
   submitToModal,
 } from "../lib/modal.ts";
-import { jsonRes } from "./fakes.ts";
+import { jsonRes, testSessionSpec } from "./fakes.ts";
 
 const body = {
   analysis_id: "a_1",
   r2_key: "orig/s_1/source.mp4",
-  session_spec: { sport: "badminton" },
+  session_spec: testSessionSpec,
 };
 
 function setup(responses: Array<() => Response | Promise<Response>>) {
@@ -106,4 +106,24 @@ Deno.test("modal invalid ids fail fast without calling", async () => {
     ModalUnavailable,
   );
   assert.equal(s.calls(), 0);
+});
+
+Deno.test("modal invalid session spec fails fast without calling", async () => {
+  const s = setup([() => jsonRes(200, { modal_call_id: "fc-invalid" })]);
+  const invalid = {
+    ...body,
+    session_spec: { sport: "badminton" },
+  } as typeof body;
+  await assert.rejects(submitToModal(invalid, s.deps), ModalUnavailable);
+  assert.equal(s.calls(), 0);
+});
+
+Deno.test("modal accepts a segment object key", async () => {
+  const s = setup([() => jsonRes(200, { modal_call_id: "fc-segment" })]);
+  const out = await submitToModal(
+    { ...body, r2_key: "seg/s_1/0.mp4" },
+    s.deps,
+  );
+  assert.equal(out.modal_call_id, "fc-segment");
+  assert.equal(s.calls(), 1);
 });

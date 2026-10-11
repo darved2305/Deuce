@@ -83,6 +83,15 @@ Deno.test("presignGet expires in 300 s", async () => {
   assert.ok(url.searchParams.get("X-Amz-Signature"));
 });
 
+Deno.test("presignPut signs a segment PUT for at most 600 s", async () => {
+  const { r2 } = make([xml(200, "")]);
+  const url = new URL(await r2.presignPut("seg/s_1/0.mp4"));
+  assert.equal(url.pathname, "/bkt/seg/s_1/0.mp4");
+  assert.equal(url.searchParams.get("X-Amz-Expires"), "600");
+  assert.equal(url.searchParams.get("X-Amz-SignedHeaders"), "host");
+  assert.ok(url.searchParams.get("X-Amz-Signature"));
+});
+
 Deno.test("completeMultipart sends the Part list XML to ?uploadId", async () => {
   const { r2, seen } = make([
     xml(

@@ -9,6 +9,7 @@ import {
   internalArtifactRequestSchema,
   internalArtifactResponseSchema,
   internalEventRequestSchema,
+  internalSegmentsPageSchema,
 } from "../lib/contracts_vendor/index.ts";
 import { ApiFailure, defaultHook } from "../lib/errors.ts";
 import {
@@ -64,6 +65,24 @@ const postArtifact = createRoute({
       content: {
         "application/json": { schema: internalArtifactResponseSchema },
       },
+    },
+  },
+});
+
+const getSegments = createRoute({
+  method: "get",
+  path: "/internal/analyses/{id}/segments",
+  request: {
+    params: Params,
+    query: z.object({
+      after_seq: z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
+        .default(0),
+    }),
+  },
+  responses: {
+    200: {
+      description: "contiguous completed segment prefix after the cursor",
+      content: { "application/json": { schema: internalSegmentsPageSchema } },
     },
   },
 });
@@ -176,6 +195,57 @@ export function registerInternal(api: OpenAPIHono<AppEnv>): void {
     }
     await addUsage(admin, 1, 0); // the engine's PutObject for this artifact is Class A (G5)
     return c.json({ artifact_id: (ins.data as ArtifactRow).id }, 200);
+  });
+
+  internal.openapi(getSegments, async (c) => {
+    const { id } = c.req.valid("param");
+    const { after_seq } = c.req.valid("query");
+    const admin = c.var.deps.admin();
+    const run = await admin.from("analysis_runs").select("session_id")
+      .eq("id", id).maybeSingle();
+    if (run.error) throw run.error;
+    if (!run.data) throw new ApiFailure(404, "not_found", "analysis not found");
+    const sessionId = (run.data as { session_id: string }).session_id;
+    const result = await admin.from("segments").select(
+      "seq,pts_start_us,pts_end_us,starts_on_sync_sample,bytes,sha256,final,r2_key,completed_at",
+    ).eq("session_id", sessionId).order("seq", { ascending: true });
+    if (result.error) throw result.error;
+
+    const rows = (result.data ?? []) as Array<{
+      seq: number | string;
+      pts_start_us: number | string;
+      pts_end_us: number | string;
+      starts_on_sync_sample: boolean;
+      bytes: number | string;
+      sha256: string;
+      final: boolean;
+      r2_key: string;
+      completed_at: string | null;
+    }>;
+    let expected = after_seq + 1;
+    const finalRow = rows.find((row) => row.final);
+    const finalSeq = finalRow ? Number(finalRow.seq) : null;
+    const segments = [];
+    for (const row of rows) {
+      const seq = Number(row.seq);
+      if (seq <= after_seq) continue;
+      if (seq !== expected || !row.completed_at) break;
+      segments.push({
+        seq,
+        pts_start_us: Number(row.pts_start_us),
+        pts_end_us: Number(row.pts_end_us),
+        starts_on_sync_sample: row.starts_on_sync_sample,
+        bytes: Number(row.bytes),
+        sha256: row.sha256,
+        final: row.final,
+        r2_key: row.r2_key,
+      });
+      expected++;
+    }
+    return c.json(
+      internalSegmentsPageSchema.parse({ segments, final_seq: finalSeq }),
+      200,
+    );
   });
 
   internal.openapi(postFinalize, async (c) => {
