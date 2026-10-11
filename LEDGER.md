@@ -73,3 +73,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T00:22Z | #93 | @HetanshWaghela | p4 | Submission package: README, demo script, submission text, checklist | none | 1.9.0 | Each claim and its evidence: |
 | 2026-10-11T00:22Z | #88 | @HetanshWaghela | p4 | android: test app court homography agrees with engine H on the real A55 taps | D-261011-HW14 (H direction) | 1.9.0 | Engine `H` applied to the real taps: |
 | 2026-10-11T00:22Z | #94 | @VrajVed | p1 | engine: finalize after the last window (#79) | D-261011-HW15 (contracts 1.9.0: `match_id`/`session_id` in the submit body, nullable track artifacts) and D-261011-HW14  | 1.9.0 | - **Body from the real run:** the finalize body built from the real hits run `ap-OC1nn0d4By8WZb0voixnPt` (`h13g_singles` |
+| 2026-10-11T00:24Z | #89 | @HetanshWaghela | p4 | Contracts 1.10.0: read pages for matches, rallies, moments, capabilities (#65, D | D-261011-HW16 | 1.10.0 | ``` |
