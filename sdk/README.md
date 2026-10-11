@@ -60,15 +60,19 @@ All URIs are relative to *https://zpwxjjsugujmihhkmfjx.supabase.co/functions/v1/
 *DefaultApi* | [**createChallengeEntry**](docs/DefaultApi.md#createchallengeentryoperation) | **POST** /v1/challenges/{id}/entries | 
 *DefaultApi* | [**createCorrection**](docs/DefaultApi.md#createcorrectionoperation) | **POST** /v1/matches/{id}/corrections | 
 *DefaultApi* | [**createDeveloperKey**](docs/DefaultApi.md#createdeveloperkey) | **POST** /v1/developer-keys | 
+*DefaultApi* | [**createMatchPost**](docs/DefaultApi.md#creatematchpostoperation) | **POST** /v1/matches/{id}/posts | 
 *DefaultApi* | [**createSession**](docs/DefaultApi.md#createsessionoperation) | **POST** /v1/sessions | 
 *DefaultApi* | [**createUploadParts**](docs/DefaultApi.md#createuploadpartsoperation) | **POST** /v1/sessions/{id}/upload/parts | 
 *DefaultApi* | [**deleteMatch**](docs/DefaultApi.md#deletematch) | **DELETE** /v1/matches/{id} | 
+*DefaultApi* | [**deleteMatchPost**](docs/DefaultApi.md#deletematchpost) | **DELETE** /v1/posts/{id} | 
 *DefaultApi* | [**getAnalysis**](docs/DefaultApi.md#getanalysis) | **GET** /v1/analyses/{id} | 
 *DefaultApi* | [**getArtifact**](docs/DefaultApi.md#getartifact) | **GET** /v1/artifacts/{id} | 
 *DefaultApi* | [**getCapabilities**](docs/DefaultApi.md#getcapabilities) | **GET** /v1/capabilities | 
 *DefaultApi* | [**getChallenge**](docs/DefaultApi.md#getchallenge) | **GET** /v1/challenges/{id} | 
+*DefaultApi* | [**getFriendFeed**](docs/DefaultApi.md#getfriendfeed) | **GET** /v1/feed | 
 *DefaultApi* | [**getHealth**](docs/DefaultApi.md#gethealth) | **GET** /v1/health | 
 *DefaultApi* | [**getMatch**](docs/DefaultApi.md#getmatch) | **GET** /v1/matches/{id} | 
+*DefaultApi* | [**getMatchPost**](docs/DefaultApi.md#getmatchpost) | **GET** /v1/posts/{id} | 
 *DefaultApi* | [**getRally**](docs/DefaultApi.md#getrally) | **GET** /v1/matches/{id}/rallies/{rid} | 
 *DefaultApi* | [**getSession**](docs/DefaultApi.md#getsession) | **GET** /v1/sessions/{id} | 
 *DefaultApi* | [**getShotComparisons**](docs/DefaultApi.md#getshotcomparisons) | **GET** /v1/matches/{mid}/shots/{shot_id}/comparisons | 
@@ -104,6 +108,11 @@ All URIs are relative to *https://zpwxjjsugujmihhkmfjx.supabase.co/functions/v1/
 - [CreateChallengeRequestRoundResultsInner](docs/CreateChallengeRequestRoundResultsInner.md)
 - [CreateChallengeRequestRoundsInner](docs/CreateChallengeRequestRoundsInner.md)
 - [CreateCorrectionRequest](docs/CreateCorrectionRequest.md)
+- [CreateMatchPost201Response](docs/CreateMatchPost201Response.md)
+- [CreateMatchPost201ResponseOwner](docs/CreateMatchPost201ResponseOwner.md)
+- [CreateMatchPost201ResponseSummary](docs/CreateMatchPost201ResponseSummary.md)
+- [CreateMatchPost201ResponseSummaryLandingPointsMInner](docs/CreateMatchPost201ResponseSummaryLandingPointsMInner.md)
+- [CreateMatchPostRequest](docs/CreateMatchPostRequest.md)
 - [CreateSession201Response](docs/CreateSession201Response.md)
 - [CreateSession201ResponseAnyOf](docs/CreateSession201ResponseAnyOf.md)
 - [CreateSession201ResponseAnyOf1](docs/CreateSession201ResponseAnyOf1.md)
@@ -125,6 +134,7 @@ All URIs are relative to *https://zpwxjjsugujmihhkmfjx.supabase.co/functions/v1/
 - [GetAnalysis200Response](docs/GetAnalysis200Response.md)
 - [GetArtifact200Response](docs/GetArtifact200Response.md)
 - [GetCapabilities200Response](docs/GetCapabilities200Response.md)
+- [GetFriendFeed200Response](docs/GetFriendFeed200Response.md)
 - [GetHealth200Response](docs/GetHealth200Response.md)
 - [GetMatch200Response](docs/GetMatch200Response.md)
 - [GetMatch200ResponseAnalysis](docs/GetMatch200ResponseAnalysis.md)

@@ -21,6 +21,11 @@ docs/CreateChallengeRequest.md
 docs/CreateChallengeRequestRoundResultsInner.md
 docs/CreateChallengeRequestRoundsInner.md
 docs/CreateCorrectionRequest.md
+docs/CreateMatchPost201Response.md
+docs/CreateMatchPost201ResponseOwner.md
+docs/CreateMatchPost201ResponseSummary.md
+docs/CreateMatchPost201ResponseSummaryLandingPointsMInner.md
+docs/CreateMatchPostRequest.md
 docs/CreateSession201Response.md
 docs/CreateSession201ResponseAnyOf.md
 docs/CreateSession201ResponseAnyOf1.md
@@ -43,6 +48,7 @@ docs/DefaultApi.md
 docs/GetAnalysis200Response.md
 docs/GetArtifact200Response.md
 docs/GetCapabilities200Response.md
+docs/GetFriendFeed200Response.md
 docs/GetHealth200Response.md
 docs/GetMatch200Response.md
 docs/GetMatch200ResponseAnalysis.md
@@ -130,6 +136,11 @@ src/models/CreateChallengeRequest.ts
 src/models/CreateChallengeRequestRoundResultsInner.ts
 src/models/CreateChallengeRequestRoundsInner.ts
 src/models/CreateCorrectionRequest.ts
+src/models/CreateMatchPost201Response.ts
+src/models/CreateMatchPost201ResponseOwner.ts
+src/models/CreateMatchPost201ResponseSummary.ts
+src/models/CreateMatchPost201ResponseSummaryLandingPointsMInner.ts
+src/models/CreateMatchPostRequest.ts
 src/models/CreateSession201Response.ts
 src/models/CreateSession201ResponseAnyOf.ts
 src/models/CreateSession201ResponseAnyOf1.ts
@@ -151,6 +162,7 @@ src/models/CreateUploadPartsRequest.ts
 src/models/GetAnalysis200Response.ts
 src/models/GetArtifact200Response.ts
 src/models/GetCapabilities200Response.ts
+src/models/GetFriendFeed200Response.ts
 src/models/GetHealth200Response.ts
 src/models/GetMatch200Response.ts
 src/models/GetMatch200ResponseAnalysis.ts

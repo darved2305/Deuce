@@ -79,6 +79,16 @@ import {
     CreateCorrectionRequestToJSON,
 } from '../models/CreateCorrectionRequest';
 import {
+    type CreateMatchPost201Response,
+    CreateMatchPost201ResponseFromJSON,
+    CreateMatchPost201ResponseToJSON,
+} from '../models/CreateMatchPost201Response';
+import {
+    type CreateMatchPostRequest,
+    CreateMatchPostRequestFromJSON,
+    CreateMatchPostRequestToJSON,
+} from '../models/CreateMatchPostRequest';
+import {
     type CreateSession201Response,
     CreateSession201ResponseFromJSON,
     CreateSession201ResponseToJSON,
@@ -113,6 +123,11 @@ import {
     GetCapabilities200ResponseFromJSON,
     GetCapabilities200ResponseToJSON,
 } from '../models/GetCapabilities200Response';
+import {
+    type GetFriendFeed200Response,
+    GetFriendFeed200ResponseFromJSON,
+    GetFriendFeed200ResponseToJSON,
+} from '../models/GetFriendFeed200Response';
 import {
     type GetHealth200Response,
     GetHealth200ResponseFromJSON,
@@ -298,6 +313,21 @@ export interface CreateDeveloperKeyRequest {
     idempotencyKey: string;
 }
 
+export interface CreateMatchPostOperationRequest {
+    /**
+     * 
+     */
+    id: string;
+    /**
+     * 
+     */
+    idempotencyKey: string;
+    /**
+     * 
+     */
+    createMatchPostRequest?: CreateMatchPostRequest;
+}
+
 export interface CreateSessionOperationRequest {
     /**
      * 
@@ -327,6 +357,13 @@ export interface DeleteMatchRequest {
     id: string;
 }
 
+export interface DeleteMatchPostRequest {
+    /**
+     * 
+     */
+    id: string;
+}
+
 export interface GetAnalysisRequest {
     /**
      * 
@@ -348,7 +385,21 @@ export interface GetChallengeRequest {
     id: string;
 }
 
+export interface GetFriendFeedRequest {
+    /**
+     * 
+     */
+    cursor?: string;
+}
+
 export interface GetMatchRequest {
+    /**
+     * 
+     */
+    id: string;
+}
+
+export interface GetMatchPostRequest {
     /**
      * 
      */
@@ -992,6 +1043,63 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
+     * Creates request options for createMatchPost without sending the request
+     */
+    async createMatchPostRequestOpts(requestParameters: CreateMatchPostOperationRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling createMatchPost().'
+            );
+        }
+
+        if (requestParameters['idempotencyKey'] == null) {
+            throw new runtime.RequiredError(
+                'idempotencyKey',
+                'Required parameter "idempotencyKey" was null or undefined when calling createMatchPost().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+        if (requestParameters['idempotencyKey'] != null) {
+            headerParameters['idempotency-key'] = String(requestParameters['idempotencyKey']);
+        }
+
+
+        let urlPath = `/v1/matches/{id}/posts`;
+        urlPath = urlPath.replace('{id}', encodeURIComponent(String(requestParameters['id'])));
+
+        return {
+            path: urlPath,
+            method: 'POST',
+            headers: headerParameters,
+            query: queryParameters,
+            body: CreateMatchPostRequestToJSON(requestParameters['createMatchPostRequest']),
+        };
+    }
+
+    /**
+     */
+    async createMatchPostRaw(requestParameters: CreateMatchPostOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<CreateMatchPost201Response>> {
+        const requestOptions = await this.createMatchPostRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => CreateMatchPost201ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     */
+    async createMatchPost(requestParameters: CreateMatchPostOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<CreateMatchPost201Response> {
+        const response = await this.createMatchPostRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
      * Creates request options for createSession without sending the request
      */
     async createSessionRequestOpts(requestParameters: CreateSessionOperationRequest): Promise<runtime.RequestOpts> {
@@ -1126,6 +1234,48 @@ export class DefaultApi extends runtime.BaseAPI {
      */
     async deleteMatch(requestParameters: DeleteMatchRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
         await this.deleteMatchRaw(requestParameters, initOverrides);
+    }
+
+    /**
+     * Creates request options for deleteMatchPost without sending the request
+     */
+    async deleteMatchPostRequestOpts(requestParameters: DeleteMatchPostRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling deleteMatchPost().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+
+        let urlPath = `/v1/posts/{id}`;
+        urlPath = urlPath.replace('{id}', encodeURIComponent(String(requestParameters['id'])));
+
+        return {
+            path: urlPath,
+            method: 'DELETE',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     */
+    async deleteMatchPostRaw(requestParameters: DeleteMatchPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+        const requestOptions = await this.deleteMatchPostRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.VoidApiResponse(response);
+    }
+
+    /**
+     */
+    async deleteMatchPost(requestParameters: DeleteMatchPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
+        await this.deleteMatchPostRaw(requestParameters, initOverrides);
     }
 
     /**
@@ -1293,6 +1443,45 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
+     * Creates request options for getFriendFeed without sending the request
+     */
+    async getFriendFeedRequestOpts(requestParameters: GetFriendFeedRequest): Promise<runtime.RequestOpts> {
+        const queryParameters: any = {};
+
+        if (requestParameters['cursor'] != null) {
+            queryParameters['cursor'] = requestParameters['cursor'];
+        }
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+
+        let urlPath = `/v1/feed`;
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     */
+    async getFriendFeedRaw(requestParameters: GetFriendFeedRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<GetFriendFeed200Response>> {
+        const requestOptions = await this.getFriendFeedRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => GetFriendFeed200ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     */
+    async getFriendFeed(requestParameters: GetFriendFeedRequest = {}, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<GetFriendFeed200Response> {
+        const response = await this.getFriendFeedRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
      * Creates request options for getHealth without sending the request
      */
     async getHealthRequestOpts(): Promise<runtime.RequestOpts> {
@@ -1367,6 +1556,49 @@ export class DefaultApi extends runtime.BaseAPI {
      */
     async getMatch(requestParameters: GetMatchRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<GetMatch200Response> {
         const response = await this.getMatchRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for getMatchPost without sending the request
+     */
+    async getMatchPostRequestOpts(requestParameters: GetMatchPostRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling getMatchPost().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+
+        let urlPath = `/v1/posts/{id}`;
+        urlPath = urlPath.replace('{id}', encodeURIComponent(String(requestParameters['id'])));
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     */
+    async getMatchPostRaw(requestParameters: GetMatchPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<CreateMatchPost201Response>> {
+        const requestOptions = await this.getMatchPostRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => CreateMatchPost201ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     */
+    async getMatchPost(requestParameters: GetMatchPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<CreateMatchPost201Response> {
+        const response = await this.getMatchPostRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

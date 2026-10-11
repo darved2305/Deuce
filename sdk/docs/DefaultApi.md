@@ -14,15 +14,19 @@ All URIs are relative to *https://zpwxjjsugujmihhkmfjx.supabase.co/functions/v1/
 | [**createChallengeEntry**](DefaultApi.md#createchallengeentryoperation) | **POST** /v1/challenges/{id}/entries |  |
 | [**createCorrection**](DefaultApi.md#createcorrectionoperation) | **POST** /v1/matches/{id}/corrections |  |
 | [**createDeveloperKey**](DefaultApi.md#createdeveloperkey) | **POST** /v1/developer-keys |  |
+| [**createMatchPost**](DefaultApi.md#creatematchpostoperation) | **POST** /v1/matches/{id}/posts |  |
 | [**createSession**](DefaultApi.md#createsessionoperation) | **POST** /v1/sessions |  |
 | [**createUploadParts**](DefaultApi.md#createuploadpartsoperation) | **POST** /v1/sessions/{id}/upload/parts |  |
 | [**deleteMatch**](DefaultApi.md#deletematch) | **DELETE** /v1/matches/{id} |  |
+| [**deleteMatchPost**](DefaultApi.md#deletematchpost) | **DELETE** /v1/posts/{id} |  |
 | [**getAnalysis**](DefaultApi.md#getanalysis) | **GET** /v1/analyses/{id} |  |
 | [**getArtifact**](DefaultApi.md#getartifact) | **GET** /v1/artifacts/{id} |  |
 | [**getCapabilities**](DefaultApi.md#getcapabilities) | **GET** /v1/capabilities |  |
 | [**getChallenge**](DefaultApi.md#getchallenge) | **GET** /v1/challenges/{id} |  |
+| [**getFriendFeed**](DefaultApi.md#getfriendfeed) | **GET** /v1/feed |  |
 | [**getHealth**](DefaultApi.md#gethealth) | **GET** /v1/health |  |
 | [**getMatch**](DefaultApi.md#getmatch) | **GET** /v1/matches/{id} |  |
+| [**getMatchPost**](DefaultApi.md#getmatchpost) | **GET** /v1/posts/{id} |  |
 | [**getRally**](DefaultApi.md#getrally) | **GET** /v1/matches/{id}/rallies/{rid} |  |
 | [**getSession**](DefaultApi.md#getsession) | **GET** /v1/sessions/{id} |  |
 | [**getShotComparisons**](DefaultApi.md#getshotcomparisons) | **GET** /v1/matches/{mid}/shots/{shot_id}/comparisons |  |
@@ -749,6 +753,83 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
 
+## createMatchPost
+
+> CreateMatchPost201Response createMatchPost(id, idempotencyKey, createMatchPostRequest)
+
+
+
+### Example
+
+```ts
+import {
+  Configuration,
+  DefaultApi,
+} from '@elevate/sdk';
+import type { CreateMatchPostOperationRequest } from '@elevate/sdk';
+
+async function example() {
+  console.log("🚀 Testing @elevate/sdk SDK...");
+  const api = new DefaultApi();
+
+  const body = {
+    // string
+    id: id_example,
+    // string
+    idempotencyKey: idempotencyKey_example,
+    // CreateMatchPostRequest (optional)
+    createMatchPostRequest: ...,
+  } satisfies CreateMatchPostOperationRequest;
+
+  try {
+    const data = await api.createMatchPost(body);
+    console.log(data);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Run the test
+example().catch(console.error);
+```
+
+### Parameters
+
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **id** | `string` |  | [Defaults to `undefined`] |
+| **idempotencyKey** | `string` |  | [Defaults to `undefined`] |
+| **createMatchPostRequest** | [CreateMatchPostRequest](CreateMatchPostRequest.md) |  | [Optional] |
+
+### Return type
+
+[**CreateMatchPost201Response**](CreateMatchPost201Response.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: `application/json`
+- **Accept**: `application/json`
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **201** | frozen match post created |  -  |
+| **401** | missing or invalid token |  -  |
+| **403** | read-only developer key |  -  |
+| **404** | post or match not visible to the caller |  -  |
+| **409** | idempotency key conflict |  -  |
+| **422** | invalid request or cursor |  -  |
+| **429** | daily post limit reached |  -  |
+
+[[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
+
+
 ## createSession
 
 > CreateSession201Response createSession(idempotencyKey, createSessionRequest)
@@ -951,6 +1032,77 @@ No authorization required
 | **404** | match not owned by the caller |  -  |
 | **409** | an analysis is in progress |  -  |
 | **500** | match deletion could not be completed |  -  |
+
+[[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
+
+
+## deleteMatchPost
+
+> deleteMatchPost(id)
+
+
+
+### Example
+
+```ts
+import {
+  Configuration,
+  DefaultApi,
+} from '@elevate/sdk';
+import type { DeleteMatchPostRequest } from '@elevate/sdk';
+
+async function example() {
+  console.log("🚀 Testing @elevate/sdk SDK...");
+  const api = new DefaultApi();
+
+  const body = {
+    // string
+    id: id_example,
+  } satisfies DeleteMatchPostRequest;
+
+  try {
+    const data = await api.deleteMatchPost(body);
+    console.log(data);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Run the test
+example().catch(console.error);
+```
+
+### Parameters
+
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **id** | `string` |  | [Defaults to `undefined`] |
+
+### Return type
+
+`void` (Empty response body)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: `application/json`
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **204** | post deleted |  -  |
+| **401** | missing or invalid token |  -  |
+| **403** | read-only developer key |  -  |
+| **404** | post or match not visible to the caller |  -  |
+| **409** | idempotency key conflict |  -  |
+| **422** | invalid request or cursor |  -  |
+| **429** | daily post limit reached |  -  |
 
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
@@ -1214,6 +1366,77 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
 
+## getFriendFeed
+
+> GetFriendFeed200Response getFriendFeed(cursor)
+
+
+
+### Example
+
+```ts
+import {
+  Configuration,
+  DefaultApi,
+} from '@elevate/sdk';
+import type { GetFriendFeedRequest } from '@elevate/sdk';
+
+async function example() {
+  console.log("🚀 Testing @elevate/sdk SDK...");
+  const api = new DefaultApi();
+
+  const body = {
+    // string (optional)
+    cursor: cursor_example,
+  } satisfies GetFriendFeedRequest;
+
+  try {
+    const data = await api.getFriendFeed(body);
+    console.log(data);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Run the test
+example().catch(console.error);
+```
+
+### Parameters
+
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **cursor** | `string` |  | [Optional] [Defaults to `undefined`] |
+
+### Return type
+
+[**GetFriendFeed200Response**](GetFriendFeed200Response.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: `application/json`
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **200** | caller and friends\&#39; posts, newest first |  -  |
+| **401** | missing or invalid token |  -  |
+| **403** | read-only developer key |  -  |
+| **404** | post or match not visible to the caller |  -  |
+| **409** | idempotency key conflict |  -  |
+| **422** | invalid request or cursor |  -  |
+| **429** | daily post limit reached |  -  |
+
+[[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
+
+
 ## getHealth
 
 > GetHealth200Response getHealth()
@@ -1335,6 +1558,77 @@ No authorization required
 | **404** | match not visible |  -  |
 | **409** | analysis not complete |  -  |
 | **500** | stored match failed contract validation |  -  |
+
+[[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
+
+
+## getMatchPost
+
+> CreateMatchPost201Response getMatchPost(id)
+
+
+
+### Example
+
+```ts
+import {
+  Configuration,
+  DefaultApi,
+} from '@elevate/sdk';
+import type { GetMatchPostRequest } from '@elevate/sdk';
+
+async function example() {
+  console.log("🚀 Testing @elevate/sdk SDK...");
+  const api = new DefaultApi();
+
+  const body = {
+    // string
+    id: id_example,
+  } satisfies GetMatchPostRequest;
+
+  try {
+    const data = await api.getMatchPost(body);
+    console.log(data);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Run the test
+example().catch(console.error);
+```
+
+### Parameters
+
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **id** | `string` |  | [Defaults to `undefined`] |
+
+### Return type
+
+[**CreateMatchPost201Response**](CreateMatchPost201Response.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: `application/json`
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **200** | a post visible to its owner or a friend |  -  |
+| **401** | missing or invalid token |  -  |
+| **403** | read-only developer key |  -  |
+| **404** | post or match not visible to the caller |  -  |
+| **409** | idempotency key conflict |  -  |
+| **422** | invalid request or cursor |  -  |
+| **429** | daily post limit reached |  -  |
 
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
