@@ -31,7 +31,8 @@ EVENT_ROW = json.dumps({"seq": 3, "type": "window.completed"})
 def test_event_posts_contract_body_to_the_internal_route_with_token():
     server = FakeServer((200, EVENT_ROW))
     body = {"type": "window.completed", "window_seq": 0, "decode_window_us": [0, 6_750_000],
-            "emit_range_us": [0, 6_000_000], "artifact_id": "art_1"}  # fmt: skip
+            "emit_range_us": [0, 6_000_000], "artifact_id": "art_1",
+            "windows_expected": 81}  # fmt: skip  # contracts 1.8.0: lets the app show n of N
     assert api(server).event("a_1", body)["seq"] == 3
     url, token, sent = server.calls[0]
     assert url.endswith("/internal/analyses/a_1/events") and token == "s3cret" and sent == body

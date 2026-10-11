@@ -129,7 +129,7 @@ def analyze(analysis_id: str, r2_key: str, session_spec: dict) -> dict:
             art = api.artifact(analysis_id, "window_result", stored["r2_key"], stored["bytes"],
                                stored["sha256"])  # fmt: skip
             api.event(analysis_id, {
-                "type": "window.completed", "window_seq": k,
+                "type": "window.completed", "window_seq": k, "windows_expected": len(plans),
                 "decode_window_us": w["decode_window_us"], "emit_range_us": w["emit_range_us"],
                 "artifact_id": art,
             })  # fmt: skip
