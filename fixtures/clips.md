@@ -27,10 +27,11 @@ the one below, stop and say so in your PR: never swap a clip silently.
 - Layout: intro talk until 30.24 s, then continuous play from one fixed camera to the end (484.5 s);
   no scene cuts after 30.24 s. The score is burned in at the top left, so every rally's winner is
   readable from the video itself.
-- Known limit: the camera is low and the near baseline appears to be below the frame, so the
-  four-corner calibration probably cannot run on this clip (no landing marks or line calls on it;
-  the app says so). Person 1 confirms on the first calibration attempt. Calibration is developed on
-  `stdata_test` (full court in frame) and on team-recorded footage.
+- Calibration: the four singles court corners are inside the frame (real A55 taps on issue #61: near
+  baseline at y = 1014.7 of 1080). The engine calibrates it at grade B (PR #87) and the app's court
+  mapping agrees within 1 cm (PR #88). This replaces the earlier guess that the near baseline was
+  below the frame.
+- Demo clip (D-261011-HW17): this is the clip for the live demo and the "analysed earlier" result.
 - Fetch (once, then upload to the Volume; everyone else pulls from there):
   ```sh
   yt-dlp -f 299 -o h13g_singles.v299.mp4 https://www.youtube.com/watch?v=h13gAmp9zJY
