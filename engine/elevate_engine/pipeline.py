@@ -12,6 +12,8 @@
 7. Audio onsets (measured per emitted range) and candidate hits (elevate_engine.hits: an
    observed trajectory turn, fused with a nearby onset when there is one) go in the same
    window. A hit's track_id names the shuttle trail until player tracks exist.
+8. Player rows (optional LivePlayers): D-FINE person boxes of each window, associated in time
+   order with ids committed per posted window, so the same person keeps the same t_ id.
 
 Per-window quality: ball_coverage = emitted frames with an observed tracked point / emitted
 frames (the trail, after the tracking layer); camera_motion_px and blur_index as in
@@ -31,6 +33,7 @@ from elevate_engine.hits import (
     hit_candidates,
     shuttle_track_id,
 )
+from elevate_engine.players import LivePlayers
 from elevate_engine.sports import TrackingConfig
 from elevate_engine.tracking import track
 
@@ -157,13 +160,32 @@ def window_hits(
 def window_for_posting(
     analysis_id: str, plans: Sequence[WindowPlan], results: Sequence[dict], k: int,
     cfg: TrackingConfig, models: Sequence[str] = ("tracknet_v3",),
+    players: LivePlayers | None = None,
 ) -> dict:  # fmt: skip
     """Window k tracked over its neighbours k-1..k+1 only (bounded work per window). On the
-    h13g working clip this equals tracking the whole range at once for every window."""
+    h13g working clip this equals tracking the whole range at once for every window.
+    With `players`, the persons of windows up to k+1 are fed to it and window k carries their
+    rows with ids that stay the same across windows (call k in increasing order)."""
     lo, hi = max(0, k - 1), min(len(results), k + 2)
     rows, _ = track_windows(results[lo:hi], cfg)
     onsets_, events = window_hits(analysis_id, k, rows, results[lo:hi], plans[k].emit)
-    return window_result(analysis_id, plans[k], results[k], rows, models, onsets_, events)
+    player_rows = _player_rows(players, results[:hi], plans[k].emit)
+    return window_result(analysis_id, plans[k], results[k], rows, models, onsets_, events,
+                         player_rows)  # fmt: skip
+
+
+def _player_rows(players: LivePlayers | None, fed: Sequence[dict], emit) -> list[list]:
+    """Window rows from the live tracker. A player-path error never fails the analysis: the
+    tracker is marked failed (players.failed, logged by analyze) and later windows carry no
+    player rows instead of guessed ones."""
+    if players is None or getattr(players, "failed", None):
+        return []
+    try:
+        players.feed_windows(fed)
+        return players.rows(emit)[0]
+    except Exception as exc:  # noqa: BLE001 - isolate the optional player stage
+        players.failed = f"{type(exc).__name__}: {exc}"[:200]
+        return []
 
 
 def assemble(
@@ -172,14 +194,18 @@ def assemble(
     per_window: Sequence[dict],
     cfg: TrackingConfig,
     models: Sequence[str] = ("tracknet_v3",),
+    players: LivePlayers | None = None,
 ) -> tuple[list[dict], dict]:
     """per_window[i] (from Models.candidates for plans[i]): t_ms and cands of its emitted
-    frames, plus measured camera_motion_px and blur_index. Returns (windows, tracker stats)."""
+    frames, plus measured camera_motion_px and blur_index (and persons, used with `players`).
+    Returns (windows, tracker stats)."""
     rows, stats = track_windows(per_window, cfg)
-    windows = [
-        window_result(analysis_id, plan, res, rows, models,
-                      *window_hits(analysis_id, plan.seq, rows,
-                                   per_window[max(0, i - 1):i + 2], plan.emit))
-        for i, (plan, res) in enumerate(zip(plans, per_window, strict=True))
-    ]  # fmt: skip
+    windows = []
+    for i, (plan, res) in enumerate(zip(plans, per_window, strict=True)):
+        # as posted: window k's player ids are committed once k+1 is fed
+        player_rows = _player_rows(players, per_window[: i + 2], plan.emit)
+        windows.append(window_result(analysis_id, plan, res, rows, models,
+                                     *window_hits(analysis_id, plan.seq, rows,
+                                                  per_window[max(0, i - 1):i + 2], plan.emit),
+                                     player_rows))  # fmt: skip
     return windows, stats
