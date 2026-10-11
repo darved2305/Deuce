@@ -71,3 +71,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T00:19Z | #86 | @HetanshWaghela | p4 | Contracts 1.9.0: engine can build the finalize body (#77, D-261011-HW15) | D-261011-HW15 | 1.9.0 | ``` |
 | 2026-10-11T00:20Z | #87 | @VrajVed | p1 | engine: court calibration from corner taps (tier B on the real A55 taps) | D-261011-HW14 (contracts 1.8.0): H = image px → court m, row-major, h33 = 1. `H_cov` is 81 numbers or null. Tiers: A � | 1.9.0 | Real taps of session `s_3df758f240434f74820e829033966138` (Person 2's A55 upload, analysis `a_73b8c407…`), pasted by N |
 | 2026-10-11T00:22Z | #93 | @HetanshWaghela | p4 | Submission package: README, demo script, submission text, checklist | none | 1.9.0 | Each claim and its evidence: |
+| 2026-10-11T00:22Z | #88 | @HetanshWaghela | p4 | android: test app court homography agrees with engine H on the real A55 taps | D-261011-HW14 (H direction) | 1.9.0 | Engine `H` applied to the real taps: |
