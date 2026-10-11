@@ -130,19 +130,27 @@ export async function listEvents(
   analysisId: string,
   afterSeq: number,
   limit: number,
+  ownerId?: string,
 ): Promise<{
   events: EventWire[];
   next_after_seq: number;
   has_more: boolean;
   state: string;
 }> {
-  const run = await user.from("analysis_runs").select("id,state")
-    .eq("id", analysisId).maybeSingle();
+  const runQuery = user.from("analysis_runs").select("id,state")
+    .eq("id", analysisId);
+  const run = ownerId
+    ? await runQuery.eq("owner_id", ownerId).maybeSingle()
+    : await runQuery.maybeSingle();
   if (run.error) throw run.error;
   if (!run.data) throw new ApiFailure(404, "not_found", "analysis not found");
-  const res = await user.from("analysis_events").select("*")
-    .eq("analysis_id", analysisId).gt("seq", afterSeq)
-    .order("seq", { ascending: true }).limit(limit + 1);
+  const eventsQuery = user.from("analysis_events").select("*")
+    .eq("analysis_id", analysisId);
+  const res = ownerId
+    ? await eventsQuery.eq("owner_id", ownerId).gt("seq", afterSeq)
+      .order("seq", { ascending: true }).limit(limit + 1)
+    : await eventsQuery.gt("seq", afterSeq)
+      .order("seq", { ascending: true }).limit(limit + 1);
   if (res.error) throw res.error;
   const rows = (res.data ?? []) as EventRow[];
   const page = rows.slice(0, limit);

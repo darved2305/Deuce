@@ -1,5 +1,5 @@
 begin;
-select plan(28);
+select plan(35);
 
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values
@@ -452,6 +452,29 @@ set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","r
 select is((select count(*)::int from public.matches where id = 'm_cmp_shared_q'), 0, 'a second user cannot read an unshared query match');
 select is((select count(*)::int from public.compare_shot('m_cmp_shared_q', 'sh_cmp_shared_q', 'shared', 5)), 0, 'a second user cannot compare another owner’s query shot');
 
+reset role;
+select ok(has_function_privilege(
+  'service_role', 'public.compare_shot_for_owner(uuid,text,text,text,integer)', 'EXECUTE'),
+  'service_role can execute the owner-pinned comparison reader');
+select ok(not has_function_privilege(
+  'authenticated', 'public.compare_shot_for_owner(uuid,text,text,text,integer)', 'EXECUTE'),
+  'authenticated cannot execute the owner-pinned comparison reader');
+select ok(not has_function_privilege(
+  'anon', 'public.compare_shot_for_owner(uuid,text,text,text,integer)', 'EXECUTE'),
+  'anon cannot execute the owner-pinned comparison reader');
+select ok((select prosecdef from pg_proc
+  where oid = 'public.compare_shot_for_owner(uuid,text,text,text,integer)'::regprocedure),
+  'the owner-pinned comparison reader is security definer');
+set local role service_role;
+select is((select count(*)::int from public.compare_shot_for_owner(
+  '11111111-1111-1111-1111-111111111111', 'm_cmp_rank_q', 'sh_cmp_rank_q', 'own', 99)),
+  5, 'owner-pinned comparison reader returns only the owner''s ranked results');
+select is((select count(*)::int from public.compare_shot_for_owner(
+  '22222222-2222-2222-2222-222222222222', 'm_cmp_rank_q', 'sh_cmp_rank_q', 'own', 99)),
+  0, 'another owner receives no comparison results');
+select is((select count(*)::int from public.compare_shot_for_owner(
+  '11111111-1111-1111-1111-111111111111', 'm_cmp_shared_q', 'sh_cmp_shared_q', 'shared', 5)),
+  0, 'owner-pinned comparisons do not expose share-granted results');
 reset role;
 select * from finish();
 rollback;

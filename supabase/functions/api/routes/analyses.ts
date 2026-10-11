@@ -359,7 +359,14 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
     const { id } = c.req.valid("param");
     const { after_seq, limit } = c.req.valid("query");
     const jwt = (c.req.header("Authorization") ?? "").slice("Bearer ".length);
-    const out = await listEvents(c.var.deps.user(jwt), id, after_seq, limit);
+    const reader = c.var.readOnly ? c.var.deps.admin() : c.var.deps.user(jwt);
+    const out = await listEvents(
+      reader,
+      id,
+      after_seq,
+      limit,
+      c.var.readOnly ? c.var.userId : undefined,
+    );
     return c.json(EventsResponse.parse(out), 200);
   });
 }

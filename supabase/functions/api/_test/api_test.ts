@@ -25,7 +25,7 @@ Deno.test("GET /v1/openapi.json -> 3.0.4 doc with /v1 paths only", async () => {
   assert.equal(doc.openapi, "3.0.4");
   assert.equal(
     doc.info.description,
-    "X-API-Key is read-only and currently supports only GET /v1/analyses/{id}.",
+    "X-API-Key is read-only and supports owner-scoped GET routes; share grants do not apply.",
   );
   assert.ok(doc.paths["/v1/health"], "doc has /v1/health");
   assert.ok(doc.paths["/v1/developer-keys"].post.responses["201"]);

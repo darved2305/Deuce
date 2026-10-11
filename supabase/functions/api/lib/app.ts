@@ -49,7 +49,7 @@ export function createApp(deps: Deps = defaultDeps()): Hono {
         title: "Elevate API",
         version: "0.1.0",
         description:
-          "X-API-Key is read-only and currently supports only GET /v1/analyses/{id}.",
+          "X-API-Key is read-only and supports owner-scoped GET routes; share grants do not apply.",
       },
       servers: [{ url: `${env("SUPABASE_URL")}/functions/v1/api` }],
     });

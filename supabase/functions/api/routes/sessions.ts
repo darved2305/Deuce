@@ -622,15 +622,29 @@ export function registerSessions(api: OpenAPIHono<AppEnv>): void {
 
   api.openapi(getSession, async (c) => {
     const { id } = c.req.valid("param");
-    const user = c.var.deps.user(jwtOf(c));
-    const s = await user.from("sessions")
+    const reader = c.var.readOnly
+      ? c.var.deps.admin()
+      : c.var.deps.user(jwtOf(c));
+    const sessionQuery = reader.from("sessions")
       .select("id,match_id,mode,upload_mode,source,created_at")
-      .eq("id", id).maybeSingle();
-    if (s.error) throw s.error;
-    if (!s.data) throw new ApiFailure(404, "not_found", "session not found");
-    const u = await user.from("uploads").select(UPLOAD_COLS)
-      .eq("session_id", id).maybeSingle();
-    if (u.error) throw u.error;
+      .eq("id", id);
+    const s = await (c.var.readOnly
+      ? sessionQuery.eq("owner_id", c.var.userId)
+      : sessionQuery).maybeSingle();
+    if (s.error) {
+      throw s.error;
+    }
+    if (!s.data) {
+      throw new ApiFailure(404, "not_found", "session not found");
+    }
+    const uploadQuery = reader.from("uploads").select(UPLOAD_COLS)
+      .eq("session_id", id);
+    const u = await (c.var.readOnly
+      ? uploadQuery.eq("owner_id", c.var.userId)
+      : uploadQuery).maybeSingle();
+    if (u.error) {
+      throw u.error;
+    }
     const row = s.data as Record<string, unknown> & { id: string };
     const up = u.data as UploadRow | null;
     return c.json(
