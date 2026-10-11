@@ -147,6 +147,14 @@ class AnalysisSync(
     /** Real player foot positions (court metres) of every downloaded window, for Decide mode. */
     val feet: StateFlow<PlayerFeet> = _feet.asStateFlow()
 
+    private val _players = MutableStateFlow<List<com.elevate.app.domain.tactics.PlayerRow>>(emptyList())
+    /** Player rows (box + feet) of every downloaded window, by time; updated with [feet]. */
+    val players: StateFlow<List<com.elevate.app.domain.tactics.PlayerRow>> = _players.asStateFlow()
+
+    private val _liveLandings = MutableStateFlow<List<WindowResultStore.LiveLanding>>(emptyList())
+    /** Landing candidates of every downloaded window (image points), by time. */
+    val liveLandings: StateFlow<List<WindowResultStore.LiveLanding>> = _liveLandings.asStateFlow()
+
     private val _artifactAccess = MutableStateFlow<ArtifactAccess>(ArtifactAccess.Unknown)
     /** Whether window results can be fetched from the server at all (see [ArtifactAccess]). */
     val artifactAccess: StateFlow<ArtifactAccess> = _artifactAccess.asStateFlow()
@@ -298,6 +306,8 @@ class AnalysisSync(
             _ballTrack.value = store.track()
             _hits.value = store.hits()
             _feet.value = PlayerFeet(store.feet())
+            _players.value = store.players()
+            _liveLandings.value = store.landings()
             _state.update { it.copy(windowsDownloaded = downloaded.size) }
         }
         if (cachedAt.isNotEmpty()) {
@@ -410,6 +420,8 @@ class AnalysisSync(
             _ballTrack.value = store.track()
             _hits.value = store.hits()
             _feet.value = PlayerFeet(store.feet())
+            _players.value = store.players()
+            _liveLandings.value = store.landings()
             _cache.update { it.copy(fromCache = false) }
         }
         _state.update { it.copy(windowsDownloaded = downloaded.size, artifactProblems = problems()) }

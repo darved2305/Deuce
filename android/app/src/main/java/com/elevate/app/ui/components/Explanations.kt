@@ -36,6 +36,10 @@ object Explanations {
         "Where it landed",
         "The spot on the court where the shuttle came down. It shows whether your shots reach the corners or stay short.",
     )
+    val Tactics = Explanation(
+        "Tactics",
+        "How predictable your shots are, your opponent's habits, where you stood when they hit, and where lost points turned. All from your video; outcomes are estimates.",
+    )
     val Rally = Explanation(
         "Rally",
         "One point from serve to the shuttle hitting the floor. Rallies let you review a point at a time.",

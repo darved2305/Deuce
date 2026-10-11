@@ -327,6 +327,13 @@ private fun AnalysisPanel(
             drills.isEmpty() -> "no clear landings were found in this match."
             else -> null
         }
+        val tactics by ovm.tactics.collectAsStateWithLifecycle()
+        // This phone's setup (court taps, "who are you" tap) feeds the live tactics until match.v1 arrives.
+        val replay = vm.screen.collectAsStateWithLifecycle().value as? Screen.Replay
+        LaunchedEffect(ovm, replay?.court, replay?.setup) {
+            replay?.court?.let { ovm.setTacticsCourt(it.template, it.homography) }
+            replay?.setup?.whoIsMe?.let { w -> if (w.imageXy.size == 2) ovm.setWhoIsMe(w.tMs, w.imageXy[0], w.imageXy[1]) }
+        }
         MatchOverviewScreen(
             state = overview,
             eyebrow = hero.eyebrow,
@@ -341,6 +348,9 @@ private fun AnalysisPanel(
             decideFreezes = freezes.size,
             trainingLock = trainingLock,
             onDecide = { vm.showPanel(Screen.Panel.Decide) },
+            tactics = tactics,
+            onOpenAt = { ms -> vm.openRally(ms) },
+            onSwapYou = { ovm.swapYou() },
         )
         return
     }
