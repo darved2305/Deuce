@@ -4,6 +4,7 @@ import com.elevate.app.data.api.AnalysisCreateResponse
 import com.elevate.app.data.api.AnalysisEvent
 import com.elevate.app.data.api.AnalysisEventsPage
 import com.elevate.app.data.api.AnalysisGetResponse
+import com.elevate.app.data.api.Contracts
 import com.elevate.app.data.api.MatchRecord
 import com.elevate.app.data.api.WindowQuality
 import com.elevate.app.data.api.WindowEvent
@@ -20,6 +21,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import kotlin.coroutines.EmptyCoroutineContext
 
 /**
  * AnalysisSync against an in-memory server that follows contracts §3 (cursor semantics) and §4–5.
@@ -71,6 +73,7 @@ class AnalysisSyncTest {
 
         override suspend fun artifactUrl(artifactId: String): SignedUrl {
             artifactCalls++
+            if (offline) throw AnalysisApiException(AnalysisApiException.Kind.NETWORK, "no network (host not resolved)")
             artifactError?.let { throw it }
             return SignedUrl("https://r2.example.invalid/$artifactId")
         }
@@ -78,7 +81,13 @@ class AnalysisSyncTest {
         override suspend fun downloadWindowResult(url: SignedUrl): WindowResult =
             artifacts[url.value.substringAfterLast('/')] ?: throw AnalysisApiException(AnalysisApiException.Kind.HTTP, "window result download failed: HTTP 404", 404)
 
-        override suspend fun getMatch(matchId: String): MatchRecord = throw AnalysisApiException(AnalysisApiException.Kind.HTTP, "not_found: route not found", 404, "not_found")
+        var match: MatchRecord? = null
+        var matchCalls = 0
+        override suspend fun getMatch(matchId: String): MatchRecord {
+            matchCalls++
+            if (offline) throw AnalysisApiException(AnalysisApiException.Kind.NETWORK, "no network (host not resolved)")
+            return match ?: throw AnalysisApiException(AnalysisApiException.Kind.HTTP, "not_found: route not found", 404, "not_found")
+        }
 
         fun add(vararg e: AnalysisEvent) = e.forEach { events[it.seq] = it }
     }
@@ -363,5 +372,93 @@ class AnalysisSyncTest {
         sync.syncOnce()
         assertThat(sync.state.value.totalUs).isNull()
         assertThat(com.elevate.app.domain.analysis.coverageLabel(sync.state.value.coveredUs, null)).isEqualTo("6.0 s analysed · clip length unknown")
+    }
+
+    // ---- Offline cache (WindowCache): "analysed earlier" opens with no network ----
+
+    private fun cachedSync(server: FakeServer, store: CursorStore, cache: WindowCache) =
+        AnalysisSync(id, server, store, 48_500_000, 1920, 1080, PollPolicy(), 100, cache, EmptyCoroutineContext) { 1_000L }
+
+    private fun finishedServer() = FakeServer().apply {
+        fun hitEv(hid: String, t: Long) = WindowEvent(hid, "hit", t, 15, "t_1", listOf(640.0, 360.0), listOf("trajectory"), "candidate")
+        add(
+            ev(1, "analysis.started"),
+            ev(2, "window.completed", 0, listOf(0, 6_000_000), artifact = "art_0"),
+            ev(3, "window.completed", 1, listOf(6_000_000, 12_000_000), artifact = "art_1"),
+            ev(4, "analysis.completed"),
+        )
+        state = "completed"
+        artifacts["art_0"] = window(0, listOf(0, 6_000_000), listOf(listOf(16, 10.0, 20.0, 0.9, "observed"))).copy(events = listOf(hitEv("h_a", 4_000)))
+        artifacts["art_1"] = window(1, listOf(6_000_000, 12_000_000), listOf(listOf(6_016, 30.0, 40.0, 0.8, "observed"))).copy(events = listOf(hitEv("h_b", 9_000)))
+    }
+
+    @Test fun `a finished analysis reopens offline with its track and hits from the cache`() = runTest {
+        val dir = tmp.newFolder("files")
+        val store = FileCursorStore(java.io.File(dir, "analysis"))
+        val s = finishedServer()
+        val first = cachedSync(s, store, WindowCache.forAnalysis(dir, id))
+        assertThat(first.syncOnce()).isEqualTo(AnalysisSync.Outcome.DONE)
+        assertThat(first.cache.value.fromCache).isFalse()
+
+        // "Process death", then airplane mode: every request fails.
+        s.offline = true
+        s.artifactCalls = 0
+        val again = cachedSync(s, store, WindowCache.forAnalysis(dir, id))
+        again.restore()
+        // Shown before any request.
+        assertThat(again.ballTrack.value.size).isEqualTo(2)
+        assertThat(again.hits.value.map { it.tMs }).containsExactly(4_000L, 9_000L).inOrder()
+        assertThat(again.state.value.state).isEqualTo(AnalysisState.COMPLETED)
+        assertThat(again.cache.value.fromCache).isTrue()
+        assertThat(again.cache.value.windowsCached).isEqualTo(2)
+        assertThat(again.cache.value.cachedAtMs).isAtLeast(1_000L)
+        assertThat(again.syncOnce()).isEqualTo(AnalysisSync.Outcome.ERROR)
+        assertThat(again.state.value.offline).isTrue()
+        assertThat(again.ballTrack.value.size).isEqualTo(2)
+        assertThat(again.state.value.windowsDownloaded).isEqualTo(2)
+        assertThat(s.artifactCalls).isEqualTo(0)
+    }
+
+    @Test fun `cached windows are never downloaded again, online either`() = runTest {
+        val dir = tmp.newFolder("files")
+        val store = FileCursorStore(java.io.File(dir, "analysis"))
+        val s = finishedServer()
+        cachedSync(s, store, WindowCache.forAnalysis(dir, id)).syncOnce()
+        assertThat(s.artifactCalls).isEqualTo(2)
+        s.artifactCalls = 0
+        val again = cachedSync(s, store, WindowCache.forAnalysis(dir, id))
+        assertThat(again.syncOnce()).isEqualTo(AnalysisSync.Outcome.DONE)
+        assertThat(s.artifactCalls).isEqualTo(0)
+        assertThat(again.ballTrack.value.size).isEqualTo(2)
+        // Nothing new arrived: what is shown is still the cached result.
+        assertThat(again.cache.value.fromCache).isTrue()
+    }
+
+    @Test fun `windows cache even without a cursor store, and only the missing window is fetched`() = runTest {
+        val dir = tmp.newFolder("files")
+        val s = finishedServer()
+        val cache = WindowCache.forAnalysis(dir, id)
+        cache.put(s.artifacts.getValue("art_0"), "art_0", "0.3.0")
+        val sync = AnalysisSync(id, s, null, 48_500_000, 1920, 1080, PollPolicy(), 100, cache, EmptyCoroutineContext) { 1_000L }
+        sync.syncOnce()
+        assertThat(s.artifactCalls).isEqualTo(1)
+        assertThat(cache.windows().map { it.windowSeq }).containsExactly(0, 1).inOrder()
+    }
+
+    @Test fun `match_v1 is served from the cache first, fetched once otherwise`() = runTest {
+        val repo = generateSequence(java.io.File("").absoluteFile) { it.parentFile }.first { java.io.File(it, "docs/plan/contracts.md").isFile }
+        val md = java.io.File(repo, "docs/plan/contracts.md").readText().replace("\r\n", "\n")
+        val block = Regex("```json\n(.*?)```", RegexOption.DOT_MATCHES_ALL).findAll(md).map { it.groupValues[1] }.first { "\"schema\": \"match.v1\"" in it }
+        val m = Contracts.json.decodeFromString(MatchRecord.serializer(), block)
+        val dir = tmp.newFolder("files")
+        val s = FakeServer().apply { match = m }
+        val sync = AnalysisSync(id, s, null, null, null, null, PollPolicy(), 100, WindowCache.forAnalysis(dir, id), EmptyCoroutineContext) { 1_000L }
+        assertThat(sync.match(m.matchId)).isEqualTo(m)
+        assertThat(sync.cache.value.matchCached).isFalse()
+        s.offline = true
+        val again = AnalysisSync(id, s, null, null, null, null, PollPolicy(), 100, WindowCache.forAnalysis(dir, id), EmptyCoroutineContext) { 1_000L }
+        assertThat(again.match(m.matchId)).isEqualTo(m)
+        assertThat(again.cache.value.matchCached).isTrue()
+        assertThat(s.matchCalls).isEqualTo(1)
     }
 }
