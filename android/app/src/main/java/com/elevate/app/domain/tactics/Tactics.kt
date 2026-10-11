@@ -144,7 +144,8 @@ object Tactics {
         }
         val opp = main.firstOrNull { it != you }
 
-        val hitters = sortedHits.associate { h -> h.id to hitterOf(h, main, byTrack) }
+        val hitters = HashMap<String, String?>()
+        for (rally in rallies) hitters.putAll(alternatingHitters(rally, main, byTrack))
         val shots = ArrayList<Shot>()
         val sortedLandings = landings.sortedBy { it.tMs }
         rallies.forEachIndexed { r, rally ->
@@ -186,6 +187,31 @@ object Tactics {
             if (cur == null || h.tMs - cur.last().tMs > RALLY_GAP_MS) out += mutableListOf(h) else cur += h
         }
         return out.filter { it.size >= 2 }
+    }
+
+    /**
+     * Singles hits alternate: within a rally, pick the order (A first or B first) whose players' boxes
+     * are closest to the shuttle over the whole rally. One noisy contact cannot flip the hitter.
+     */
+    fun alternatingHitters(rally: List<TacHit>, tracks: List<String>, byTrack: Map<String, List<PlayerRow>>): Map<String, String?> {
+        if (tracks.size < 2) return rally.associate { it.id to hitterOf(it, tracks, byTrack) }
+        val (a, b) = tracks
+        fun cost(first: String, second: String): Double = rally.withIndex().sumOf { (i, h) ->
+            distance(h, if (i % 2 == 0) first else second, byTrack) ?: 1.0
+        }
+        val (p, q) = if (cost(a, b) <= cost(b, a)) a to b else b to a
+        return rally.withIndex().associate { (i, h) -> h.id to (if (i % 2 == 0) p else q) }
+    }
+
+    /** Distance from the shuttle at contact to the player's box (grown upward), in box heights; null without a box. */
+    fun distance(h: TacHit, track: String, byTrack: Map<String, List<PlayerRow>>): Double? {
+        val (x, y) = h.imageXy ?: return null
+        val r = nearest(byTrack[track], h.tMs) ?: return null
+        val bh = r.y2 - r.y1
+        val top = r.y1 - 0.6 * bh
+        val dx = max(max(r.x1 - x, 0.0), x - r.x2)
+        val dy = max(max(top - y, 0.0), y - r.y2)
+        return (hypot(dx, dy) / max(bh, 1.0)).coerceAtMost(3.0)
     }
 
     /** The player whose box (grown upward for overhead contacts) is closest to the shuttle at contact. */
