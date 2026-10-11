@@ -80,21 +80,28 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
     val openShaForCta = (screen as? Screen.Replay)?.sha256
     val analysedHere = pipeline != Screen.Pipeline.Idle && openShaForCta != null &&
         analysedSha == openShaForCta
+    val openFacts = ((screen as? Screen.Replay)?.preflight as? PreflightState.Done)?.facts
+    val started = pipeline as? Screen.Pipeline.Started
+    // One OverviewViewModel per analysis, alive while the app is in the foreground, so the
+    // Analysing screen and the video screen's pill (vm.pipelinePill) both show the latest server state.
+    val ovm = if (started != null) rememberAnalysis(vm, started, hero, openFacts) else null
+
     val pipelineUi = PipelineUi(
         state = pipeline,
         upload = upload,
         onAnalyse = { askNotifications(); vm.analyse() },
         onRetryUpload = vm::retryPipeline,
         onCancelUpload = vm::cancelUpload,
-        onOpenAnalysis = { vm.showPanel(Screen.Panel.Analysing) },
+        onOpenAnalysis = {
+            // A finished (or every-window-in) analysis opens the overview; a running one its progress.
+            val a = ovm?.analysis?.value
+            val ready = a?.state == com.elevate.app.domain.analysis.AnalysisState.COMPLETED ||
+                com.elevate.app.domain.analysis.WindowCoverage.readyFromWindows(a)
+            vm.showPanel(if (ready) Screen.Panel.Overview else Screen.Panel.Analysing)
+        },
         pill = pill,
         analysedHere = analysedHere,
     )
-    val openFacts = ((screen as? Screen.Replay)?.preflight as? PreflightState.Done)?.facts
-    val started = pipeline as? Screen.Pipeline.Started
-    // One OverviewViewModel per analysis, alive while the app is in the foreground, so the
-    // Analysing screen and the video screen's pill (vm.pipelinePill) both show the latest server state.
-    val ovm = if (started != null) rememberAnalysis(vm, started, hero, openFacts) else null
 
     // Each downloaded window redraws the live trail on the open video (when it is the analysed file).
     val openSha = (screen as? Screen.Replay)?.sha256
@@ -126,7 +133,14 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
             matches = matches.map { com.elevate.app.ui.screens.matchCardOf(it, thumbs[it.analysisId]) },
             onOpenMatch = vm::openHistory,
         ) {
-            if (pipeline != Screen.Pipeline.Idle) PipelineStatus(pipelineUi)
+            // The pill only while something is actually running; a finished run is the history card.
+            val running = when (val p = pipeline) {
+                Screen.Pipeline.Uploading, is Screen.Pipeline.StartingAnalysis -> true
+                is Screen.Pipeline.Started ->
+                    (ovm?.analysis?.value?.state ?: com.elevate.app.domain.analysis.AnalysisState.fromWire(p.state))?.isTerminal != true
+                else -> false
+            }
+            if (running) PipelineStatus(pipelineUi)
         }
         is Screen.Replay -> {
             if (s.setupAtUs != null && openFacts != null) {
@@ -226,7 +240,7 @@ private fun AnalysisPanels(
             state = overview,
             eyebrow = hero.eyebrow,
             onOpenRally = { _, startMs, _ -> vm.openRally(startMs) },
-            onBack = { vm.showPanel(Screen.Panel.Analysing) },
+            onBack = { vm.showPanel(Screen.Panel.None); vm.back() },
         )
         return
     }

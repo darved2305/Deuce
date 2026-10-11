@@ -278,18 +278,15 @@ private fun OverviewTop(s: MatchOverviewState, hero: AnalysingHero, play: (() ->
             Spacer(Modifier.height(10.dp))
             Text(s.selectedPlayer, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
             s.opponent?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted) }
-            s.score?.let { sc ->
+            s.score?.takeIf { it.confirmed }?.let { sc ->
                 Spacer(Modifier.height(10.dp))
                 Text(sc.headline, style = MaterialTheme.typography.titleMedium, color = c.ink)
                 sc.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted) }
             }
-            Spacer(Modifier.height(8.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                s.capabilities.forEach { (name, cap) -> Pill("$name · ${cap.tier} · ${cap.status}", Color.White, c.ink) }
-            }
         }
     }
     live?.pendingLine?.let { PendingLine(it) }
+    s.matchProblem?.let { PendingLine(it) }
 }
 
 /** "18/485 seconds of your video analysed": covered seconds over the known clip length, never a percentage. */

@@ -120,10 +120,10 @@ object LiveOverview {
     }
 
     fun pendingLine(a: AnalysisUiState, complete: Boolean): String? = when {
-        a.state == AnalysisState.COMPLETED -> "Match summary (score, landings) not served yet"
+        a.state == AnalysisState.COMPLETED -> "Your rallies are ready. Score and landings are still being worked out."
         a.state == AnalysisState.FAILED -> "Analysis stopped · no match summary"
         complete -> AnalysingFlow.SUMMARY_PENDING
-        else -> "Engine still analysing · ${AnalysingFlow.SUMMARY_PENDING.replaceFirstChar { it.lowercase(Locale.ROOT) }}"
+        else -> "Still analysing. Your rallies appear as they are found."
     }
 
     fun rallyRows(t: HitTimelineState): List<LiveRallyRow> = t.rallies.mapIndexed { i, r ->

@@ -51,7 +51,7 @@ class AnalysingFlowTest {
         // A stale Completed progress from an earlier upload must not show as sent.
         val f = AnalysingFlow.state(Screen.Pipeline.Uploading, "Identifying the file", UploadProgress.Completed(1), null)
         assertThat(f.states()).containsExactly(StageState.Active, StageState.Pending, StageState.Pending, StageState.Pending).inOrder()
-        assertThat(f.stages.map { it.label }).containsExactly("Sending your video", "Queued for the engine", "Tracking the shuttle", "Your match").inOrder()
+        assertThat(f.stages.map { it.label }).containsExactly("Sending your video", "Waiting for a free analyser", "Following the shuttle", "Your match").inOrder()
         assertThat(f.send!!.note).isEqualTo("Identifying the file")
         assertThat(f.send!!.amount).isNull()
         assertThat(f.send!!.fraction).isNull()
@@ -97,14 +97,14 @@ class AnalysingFlowTest {
         val f = AnalysingFlow.state(started, null, UploadProgress.Completed(total), null)
         assertThat(f.states()).containsExactly(StageState.Done, StageState.Active, StageState.Pending, StageState.Pending).inOrder()
         assertThat(f.stages[1].value).isEqualTo("waiting")
-        assertThat(AnalysingFlow.pill(started, null, UploadProgress.Idle, null)).isEqualTo("Queued for the engine")
+        assertThat(AnalysingFlow.pill(started, null, UploadProgress.Idle, null)).isEqualTo("Waiting for a free analyser")
     }
 
     @Test fun `tracking shows windows and covered seconds of the clip length`() {
         val a = analysis(AnalysisState.PARTIAL, coveredUs = 18_000_000, windowsDone = 3, downloaded = 3, stages = listOf("analysis.queued", "analysis.started", "window.completed"))
         val f = AnalysingFlow.state(started, null, UploadProgress.Idle, a)
         assertThat(f.states()).containsExactly(StageState.Done, StageState.Done, StageState.Active, StageState.Pending).inOrder()
-        assertThat(f.stages[2].value).isEqualTo("3 windows · 18.0 of 484.5 s")
+        assertThat(f.stages[2].value).isEqualTo("18.0 of 484.5 s watched")
         assertThat(f.action).isEqualTo(AnalysingFlowState.Action.OPEN_PARTIAL)
         assertThat(f.notice).isNull()
         assertThat(AnalysingFlow.pill(started, null, UploadProgress.Idle, a)).isEqualTo("Analysing · 18/485 s")
@@ -112,7 +112,7 @@ class AnalysingFlowTest {
 
     @Test fun `unknown clip length is said, never invented`() {
         val a = analysis(AnalysisState.PROCESSING, coveredUs = 6_000_000, totalUs = null, windowsDone = 1)
-        assertThat(AnalysingFlow.tracking(a)).isEqualTo("1 window · 6.0 s · length unknown")
+        assertThat(AnalysingFlow.tracking(a)).isEqualTo("6.0 s watched · length unknown")
         assertThat(AnalysingFlow.pill(started, null, UploadProgress.Idle, a)).isEqualTo("Analysing · 6 s")
     }
 
@@ -163,7 +163,7 @@ class AnalysingFlowTest {
         val p = Screen.Pipeline.Failed("analysis", "engine_unavailable: try later")
         val f = AnalysingFlow.state(p, null, UploadProgress.Completed(total), null)
         assertThat(f.states()).containsExactly(StageState.Done, StageState.Failed, StageState.Pending, StageState.Pending).inOrder()
-        assertThat(f.notice).isEqualTo("Could not start the analysis · engine_unavailable: try later")
+        assertThat(f.notice).isEqualTo("engine_unavailable: try later")
         assertThat(f.send).isNull()
     }
 
@@ -233,7 +233,7 @@ class AnalysingFlowTest {
         val p = Screen.Pipeline.Failed(AnalysingFlow.CANCEL_STAGE, "no network (host not resolved)")
         val f = AnalysingFlow.state(p, null, UploadProgress.Idle, null)
         assertThat(f.stages.first().value).isEqualTo("cancel failed")
-        assertThat(f.send!!.note).isEqualTo("Could not cancel the upload · Try again cancels it · no network (host not resolved)")
+        assertThat(f.send!!.note).isEqualTo("Couldn't cancel the upload. Tap to try again.")
         assertThat(AnalysingFlow.pill(p, null, UploadProgress.Idle, null)).isEqualTo("Cancel failed · tap to cancel again")
     }
 }

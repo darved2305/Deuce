@@ -124,7 +124,7 @@ fun MiniCourt(
         Spacer(Modifier.height(8.dp))
         Text(
             if (landings.isEmpty()) "Outside the camera view · from your corner taps"
-            else "Rings: engine landing candidates, not verdicts · hatched: outside the camera view",
+            else "Rings: where the shuttle likely landed",
             style = MaterialTheme.typography.labelMedium,
             color = c.inkMuted,
         )
