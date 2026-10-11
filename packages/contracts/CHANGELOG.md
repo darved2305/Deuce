@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.0
+
+Issue #65 B6 reads (D-261011-HW16): `matches.page.v1`, `rallies.page.v1`, `rally.detail.v1`,
+`moments.page.v1`, `capabilities.v1`; one `{items, next_cursor}` envelope reusing match.v1 pieces.
+
 ## 1.9.0
 
 Issue #77 (D-261011-HW15): `modal.submit.request.v1` adds optional `match_id` and `session_id` so the
