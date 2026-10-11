@@ -19,7 +19,7 @@ import {
   Configuration,
   DefaultApi,
   ResponseError,
-  type V1MatchesIdGet200Response,
+  type GetMatch200Response,
 } from "../src/index";
 
 const apiKey = process.env.ELEVATE_API_KEY;
@@ -63,9 +63,9 @@ const rallyMs: number[] = [];
 async function main() {
   let read = 0;
   for (const id of matchIds) {
-    let match: V1MatchesIdGet200Response;
+    let match: GetMatch200Response;
     try {
-      match = await api.v1MatchesIdGet({ id });
+      match = await api.getMatch({ id });
     } catch (e) {
       console.error(`${id}: ${await describe(e)}`);
       continue;
