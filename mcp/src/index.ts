@@ -1,9 +1,9 @@
+#!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
-import { createRequire } from "node:module";
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type * as ContractVendor from "../../supabase/functions/api/lib/contracts_vendor/index.ts";
 import * as z from "zod/v4";
 import {
   countHits,
@@ -14,26 +14,24 @@ import {
   rewatchPicks,
   windowProgress,
 } from "./coach.ts";
-
-const contracts = createRequire(import.meta.url)(
-  "../../supabase/functions/api/lib/contracts_vendor/index.ts",
-) as typeof ContractVendor;
-const {
-  analysisIdSchema,
-  analysisGetResponseSchema,
+import {
   analysisEventsPageSchema,
+  analysisGetResponseSchema,
   capabilitiesResponseSchema,
   comparisonsResponseSchema,
   feedPageSchema,
   errorEnvelopeSchema,
-  matchIdSchema,
   matchV1Schema,
   momentsPageSchema,
-  playerIdSchema,
   rallyDetailSchema,
+} from "./contracts/api.js";
+import {
+  analysisIdSchema,
+  matchIdSchema,
+  playerIdSchema,
   rallyIdSchema,
   shotIdSchema,
-} = contracts;
+} from "./contracts/common.js";
 
 const DEFAULT_API_BASE =
   "https://zpwxjjsugujmihhkmfjx.supabase.co/functions/v1/api";
@@ -578,7 +576,11 @@ export function createServer(): McpServer {
 }
 
 const entrypoint = process.argv[1];
-if (entrypoint && fileURLToPath(import.meta.url) === resolve(entrypoint)) {
+if (
+  entrypoint &&
+  realpathSync(fileURLToPath(import.meta.url)) ===
+    realpathSync(resolve(entrypoint))
+) {
   try {
     await serveStdio(createServer);
   } catch (error) {

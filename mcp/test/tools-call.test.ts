@@ -30,6 +30,21 @@ const stub: Stub = (path, _request, response) => {
   json(response, { error: { code: "not_found", message: "nope" } });
 };
 
+test("get_match_summary validates and summarizes the match.v1 record", async () => {
+  const h = await startHarness(stub, { ELEVATE_API_KEY: "ek_test" });
+  try {
+    const result = await h.call("get_match_summary", { match_id: MATCH_ID });
+    assert.equal(result.isError, false, result.text);
+    const summary = JSON.parse(result.text);
+    assert.equal(summary.match_id, MATCH_ID);
+    assert.equal(summary.rally_count, 3);
+    assert.equal(summary.hero_insight.count.den, 6);
+    assert.match(summary.deep_link, new RegExp(`^elevate://m/${MATCH_ID}/r/`));
+  } finally {
+    await h.close();
+  }
+});
+
 test("rewatch_picks answers from the match record with deep links, over stdio", async () => {
   const h = await startHarness(stub, { ELEVATE_API_KEY: "ek_test" });
   try {

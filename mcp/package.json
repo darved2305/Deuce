@@ -3,13 +3,23 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "elevate-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist/"
+  ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "start": "tsx src/index.ts",
+    "build": "tsc --project tsconfig.build.json",
+    "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/*.test.ts"
+    "test": "npm run build && tsx --test test/*.test.ts",
+    "sync-contracts": "node scripts/sync-contracts.mjs",
+    "check-contracts": "node scripts/sync-contracts.mjs --check",
+    "prepare": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.3.1",
