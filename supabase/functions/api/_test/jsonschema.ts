@@ -17,6 +17,18 @@ import challenge from "../../../../packages/contracts/schemas/challenge.v1.schem
 import friendsResponse from "../../../../packages/contracts/schemas/friends.response.v1.schema.json" with {
   type: "json",
 };
+import feedPage from "../../../../packages/contracts/schemas/feed.page.v1.schema.json" with {
+  type: "json",
+};
+import postCreateRequest from "../../../../packages/contracts/schemas/post.create.request.v1.schema.json" with {
+  type: "json",
+};
+import postSummary from "../../../../packages/contracts/schemas/post.summary.v1.schema.json" with {
+  type: "json",
+};
+import postV1 from "../../../../packages/contracts/schemas/post.v1.schema.json" with {
+  type: "json",
+};
 import errorEnvelope from "../../../../packages/contracts/schemas/error.envelope.v1.schema.json" with {
   type: "json",
 };
@@ -104,6 +116,10 @@ const schemas: Record<string, Schema> = {
   "comparisons.response.v1": comparisonsResponse as Schema,
   "challenge.v1": challenge as Schema,
   "friends.response.v1": friendsResponse as Schema,
+  "post.create.request.v1": postCreateRequest as Schema,
+  "post.summary.v1": postSummary as Schema,
+  "post.v1": postV1 as Schema,
+  "feed.page.v1": feedPage as Schema,
   "error.envelope.v1": errorEnvelope as Schema,
   "health.response.v1": healthResponse as Schema,
   "internal.artifact.request.v1": internalArtifactRequest as Schema,

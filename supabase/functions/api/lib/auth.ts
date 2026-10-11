@@ -36,7 +36,11 @@ export async function sha256Hex(value: string): Promise<string> {
 const PUBLIC_PATHS = new Set(["/api/v1/health", "/api/v1/openapi.json"]);
 // Challenge reads run as the caller under RLS across several accounts (D-261011-HW31); a developer
 // key is owner-only with no share visibility, so those routes reject keys outright.
-const KEY_UNSUPPORTED_PREFIXES = ["/api/v1/challenges"];
+const KEY_UNSUPPORTED_PREFIXES = [
+  "/api/v1/challenges",
+  "/api/v1/feed",
+  "/api/v1/posts",
+];
 
 export const internalAuth = createMiddleware<AppEnv>(async (c, next) => {
   const token = c.req.header("X-Internal-Token");
