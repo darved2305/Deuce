@@ -335,9 +335,13 @@ private fun TrainingButtons(readLabDrills: Int, onTrainRead: () -> Unit, reflexR
         return
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-        com.elevate.app.ui.readlab.ReadLabEntryButton(readLabDrills, onTrainRead, Modifier.weight(1f))
-        com.elevate.app.ui.readlab.ReflexEntryButton(reflexRounds, onReflex, Modifier.weight(1f))
-        com.elevate.app.ui.decide.DecideEntryButton(decideFreezes, onDecide, Modifier.weight(1f))
+        // Each weight sits on a plain Box: ExplainBox's tooltip wrapper drops RowScope parent data, which
+        // let the first button take the whole row and squeezed the others to zero width.
+        if (readLabDrills >= 1) {
+            Box(Modifier.weight(1f)) { com.elevate.app.ui.readlab.ReadLabEntryButton(readLabDrills, onTrainRead, Modifier.fillMaxWidth()) }
+        }
+        Box(Modifier.weight(1f)) { com.elevate.app.ui.readlab.ReflexEntryButton(reflexRounds, onReflex, Modifier.fillMaxWidth()) }
+        Box(Modifier.weight(1f)) { com.elevate.app.ui.decide.DecideEntryButton(decideFreezes, onDecide, Modifier.fillMaxWidth()) }
     }
 }
 
