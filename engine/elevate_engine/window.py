@@ -7,9 +7,7 @@ Every number is measured on the real frames of the window; nothing is filled in:
   means a still camera.
 - blur_index: 1 / (1 + var(Laplacian) / 100) on 512x288 grey frames, median over the window.
   0 = sharp, towards 1 = blurry. A defined engine measure, comparable across windows of the
-  engine, not a standard unit.
-Player rows stay empty until association and calibration exist: the contract requires a track
-id and a foot position in metres, which this engine does not produce yet.
+  engine, not a standard unit. Player rows are supplied by the calibrated player tracking stage.
 """
 
 from __future__ import annotations
@@ -82,6 +80,7 @@ def build(
     models: Sequence[str],
     onsets: Sequence[Sequence[int | float]] = (),
     events: Sequence[dict] = (),
+    players: Sequence[list] = (),
 ) -> dict:
     """The window object, keeping only rows inside the emitted range."""
     lo, hi = emit_ms
@@ -93,7 +92,7 @@ def build(
         "emit_range_us": [lo * 1000, hi * 1000],
         "models": list(models),
         "ball": [r for r in ball_rows if lo <= r[0] < hi],
-        "players": [],
+        "players": [r for r in players if lo <= r[0] < hi],
         "onsets": [list(row) for row in onsets if lo <= row[0] < hi],
         "events": [dict(event) for event in events if lo <= event["t_ms"] < hi],
         "quality": quality_,
