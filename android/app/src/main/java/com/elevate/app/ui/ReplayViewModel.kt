@@ -91,7 +91,10 @@ sealed interface Screen {
         val courtVisible: Boolean = true,
     ) : Screen
 
-    enum class Panel { None, Analysing, Overview, ReadLab }
+    /** "Your game": the profile over every analysed match on this phone. Back returns to Import. */
+    data object Profile : Screen
+
+    enum class Panel { None, Analysing, Overview, ReadLab, Reflex, Review, Decide }
 
     /** Real states only: each step changes on a server answer, never on a timer. */
     sealed interface Pipeline {
@@ -172,9 +175,11 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) { inspector.info(uri) }
             } catch (e: IOException) {
                 Log.w(TAG, "video could not be opened", e)
+                pendingSeekMs = null
                 _screen.value = Screen.Import(error = "This video can't be opened. Try another file.")
                 return@launch
             } catch (e: SecurityException) {
+                pendingSeekMs = null
                 _screen.value = Screen.Import(error = "Access to this file was not granted. Pick it again.")
                 return@launch
             }
@@ -422,12 +427,12 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     private val _matches = MutableStateFlow<List<com.elevate.app.data.history.MatchHistoryEntry>>(emptyList())
     val matches: StateFlow<List<com.elevate.app.data.history.MatchHistoryEntry>> = _matches.asStateFlow()
 
-    // After _matches exists (init blocks run in declaration order).
-    init { refreshMatches() }
-
     private val _matchThumbs = MutableStateFlow<Map<String, androidx.compose.ui.graphics.ImageBitmap>>(emptyMap())
     /** Real middle frames of remembered matches whose video is still readable, by analysisId. */
     val matchThumbs: StateFlow<Map<String, androidx.compose.ui.graphics.ImageBitmap>> = _matchThumbs.asStateFlow()
+
+    // After _matches and _matchThumbs exist (init blocks run in declaration order).
+    init { refreshMatches() }
 
     fun refreshMatches() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -436,7 +441,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             for (e in list) {
                 if (_matchThumbs.value.containsKey(e.analysisId)) continue
                 val img = runCatching { history.thumbnail(getApplication(), e) }.getOrNull() ?: continue
-                _matchThumbs.value = _matchThumbs.value + (e.analysisId to img)
+                _matchThumbs.update { it + (e.analysisId to img) }
             }
         }
     }
@@ -445,14 +450,18 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     private var adopted: com.elevate.app.data.history.MatchHistoryEntry? = null
 
     /** Opens a remembered analysis: its Analysing/Overview panel at once, and its video if still readable. */
-    fun openHistory(analysisId: String) {
-        val p = _pipeline.value
-        if (p == Screen.Pipeline.Uploading || p is Screen.Pipeline.StartingAnalysis) { _panel.value = Screen.Panel.Analysing; return }
-        // A restore still finishing in the background must not switch the screen to its own analysis
-        // after the user picked this one (QA: restore/openHistory race).
-        pipelineJob?.cancel()
+    fun openHistory(analysisId: String, seekMs: Long? = null) {
         viewModelScope.launch {
             val e = withContext(Dispatchers.IO) { history.history.get(analysisId) } ?: return@launch
+            val p = _pipeline.value
+            if (p == Screen.Pipeline.Uploading || p is Screen.Pipeline.StartingAnalysis) {
+                // Reopening the analysis that is starting only shows its panel. A different one wins over a
+                // still-starting upload (a cold-start link): the upload itself keeps running in its worker.
+                if (p is Screen.Pipeline.StartingAnalysis && p.sessionId == e.sessionId) { _panel.value = Screen.Panel.Analysing; return@launch }
+            }
+            // A restore still finishing in the background must not switch the screen to its own analysis
+            // after the user picked this one (QA: restore/openHistory race).
+            pipelineJob?.cancel()
             val uri = withContext(Dispatchers.IO) { com.elevate.app.data.history.MatchHistoryRuntime.readableSource(getApplication(), e) }
             adopted = e
             pipelineTitle = e.title
@@ -462,8 +471,36 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 uri, e.durationMs, e.title,
             )
             _pipeline.value = Screen.Pipeline.Started(e.analysisId, e.sessionId, e.matchId, dispatched = true, state = e.lastState ?: "queued")
+            // A deep link with a moment goes straight to the video there (paused), not to the overview.
+            val atMoment = seekMs != null && uri != null
+            if (atMoment) pendingSeekMs = seekMs
             uri?.let { onPicked(it) }
-            showPanel(if (e.status() == com.elevate.app.data.history.HistoryStatus.Analysing) Screen.Panel.Analysing else Screen.Panel.Overview)
+            showPanel(
+                when {
+                    atMoment -> Screen.Panel.None
+                    e.status() == com.elevate.app.data.history.HistoryStatus.Analysing -> Screen.Panel.Analysing
+                    else -> Screen.Panel.Overview
+                },
+            )
+        }
+    }
+
+    /**
+     * An `elevate://m/...` link: finds the match by id in this phone's history and opens it, at the
+     * link's moment when it has one. A match that is not here says so on the home screen.
+     */
+    fun openDeepLink(target: com.elevate.app.domain.link.DeepLinkTarget) {
+        viewModelScope.launch {
+            val e = withContext(Dispatchers.IO) {
+                runCatching { history.history.list().firstOrNull { it.matchId == target.matchId } }.getOrNull()
+            }
+            if (e == null) {
+                showPanel(Screen.Panel.None)
+                back()
+                _screen.value = Screen.Import(error = "This match isn't on this phone yet")
+                return@launch
+            }
+            openHistory(e.analysisId, target.tMs)
         }
     }
 
@@ -599,6 +636,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         if (!UploadRuntime.isConfigured) return
         viewModelScope.launch {
             val cur = withContext(Dispatchers.IO) { runCatching { uploadRuntime.coordinator.current() }.getOrNull() } ?: return@launch
+            // The user already opened a match (a cold-start link): the restore must not overwrite it.
+            if (adopted != null) return@launch
             _hero.value = heroFromSaved(cur)
             when (cur.phase) {
                 UploadPhase.Creating, UploadPhase.Uploading, UploadPhase.Completing -> {
@@ -820,6 +859,15 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     /** ReadLab's drill session; survives rotation and leaving to the overview and back. */
     val readLab = com.elevate.app.ui.readlab.ReadLabState()
 
+    /** Reflex mode's run; survives rotation and leaving to the overview and back. */
+    val reflex = com.elevate.app.ui.readlab.ReflexState()
+
+    /** Instant Review's selected landing; survives rotation and leaving to the overview and back. */
+    val review = com.elevate.app.ui.review.ReviewSession()
+
+    /** Decide mode's run; survives rotation and leaving to the overview and back. */
+    val decide = com.elevate.app.ui.decide.DecideState()
+
     fun showPanel(panel: Screen.Panel) {
         // The Analysing / Overview panels replace the video screen: no sound from a video nobody sees.
         if (panel != Screen.Panel.None) controller.pause()
@@ -865,6 +913,11 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     fun setOverlayVisible(visible: Boolean) {
         controller.setOverlayVisible(visible)
         _screen.update { s -> if (s is Screen.Replay) s.copy(overlayVisible = visible) else s }
+    }
+
+    /** Opens "Your game" from Home. */
+    fun openProfile() {
+        if (_screen.value is Screen.Import) _screen.value = Screen.Profile
     }
 
     fun back() {

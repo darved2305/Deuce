@@ -1,5 +1,6 @@
 package com.elevate.app.ui.setup
 
+import com.elevate.app.ui.components.ElevateRadius
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -80,6 +82,9 @@ import com.elevate.app.domain.calibration.ImagePoint
 import com.elevate.app.domain.media.SourceFacts
 import com.elevate.app.ui.components.ElevateCard
 import com.elevate.app.ui.components.ElevateHeader
+import com.elevate.app.ui.components.ExplainBox
+import com.elevate.app.ui.components.Explanation
+import com.elevate.app.ui.components.Explanations
 import com.elevate.app.ui.components.PeachPage
 import com.elevate.app.ui.components.PillChip
 import com.elevate.app.ui.components.PrimaryButton
@@ -215,13 +220,18 @@ private fun Hero(
 ) {
     VideoCard(modifier) {
         Picture(f, s, dispatch, dragging, Modifier.fillMaxSize())
-        VideoChip(
-            s.instruction(),
-            modifier = Modifier
+        ExplainBox(
+            when (s.step) {
+                Step.Court -> Explanations.CourtCorners
+                Step.Ball -> Explanations.Ball
+                Step.WhoIsMe -> Explanations.ThisIsMe
+            },
+            Modifier
                 .align(if (s.step == Step.Court) Alignment.BottomStart else Alignment.TopStart)
-                .padding(12.dp)
-                .semantics { liveRegion = LiveRegionMode.Polite },
-        )
+                .padding(12.dp),
+        ) {
+            VideoChip(s.instruction(), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        }
     }
 }
 
@@ -485,7 +495,9 @@ private fun Warning(text: String) {
 private fun CornersSection(s: SetupState, dispatch: (SetupAction) -> Unit, dragging: Corner?) {
     val c = Elevate.colors
     Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("Corners", style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.weight(1f).semantics { heading() })
+        ExplainBox(Explanations.CourtCorners, Modifier.weight(1f)) {
+            Text("Corners", style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically).semantics { heading() })
+        }
         SmallPill("Undo", enabled = s.canUndo) { dispatch(SetupAction.Undo) }
         Spacer(Modifier.width(8.dp))
         SmallPill("Reset", enabled = s.corners.isNotEmpty()) { dispatch(SetupAction.Reset) }
@@ -494,26 +506,28 @@ private fun CornersSection(s: SetupState, dispatch: (SetupAction) -> Unit, dragg
     // Laid out as seen from behind the near baseline: far corners on top.
     for (row in listOf(listOf(Corner.FarLeft, Corner.FarRight), listOf(Corner.NearLeft, Corner.NearRight))) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            for (k in row) CornerChip(k, placed = k in s.corners, active = k == active)
+            for (k in row) ExplainBox(Explanations.CourtCorners, Modifier.weight(1f)) { CornerChip(k, placed = k in s.corners, active = k == active) }
         }
     }
-    s.courtHint()?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = c.inkMuted) }
+    s.courtHint()?.let { ExplainBox(Explanations.Magnifier, Modifier.fillMaxWidth()) { Text(it, style = MaterialTheme.typography.labelMedium, color = c.inkMuted) } }
     if (s.offFrameCorners > 0) {
-        Text(
-            "${s.offFrameCorners} ${if (s.offFrameCorners == 1) "corner" else "corners"} placed outside the picture (estimated)",
-            style = MaterialTheme.typography.labelMedium,
-            color = c.inkMuted,
-        )
+        ExplainBox(Explanations.OffFrameCorner, Modifier.fillMaxWidth()) {
+            Text(
+                "${s.offFrameCorners} ${if (s.offFrameCorners == 1) "corner" else "corners"} out of view (estimated)",
+                style = MaterialTheme.typography.labelMedium,
+                color = c.inkMuted,
+            )
+        }
     }
 }
 
 @Composable
-private fun RowScope.CornerChip(k: Corner, placed: Boolean, active: Boolean) {
+private fun CornerChip(k: Corner, placed: Boolean, active: Boolean) {
     val c = Elevate.colors
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(ElevateRadius.Inner)
     Row(
         Modifier
-            .weight(1f)
+            .fillMaxWidth()
             .heightIn(min = 52.dp)
             .clip(shape)
             .background(if (active) c.peach else Color.White)
@@ -539,7 +553,7 @@ private fun RowScope.CornerChip(k: Corner, placed: Boolean, active: Boolean) {
 @Composable
 private fun SportSection(s: SetupState, dispatch: (SetupAction) -> Unit) {
     val c = Elevate.colors
-    SectionTitle("Sport")
+    ExplainBox(Explanations.Sport, Modifier.fillMaxWidth()) { SectionTitle("Sport") }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // Only sports that can be analysed are offered: no "soon" pills.
         for (sport in Sport.entries.filter { s.isEnabled(it) }) {
@@ -554,7 +568,7 @@ private fun SportSection(s: SetupState, dispatch: (SetupAction) -> Unit) {
     val formats = SetupCatalog.formats(s.sport)
     if (formats.size > 1) {
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Format", style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.weight(1f))
+            ExplainBox(Explanations.Format, Modifier.weight(1f)) { Text("Format", style = MaterialTheme.typography.titleMedium, color = c.ink) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (fmt in formats) PillChip(fmt.label, selected = fmt == s.format, onClick = { dispatch(SetupAction.SelectFormat(fmt)) })
             }
@@ -566,6 +580,7 @@ private fun SportSection(s: SetupState, dispatch: (SetupAction) -> Unit) {
 @Composable
 private fun MarkCard(name: String, marked: Boolean, frameMs: Long, onClear: () -> Unit) {
     val c = Elevate.colors
+    ExplainBox(if (name == "You") Explanations.ThisIsMe else Explanations.Ball, Modifier.fillMaxWidth()) {
     ElevateCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -583,6 +598,7 @@ private fun MarkCard(name: String, marked: Boolean, frameMs: Long, onClear: () -
             }
             SmallPill("Clear", enabled = marked, onClick = onClear)
         }
+    }
     }
 }
 
@@ -624,17 +640,21 @@ private fun Bottom(s: SetupState, dispatch: (SetupAction) -> Unit, onDone: (Setu
                 modifier = Modifier.fillMaxWidth(),
             )
             val result = s.result()
-            PrimaryButton(
-                text = if (result != null) "Analyse match" else s.blocker ?: "Tap yourself",
-                onClick = { result?.let(onDone) },
-                enabled = result != null,
-            )
+            ExplainBox(Explanations.Analyse, Modifier.fillMaxWidth()) {
+                PrimaryButton(
+                    text = if (result != null) "Analyse match" else s.blocker ?: "Tap yourself",
+                    onClick = { result?.let(onDone) },
+                    enabled = result != null,
+                )
+            }
         } else {
-            PrimaryButton(
-                text = if (s.canNext) (if (s.step == Step.Court) "Looks right" else "Next") else s.shortBlocker(),
-                onClick = { dispatch(SetupAction.Next) },
-                enabled = s.canNext,
-            )
+            ExplainBox(if (s.step == Step.Court) Explanations.CourtCorners else Explanations.Ball, Modifier.fillMaxWidth()) {
+                PrimaryButton(
+                    text = if (s.canNext) (if (s.step == Step.Court) "Looks right" else "Next") else s.shortBlocker(),
+                    onClick = { dispatch(SetupAction.Next) },
+                    enabled = s.canNext,
+                )
+            }
         }
     }
 }

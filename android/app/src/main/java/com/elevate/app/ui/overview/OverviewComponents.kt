@@ -1,5 +1,8 @@
 package com.elevate.app.ui.overview
 
+import com.elevate.app.ui.components.ElevateRadius
+import com.elevate.app.ui.components.Explanations
+import com.elevate.app.ui.components.ExplainBox
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -46,7 +49,7 @@ internal fun Pill(text: String, background: Color, ink: Color, modifier: Modifie
 @Composable
 internal fun Notice(title: String, detail: String?, background: Color, ink: Color, modifier: Modifier = Modifier) {
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(background).padding(14.dp),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(ElevateRadius.Inner)).background(background).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(title, color = ink, style = MaterialTheme.typography.titleMedium)
@@ -187,8 +190,8 @@ internal fun RallyList(rows: List<RallyRow>, onOpenRally: (rallyId: String, star
     val c = Elevate.colors
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEachIndexed { i, r ->
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(16.dp)).background(c.surface)
+            ExplainBox(Explanations.Rally, Modifier.fillMaxWidth()) { Row(
+                Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(ElevateRadius.Inner)).background(c.surface)
                     .clickable(role = Role.Button, onClickLabel = "Play rally ${i + 1}") { onOpenRally(r.rallyId, r.startMs, r.endMs) }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -204,7 +207,7 @@ internal fun RallyList(rows: List<RallyRow>, onOpenRally: (rallyId: String, star
                     Text(listOfNotNull(r.ballCoverage, r.winner).joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
                 }
                 Text("Play", color = c.orange, style = MaterialTheme.typography.labelLarge)
-            }
+            } }
         }
     }
 }

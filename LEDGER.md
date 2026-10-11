@@ -106,3 +106,17 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T03:02Z | #131 | @nikhilpravinpise | p3 | db: fix migration version clash (segments -> 20261011152200) (#130) | none | 1.10.0 | ``` |
 | 2026-10-11T03:11Z | #134 | @VrajVed | p4 | web: developer landing page and API reference | none | 1.10.0 | ``` |
 | 2026-10-11T03:17Z | #135 | @HetanshWaghela | p4 | mcp + sdk: Ask your coach (8 read-only tools, deep links), one-command analysis, | none | 1.10.0 | ``` |
+| 2026-10-11T03:28Z | #137 | @HetanshWaghela | p4 | android: Reflex mode, read the shot against the clock on your own match | none | 1.10.0 | ``` |
+| 2026-10-11T03:28Z | #138 | @HetanshWaghela | p4 | android: voice coach (TTS), share-your-match card, elevate:// deep links | none | 1.10.0 | ``` |
+| 2026-10-11T03:31Z | #133 | @darved2305 | p2 | android: mini court stays inside its card; court-lines caption names its source | none | 1.10.0 | Galaxy A55 (`RZCY12S9LRD`), build from `main` @ `fc2342d` then this branch, 08:33–08:34 IST. Real h13g footage (1080p5 |
+| 2026-10-11T03:33Z | #141 | @HetanshWaghela | p4 | android: overview opens on the Coach tab (Coach / Rallies / Court), fixed header | none | 1.10.0 | ``` |
+| 2026-10-11T03:35Z | #142 | @HetanshWaghela | p4 | android: shuttle cue at the freeze (ring, direction arrow, short tail) in ReadLa | none | 1.10.0 | ``` |
+| 2026-10-11T03:37Z | #143 | @HetanshWaghela | p4 | android: hold any button to see what it does, plus decluttering and polish | none | 1.10.0 | ``` |
+| 2026-10-11T03:44Z | #144 | @HetanshWaghela | p4 | android: bug-audit fixes (restart title, background pause, deep-link race, Refle | none | 1.10.0 | ``` |
+| 2026-10-11T04:17Z | #145 | @HetanshWaghela | p4 | android: premium polish (radius and type scale, motion, skeletons, haptics, game | none | 1.10.0 | ``` |
+| 2026-10-11T04:19Z | #146 | @HetanshWaghela | p4 | android: Your game, a player profile across all analysed matches | none | 1.10.0 | ``` |
+| 2026-10-11T04:25Z | #147 | @HetanshWaghela | p4 | engine: handheld stabilisation before TrackNet (KLT + reference refine + ORB re- | none | 1.10.0 | Real clips, local CPU (`engine/eval/runs/stabilise_*/stabilise.json` with manifests): |
+| 2026-10-11T04:53Z | #149 | @HetanshWaghela | p4 | android: Decide mode, aim your shot on the real moment, see the opponent's real  | none | 1.10.0 | ``` |
+| 2026-10-11T04:56Z | #150 | @HetanshWaghela | p4 | android: Instant Review, line calls shown with the evidence (freeze, zoom to the | none | 1.10.0 | ``` |
+| 2026-10-11T04:58Z | #151 | @HetanshWaghela | p4 | android: training games say what unlocks them instead of disappearing | none | 1.10.0 | ``` |
+| 2026-10-11T05:03Z | #152 | @HetanshWaghela | p4 | Friends and challenges end to end: challenge a friend on the same shots (contrac | D-261011-HW31 | 1.11.0 | ``` |

@@ -1,0 +1,362 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+      "type": "string"
+    },
+    "creator": {
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "player_id": {
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "type": "string"
+        },
+        "round_results": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "hit_event_id": {
+                "pattern": "^e_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              "pick": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "F1",
+                      "F2",
+                      "F3",
+                      "M1",
+                      "M2",
+                      "M3",
+                      "B1",
+                      "B2",
+                      "B3",
+                      "S",
+                      "L"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "points": {
+                "maximum": 1000,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "reaction_ms": {
+                "anyOf": [
+                  {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "verdict": {
+                "enum": [
+                  "exact",
+                  "adjacent",
+                  "wrong",
+                  "too_slow"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "hit_event_id",
+              "pick",
+              "reaction_ms",
+              "verdict",
+              "points"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "score": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "player_id",
+        "display_name",
+        "score",
+        "round_results"
+      ],
+      "type": "object"
+    },
+    "entries": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted_at": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "creator",
+                  "opponent",
+                  "tie"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "played_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "player_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "round_results": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "hit_event_id": {
+                      "pattern": "^e_[A-Za-z0-9_-]+$",
+                      "type": "string"
+                    },
+                    "pick": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "F1",
+                            "F2",
+                            "F3",
+                            "M1",
+                            "M2",
+                            "M3",
+                            "B1",
+                            "B2",
+                            "B3",
+                            "S",
+                            "L"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "points": {
+                      "maximum": 1000,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "reaction_ms": {
+                      "anyOf": [
+                        {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "verdict": {
+                      "enum": [
+                        "exact",
+                        "adjacent",
+                        "wrong",
+                        "too_slow"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "hit_event_id",
+                    "pick",
+                    "reaction_ms",
+                    "verdict",
+                    "points"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "score": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "player_id",
+          "display_name",
+          "score",
+          "round_results",
+          "outcome",
+          "accepted_at",
+          "played_at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "id": {
+      "pattern": "^ch_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "match_id": {
+      "pattern": "^m_[A-Za-z0-9_-]+$",
+      "type": "string"
+    },
+    "rematch_of": {
+      "anyOf": [
+        {
+          "pattern": "^ch_[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "rounds": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "contact_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "contact_sigma_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "hit_event_id": {
+            "pattern": "^e_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "ladder_us": {
+            "items": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "landing_event_id": {
+            "pattern": "^e_[A-Za-z0-9_-]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hit_event_id",
+          "landing_event_id",
+          "contact_ms",
+          "contact_sigma_ms",
+          "ladder_us"
+        ],
+        "type": "object"
+      },
+      "maxItems": 50,
+      "minItems": 3,
+      "type": "array"
+    },
+    "status": {
+      "enum": [
+        "open",
+        "played"
+      ],
+      "type": "string"
+    },
+    "video_sha256": {
+      "pattern": "^[A-Fa-f0-9]{64}$",
+      "type": "string"
+    },
+    "viewer": {
+      "additionalProperties": false,
+      "properties": {
+        "player_id": {
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "creator",
+            "opponent"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "player_id",
+        "role"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "match_id",
+    "status",
+    "video_sha256",
+    "rematch_of",
+    "rounds",
+    "creator",
+    "entries",
+    "viewer",
+    "created_at"
+  ],
+  "type": "object"
+}

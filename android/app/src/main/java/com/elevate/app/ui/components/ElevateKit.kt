@@ -1,5 +1,7 @@
 package com.elevate.app.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -91,7 +94,7 @@ fun ElevateHeader(
                 modifier = Modifier.semantics { heading() },
             )
             if (subtitle != null) {
-                Text(subtitle, style = MaterialTheme.typography.labelMedium, color = if (dark) Color.White.copy(alpha = 0.75f) else c.inkMuted, maxLines = 1)
+                Text(subtitle, style = MaterialTheme.typography.labelMedium, color = if (dark) Color.White.copy(alpha = 0.75f) else c.inkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { trailing?.invoke() }
@@ -131,7 +134,7 @@ fun Headline(text: String, eyebrow: String? = null, modifier: Modifier = Modifie
 
 /** The real video as a rounded hero card. Put the player surface and chips inside. */
 @Composable
-fun VideoCard(modifier: Modifier = Modifier, corner: Dp = 24.dp, content: @Composable BoxScope.() -> Unit) {
+fun VideoCard(modifier: Modifier = Modifier, corner: Dp = ElevateRadius.Card, content: @Composable BoxScope.() -> Unit) {
     Box(
         modifier
             .fillMaxWidth()
@@ -161,8 +164,9 @@ fun VideoChip(text: String, modifier: Modifier = Modifier, icon: ImageVector? = 
 @Composable
 fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, busy: Boolean = false) {
     val c = Elevate.colors
+    val haptics = rememberHaptics()
     Button(
-        onClick = onClick,
+        onClick = { haptics.confirm(); onClick() },
         enabled = enabled && !busy,
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
@@ -175,7 +179,7 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
             CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
             Spacer(Modifier.size(12.dp))
         }
-        Text(text, style = MaterialTheme.typography.labelLarge.copy(fontSize = 18.sp))
+        Text(text, style = MaterialTheme.typography.labelLarge.copy(fontSize = 18.sp), maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
     }
 }
 
@@ -183,14 +187,15 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
 @Composable
 fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val c = Elevate.colors
+    val haptics = rememberHaptics()
     OutlinedButton(
-        onClick = onClick,
+        onClick = { haptics.tick(); onClick() },
         enabled = enabled,
         shape = CircleShape,
         border = BorderStroke(1.dp, c.line),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = c.ink),
         modifier = modifier.heightIn(min = 52.dp),
-    ) { Text(text, style = MaterialTheme.typography.labelLarge) }
+    ) { Text(text, style = MaterialTheme.typography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center) }
 }
 
 /** White rounded card. [tint] for the peach / mint / lavender variants. */
@@ -202,11 +207,19 @@ fun ElevateCard(
     onClickLabel: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val c = Elevate.colors
+    val reduce = rememberReduceMotion()
+    // A tint change (a verdict arriving) fades instead of jumping.
+    val fill by animateColorAsState(tint, tween(if (reduce) 0 else ElevateMotion.Short), label = "card-tint")
+    val shape = RoundedCornerShape(ElevateRadius.Card)
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(tint)
+            // One card style: soft 1 dp lift on white, a hairline on every card.
+            .shadow(if (tint == Color.White) 1.dp else 0.dp, shape)
+            .clip(shape)
+            .background(fill)
+            .border(1.dp, c.line.copy(alpha = 0.7f), shape)
             .then(if (onClick != null) Modifier.clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = onClick) else Modifier)
             .padding(horizontal = 20.dp, vertical = 16.dp),
         content = content,
@@ -219,7 +232,7 @@ fun PillChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Mod
     val c = Elevate.colors
     Box(
         modifier
-            .heightIn(min = 44.dp)
+            .heightIn(min = 48.dp)
             .clip(CircleShape)
             .background(if (selected) c.peach else Color.White)
             .border(1.dp, if (selected) c.orange else c.line, CircleShape)
@@ -230,6 +243,8 @@ fun PillChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Mod
         Text(
             text,
             style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             color = when {
                 !enabled -> c.inkMuted.copy(alpha = 0.6f)
                 selected -> c.orangeText
@@ -248,7 +263,7 @@ fun SectionTitle(text: String, action: String? = null, onAction: (() -> Unit)? =
         if (action != null && onAction != null) {
             Text(
                 action, style = MaterialTheme.typography.labelLarge, color = c.orangeText,
-                modifier = Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = onAction).padding(8.dp),
+                modifier = Modifier.heightIn(min = 48.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onAction).padding(horizontal = 12.dp, vertical = 12.dp),
             )
         }
     }
@@ -272,9 +287,9 @@ fun StageRow(label: String, state: StageState, value: String? = null) {
             contentAlignment = Alignment.Center,
         ) {
             when (state) {
-                StageState.Done -> Text("✓", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                StageState.Done -> Icon(ElevateIcons.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                 StageState.Active -> Box(Modifier.size(10.dp).clip(CircleShape).background(c.orange))
-                StageState.Failed -> Text("!", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                StageState.Failed -> Icon(ElevateIcons.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                 StageState.Pending -> Unit
             }
         }
@@ -283,9 +298,11 @@ fun StageRow(label: String, state: StageState, value: String? = null) {
             label,
             style = MaterialTheme.typography.titleMedium,
             color = if (state == StageState.Pending) c.inkMuted else c.ink,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (value != null) Text(value, style = MaterialTheme.typography.labelLarge, color = c.inkMuted, textAlign = TextAlign.End)
+        if (value != null) Text(value, style = MaterialTheme.typography.labelLarge, color = c.inkMuted, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
     }
 }
 
@@ -293,11 +310,13 @@ fun StageRow(label: String, state: StageState, value: String? = null) {
 @Composable
 fun ProgressBar(fraction: Float, modifier: Modifier = Modifier) {
     val c = Elevate.colors
+    val reduce = rememberReduceMotion()
+    val smooth by androidx.compose.animation.core.animateFloatAsState(fraction.coerceIn(0f, 1f), tween(if (reduce) 0 else 300), label = "progress")
     Box(modifier.fillMaxWidth().heightIn(min = 10.dp).clip(CircleShape).background(Color.White)) {
-        Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).heightIn(min = 10.dp).clip(CircleShape).background(c.orange))
+        Box(Modifier.fillMaxWidth(smooth).heightIn(min = 10.dp).clip(CircleShape).background(c.orange))
     }
 }
 
-/** Vertical rhythm for screens: 16 dp side gutter, content spaced 16 dp. */
+/** Vertical rhythm for screens: 20 dp side gutter, content spaced 16 dp. */
 val ScreenGutter = 20.dp
 val ScreenSpacing = Arrangement.spacedBy(16.dp)

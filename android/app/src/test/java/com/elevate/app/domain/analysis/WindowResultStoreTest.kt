@@ -143,4 +143,19 @@ class WindowResultStoreTest {
         assertThat(s.hits()).isEmpty()
         assertThat(s.rejectedRows).isEqualTo(2)
     }
+
+    @Test fun `player foot rows keep metres, drop withheld ones and stay inside the emit range`() {
+        val s = WindowResultStore("a_t")
+        val result = WindowResult(
+            "window_result.v1", "a_t", 0, listOf(0, 6_000_000), listOf(0, 6_000_000), listOf("tracknet_v3"), emptyList(),
+            listOf(
+                row(1_000, "t_a", 10.0, 20.0, 5.0, 9.0, 2.5, 3.5, 0.9),
+                row(1_040, "t_a", 10.0, 20.0, 5.0, 9.0, null, null, 0.9), // withheld: no sample
+                row(7_000, "t_b", 10.0, 20.0, 5.0, 9.0, 1.0, 1.0, 0.9),   // another window's range
+            ),
+            emptyList(), emptyList(), WindowQuality(0.5, 0.0, 0.0),
+        )
+        s.put(result, "0.3.0")
+        assertThat(s.feet()).containsExactly(com.elevate.app.domain.decide.FootSample(1_000, "t_a", 2.5, 3.5))
+    }
 }

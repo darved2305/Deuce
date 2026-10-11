@@ -6,6 +6,7 @@ import { env } from "./env.ts";
 import { defaultHook, notFound, onError } from "./errors.ts";
 import { registerAnalyses } from "../routes/analyses.ts";
 import { registerArtifacts } from "../routes/artifacts.ts";
+import { registerChallenges } from "../routes/challenges.ts";
 import { registerComparisons } from "../routes/comparisons.ts";
 import { registerCorrections } from "../routes/corrections.ts";
 import { registerDeveloperKeys } from "../routes/developer-keys.ts";
@@ -33,6 +34,7 @@ export function createApp(deps: Deps = defaultDeps()): Hono {
   registerArtifacts(api);
   registerMatches(api);
   registerReviews(api);
+  registerChallenges(api);
   registerComparisons(api);
   registerCorrections(api);
   registerSessions(api);

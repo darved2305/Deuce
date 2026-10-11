@@ -1,5 +1,7 @@
 package com.elevate.app.ui.overview
 
+import com.elevate.app.ui.components.Explanations
+import com.elevate.app.ui.components.ExplainBox
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -87,7 +89,7 @@ internal fun HitTimeline(
         }
         Text(HitTimelineText.caption(state), style = MaterialTheme.typography.titleMedium, color = c.ink)
         Spacer(Modifier.height(8.dp))
-        if (state.timelineMs > 0) Track(state, onOpenRally)
+        if (state.timelineMs > 0) ExplainBox(Explanations.Estimate, Modifier.fillMaxWidth()) { Track(state, onOpenRally) }
     }
 }
 

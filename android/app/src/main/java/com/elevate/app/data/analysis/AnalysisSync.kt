@@ -15,6 +15,7 @@ import com.elevate.app.domain.analysis.WindowResultStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import com.elevate.app.domain.decide.PlayerFeet
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -141,6 +142,10 @@ class AnalysisSync(
      * whenever a window is stored. Candidates only, never confirmed hits.
      */
     val hits: StateFlow<List<HitCandidate>> = _hits.asStateFlow()
+
+    private val _feet = MutableStateFlow(PlayerFeet.EMPTY)
+    /** Real player foot positions (court metres) of every downloaded window, for Decide mode. */
+    val feet: StateFlow<PlayerFeet> = _feet.asStateFlow()
 
     private val _artifactAccess = MutableStateFlow<ArtifactAccess>(ArtifactAccess.Unknown)
     /** Whether window results can be fetched from the server at all (see [ArtifactAccess]). */
@@ -292,6 +297,7 @@ class AnalysisSync(
         if (restoredWindows > 0) {
             _ballTrack.value = store.track()
             _hits.value = store.hits()
+            _feet.value = PlayerFeet(store.feet())
             _state.update { it.copy(windowsDownloaded = downloaded.size) }
         }
         if (cachedAt.isNotEmpty()) {
@@ -403,6 +409,7 @@ class AnalysisSync(
         if (changed) {
             _ballTrack.value = store.track()
             _hits.value = store.hits()
+            _feet.value = PlayerFeet(store.feet())
             _cache.update { it.copy(fromCache = false) }
         }
         _state.update { it.copy(windowsDownloaded = downloaded.size, artifactProblems = problems()) }

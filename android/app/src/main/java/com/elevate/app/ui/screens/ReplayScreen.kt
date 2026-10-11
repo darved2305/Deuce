@@ -1,5 +1,6 @@
 package com.elevate.app.ui.screens
 
+import com.elevate.app.ui.components.ElevateRadius
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.pm.ApplicationInfo
 import androidx.activity.compose.BackHandler
@@ -81,6 +82,9 @@ import com.elevate.app.playback.PlayerController
 import com.elevate.app.ui.ReplayViewModel
 import com.elevate.app.ui.Screen
 import com.elevate.app.ui.components.ElevateCard
+import com.elevate.app.ui.components.ExplainBox
+import com.elevate.app.ui.components.Explanation
+import com.elevate.app.ui.components.Explanations
 import com.elevate.app.ui.components.ElevateHeader
 import com.elevate.app.ui.components.ElevateIcons
 import com.elevate.app.ui.components.MiniCourt
@@ -209,7 +213,7 @@ private fun ControlsSheet(
 
     Column(
         modifier
-            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            .clip(RoundedCornerShape(topStart = ElevateRadius.Card, topEnd = ElevateRadius.Card))
             .background(Color.White)
             .navigationBarsPadding(),
     ) {
@@ -219,7 +223,7 @@ private fun ControlsSheet(
             .weight(1f, fill = false)
             .verticalScroll(rememberScrollState())
             .padding(start = 20.dp, end = 20.dp, top = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Slider(
             value = shownMs.toFloat(),
@@ -231,7 +235,9 @@ private fun ControlsSheet(
             modifier = Modifier.semantics { contentDescription = "Timeline" },
         )
         if (hitsMs.isNotEmpty()) {
-            com.elevate.app.ui.live.HitStrip(durationMs = state.durationMs, hitsMs = hitsMs, positionMs = shownMs, onSeek = { controller.seekTo(it) })
+            ExplainBox(Explanations.Hit, Modifier.fillMaxWidth()) {
+                com.elevate.app.ui.live.HitStrip(durationMs = state.durationMs, hitsMs = hitsMs, positionMs = shownMs, onSeek = { controller.seekTo(it) })
+            }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             val tnum = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum", fontSize = 16.sp)
@@ -249,16 +255,17 @@ private fun ControlsSheet(
                 icon = when { state.ended -> ElevateIcons.Replay; playing -> ElevateIcons.Pause; else -> ElevateIcons.Play },
                 label = when { state.ended -> "Replay from start"; playing -> "Pause"; else -> "Play" },
             ) { controller.togglePlay() }
-            SpeedSelector(state.speed) { controller.setSpeed(it) }
+            ExplainBox(Explanations.Speed) { SpeedSelector(state.speed) { controller.setSpeed(it) } }
         }
-        Spacer(Modifier.height(4.dp))
         if (screen.live == null) AnnotationRow(screen, onOverlayVisible)
         LiveRow(screen.live, onShowLive)
         EngineRow(screen.engine, onShowEngine)
-        CourtSection(screen)
+        CourtToggleRow(screen)
         PreflightRow(screen.preflight)
         SetupRow(screen, onSetUp)
         PipelineRow(screen, pipeline)
+        // The big top-down court is the only tall item: last, so the common actions above never need scrolling.
+        CourtMap(screen)
         Spacer(Modifier.height(4.dp))
     }
     if (!pipeline.analysedHere) {
@@ -320,6 +327,30 @@ private fun CompactRow(
     toggleLabel: String? = null,
     onClick: (() -> Unit)? = null,
     onClickLabel: String? = null,
+    explain: Explanation? = null,
+    detail: (@Composable () -> Unit)? = null,
+) {
+    if (explain == null) {
+        CompactRowBody(icon, title, bg, iconTint, value, valueDescription, toggle, toggleLabel, onClick, onClickLabel, detail)
+    } else {
+        ExplainBox(explain, Modifier.fillMaxWidth()) {
+            CompactRowBody(icon, title, bg, iconTint, value, valueDescription, toggle, toggleLabel, onClick, onClickLabel, detail)
+        }
+    }
+}
+
+@Composable
+private fun CompactRowBody(
+    icon: ImageVector,
+    title: String,
+    bg: Color,
+    iconTint: Color,
+    value: String? = null,
+    valueDescription: String? = null,
+    toggle: Pair<Boolean, (Boolean) -> Unit>? = null,
+    toggleLabel: String? = null,
+    onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
     detail: (@Composable () -> Unit)? = null,
 ) {
     val c = Elevate.colors
@@ -328,7 +359,7 @@ private fun CompactRow(
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(ElevateRadius.Card))
             .background(bg)
             .then(
                 if (tap != null) {
@@ -339,7 +370,7 @@ private fun CompactRow(
     ) {
         Row(Modifier.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.7f)),
+                Modifier.size(32.dp).clip(RoundedCornerShape(ElevateRadius.Tile)).background(Color.White.copy(alpha = 0.7f)),
                 contentAlignment = Alignment.Center,
             ) { Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp)) }
             Spacer(Modifier.size(12.dp))
@@ -418,6 +449,7 @@ private fun AnnotationRow(screen: Screen.Replay, onOverlayVisible: (Boolean) -> 
                 valueDescription = s.spoken,
                 toggle = screen.overlayVisible to onOverlayVisible,
                 toggleLabel = "Shuttle trail",
+                explain = Explanations.TrailToggle,
             ) {
                 t.provenance.labelledBy?.let { DetailText("Labelled by $it") }
                 DetailText(annotationDetail(t))
@@ -436,19 +468,19 @@ private fun EngineRow(offer: Screen.EngineOffer?, onShowEngine: (Boolean) -> Uni
     val c = Elevate.colors
     val t = offer.trail.track
     val range = "${"%.2f".format(Locale.ROOT, t.rangeStartUs / 1e6)}–${"%.2f".format(Locale.ROOT, t.rangeEndUs / 1e6)} s"
-    val models = offer.run.modelIds.joinToString(", ") { if (it == "tracknet_v3") "TrackNetV3" else it }
     CompactRow(
         icon = ElevateIcons.Bolt,
-        title = "Recorded engine run",
+        title = "Sample analysis",
         bg = c.lavender,
         iconTint = c.lavenderInk,
         value = "${offer.trail.framesWithCandidate}/${t.framesInRange}",
         valueDescription = "a candidate on ${offer.trail.framesWithCandidate} of ${t.framesInRange} frames",
         toggle = offer.shown to onShowEngine,
         toggleLabel = "Engine candidates",
+        explain = Explanations.Estimate,
     ) {
-        DetailText("$models candidates · $range · a candidate on ${offer.trail.framesWithCandidate} of ${t.framesInRange} frames")
-        DetailText("Highest confidence per frame (${offer.trail.rowsTotal} rows) · engine ${offer.run.engineVersion}, not live")
+        DetailText("$range · a candidate on ${offer.trail.framesWithCandidate} of ${t.framesInRange} frames")
+        DetailText("A recorded run of the engine on this clip, not your upload")
     }
 }
 
@@ -469,6 +501,7 @@ private fun LiveRow(live: Screen.LiveOffer?, onShowLive: (Boolean) -> Unit) {
         valueDescription = text.spoken,
         toggle = live.shown to onShowLive,
         toggleLabel = "Live engine trail",
+        explain = Explanations.LiveTrail,
     ) {
         DetailText("$range so far")
         DetailText(text.detail)
@@ -517,35 +550,37 @@ private fun PreflightRow(p: PreflightState) {
 }
 
 /**
- * "See the whole court": a Court toggle for the lines drawn on the footage, then the top-down
- * card. Both exist only when setup's four corner taps produced a homography ([screen].court);
- * on HDR the effect pipeline draws nothing, so the card stays but the toggle is not offered
- * rather than switching something that cannot draw.
+ * "See the whole court": a Court toggle for the lines drawn on the footage ([CourtToggleRow]), then
+ * the top-down card ([CourtMap]). Both exist only when setup's four corner taps produced a
+ * homography ([screen].court); on HDR the effect pipeline draws nothing, so the card stays but the
+ * toggle is not offered rather than switching something that cannot draw.
  *
- * The toggle reaches the same activity-scoped [ReplayViewModel] the screen runs on — the call
+ * The toggle reaches the same activity-scoped [ReplayViewModel] the screen runs on - the call
  * site's parameters are fixed, and this matches how SetupFlowScreen gets its own ViewModel.
  */
 @UnstableApi
 @Composable
-private fun CourtSection(screen: Screen.Replay) {
-    val cal = screen.court ?: return
+private fun CourtToggleRow(screen: Screen.Replay) {
+    if (screen.court == null) return
     val c = Elevate.colors
     if (!screen.info.isHdr) {
         val vm: ReplayViewModel = viewModel()
-        Spacer(Modifier.height(8.dp))
+        ExplainBox(Explanations.CourtToggle, Modifier.fillMaxWidth()) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
+                .heightIn(min = 48.dp)
+                .clip(RoundedCornerShape(ElevateRadius.Card))
                 .background(c.cream)
+                .heightIn(min = 48.dp)
                 .toggleable(value = screen.courtVisible, role = Role.Switch, onValueChange = vm::setCourtVisible)
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 12.dp, vertical = 4.dp)
                 .semantics(mergeDescendants = true) {},
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
                 Text("Court lines", style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
-                Text("Every court line, from your corner taps", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+                Text(if (screen.setup != null) "Every court line, from your corner taps" else "Every court line, from the match's court calibration", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
             }
             Switch(
                 checked = screen.courtVisible,
@@ -553,8 +588,14 @@ private fun CourtSection(screen: Screen.Replay) {
                 colors = SwitchDefaults.colors(checkedTrackColor = c.orange, checkedThumbColor = Color.White, uncheckedBorderColor = c.line),
             )
         }
+        }
     }
-    Spacer(Modifier.height(8.dp))
+}
+
+@UnstableApi
+@Composable
+private fun CourtMap(screen: Screen.Replay) {
+    val cal = screen.court ?: return
     val vm: ReplayViewModel = viewModel()
     val landings by vm.courtLandings.collectAsStateWithLifecycle()
     MiniCourt(cal, landings = landings.map { Triple(it.xM, it.yM, it.state) })
@@ -590,27 +631,30 @@ fun PipelineStatus(ui: PipelineUi, ready: Boolean = true) {
     // While anything runs, the full status lives on the Analysing screen: here, one tappable line.
     val pill = ui.pill
     if (pill != null && ui.state !is Screen.Pipeline.Failed && ui.state != Screen.Pipeline.Idle) {
-        Row(
-            Modifier.fillMaxWidth().clip(CircleShape).background(c.mint)
-                .clickable(onClickLabel = "Open analysis", role = Role.Button, onClick = ui.onOpenAnalysis)
-                .padding(horizontal = 20.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.size(10.dp).clip(CircleShape).background(c.mintInk))
-            Spacer(Modifier.size(12.dp))
-            Text(pill, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp), color = c.ink, modifier = Modifier.weight(1f))
-            Text("Open", style = MaterialTheme.typography.labelLarge, color = c.orangeText)
+        ExplainBox(Explanations.InPieces, Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth().clip(CircleShape).background(c.mint)
+                    .clickable(onClickLabel = "Open analysis", role = Role.Button, onClick = ui.onOpenAnalysis)
+                    .heightIn(min = 48.dp)
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(10.dp).clip(CircleShape).background(c.mintInk))
+                Spacer(Modifier.size(12.dp))
+                Text(pill, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp), color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text("Open", style = MaterialTheme.typography.labelLarge, color = c.orangeText)
+            }
         }
         return
     }
     when (val p = ui.state) {
         Screen.Pipeline.Idle ->
-            if (ready) PrimaryButton("Upload & analyse", onClick = ui.onAnalyse, modifier = Modifier.padding(top = 4.dp))
+            if (ready) ExplainBox(Explanations.Analyse, Modifier.fillMaxWidth()) { PrimaryButton("Upload & analyse", onClick = ui.onAnalyse, modifier = Modifier.padding(top = 4.dp)) }
             else StatusCard("Preparing the file…", "Preparing your video", c.cream)
         Screen.Pipeline.Uploading -> UploadProgressCard(ui.upload, onRetry = ui.onRetryUpload, onCancel = ui.onCancelUpload)
         is Screen.Pipeline.StartingAnalysis -> StatusCard("Uploaded · starting analysis…", "Waiting for the server", c.cream)
         is Screen.Pipeline.Started -> Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.mint)
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(ElevateRadius.Card)).background(c.mint)
                 .clickable(onClickLabel = "Open analysis progress", role = Role.Button, onClick = ui.onOpenAnalysis)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
@@ -627,7 +671,7 @@ fun PipelineStatus(ui: PipelineUi, ready: Boolean = true) {
             Text("Tap for live progress", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
         }
         is Screen.Pipeline.Failed -> Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.errorSurface)
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(ElevateRadius.Card)).background(c.errorSurface)
                 .clickable(onClickLabel = "Try again", role = Role.Button, onClick = ui.onRetryUpload)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
@@ -643,7 +687,7 @@ fun PipelineStatus(ui: PipelineUi, ready: Boolean = true) {
 
 @Composable
 private fun StatusCard(title: String, detail: String, bg: Color) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(bg).padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(ElevateRadius.Card)).background(bg).padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp), color = Elevate.colors.ink)
         Text(detail, style = MaterialTheme.typography.labelMedium, color = Elevate.colors.inkMuted)
     }
@@ -665,6 +709,7 @@ private fun SetupRow(screen: Screen.Replay, onSetUp: () -> Unit) {
         valueDescription = r.summary(),
         onClick = onSetUp,
         onClickLabel = "Change setup",
+        explain = Explanations.CourtCorners,
     )
 }
 
@@ -674,7 +719,7 @@ private fun AnalyseButton(screen: Screen.Replay, onSetUp: () -> Unit) {
     if (screen.setup != null) return
     val p = screen.preflight as? PreflightState.Done ?: return
     if (p.blocked) return
-    PrimaryButton("Analyse this match", onClick = onSetUp)
+    ExplainBox(Explanations.Analyse, Modifier.fillMaxWidth()) { PrimaryButton("Analyse this match", onClick = onSetUp) }
 }
 
 /** e.g. "Badminton singles · 4 corners". Only what the user chose. */
@@ -691,7 +736,7 @@ private fun com.elevate.app.ui.setup.SetupResult.summary(): String {
 internal data class TrailSummary(val title: String, val value: String, val spoken: String)
 
 internal fun trailSummary(t: com.elevate.app.domain.model.TrailTrack): TrailSummary = TrailSummary(
-    title = if (t.provenance.isHandLabelled) "Hand-labelled trail" else "Engine ${t.provenance.engineVersion} trail",
+    title = if (t.provenance.isHandLabelled) "Hand-labelled trail" else "Shuttle trail",
     value = "${t.observedFrames}/${t.labelledFrames}",
     spoken = "shuttle seen in ${t.observedFrames} of ${t.labelledFrames} labelled frames",
 )

@@ -1,5 +1,7 @@
 package com.elevate.app.ui.readlab
 
+import com.elevate.app.ui.components.Explanations
+import com.elevate.app.ui.components.ExplainBox
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,11 +26,18 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.ContentFrame
 import com.elevate.app.domain.court.ZoneId
@@ -38,6 +47,9 @@ import com.elevate.app.playback.PlayerController
 import com.elevate.app.ui.ReplayViewModel
 import com.elevate.app.ui.Screen
 import com.elevate.app.ui.components.ElevateCard
+import com.elevate.app.ui.components.ElevateIcons
+import com.elevate.app.ui.components.PopIn
+import com.elevate.app.ui.components.StateMessage
 import com.elevate.app.ui.components.ElevateHeader
 import com.elevate.app.ui.components.PeachPage
 import com.elevate.app.ui.components.PrimaryButton
@@ -52,7 +64,7 @@ import com.elevate.app.ui.theme.Elevate
 @Composable
 fun ReadLabEntryButton(drills: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
     if (drills < 1) return
-    PrimaryButton(ReadLabText.entry(drills), onClick, modifier)
+    ExplainBox(Explanations.ReadLab, modifier) { PrimaryButton(ReadLabText.entry(drills), onClick, Modifier.fillMaxWidth()) }
 }
 
 /**
@@ -61,12 +73,15 @@ fun ReadLabEntryButton(drills: Int, onClick: () -> Unit, modifier: Modifier = Mo
  */
 @UnstableApi
 @Composable
-fun ReadLabRoute(vm: ReplayViewModel, drills: List<Drill>, onBack: () -> Unit) {
+fun ReadLabRoute(vm: ReplayViewModel, drills: List<Drill>, cueSource: CueSource?, onBack: () -> Unit) {
     val state = vm.readLab
     val session by state.session.collectAsState()
     val controller = vm.controller
     LaunchedEffect(drills) { state.start(drills) }
     val s = session
+
+    // Backgrounded: stop the video so no sound plays from a hidden screen.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { controller.pause() }
 
     // The engine's trail and hit marks would draw the future on the frozen frame: off while training.
     DisposableEffect(vm) {
@@ -89,10 +104,16 @@ fun ReadLabRoute(vm: ReplayViewModel, drills: List<Drill>, onBack: () -> Unit) {
         }
     }
 
+    // Shuttle cue: only on the frozen, unanswered frame, from real observed rows up to that frame. Gone once locked.
+    var cueOn by rememberSaveable { mutableStateOf(true) }
+    val cue = remember(cueSource, frameUs) { if (frameUs != null) cueSource?.cueAt(frameUs) else null }
+    val cueUi = cueSource?.let { CueUi(if (cueOn) cue else null, it.imageW, it.imageH, cueOn) { cueOn = !cueOn } }
+
     BackHandler(onBack = onBack)
     ReadLabScreen(
         session = s,
         controller = controller,
+        cueUi = cueUi,
         onPick = { z -> state.update { it.pick(z) } },
         onAnotherLook = { state.update { it.anotherLook() } },
         onNext = { controller.pause(); state.update { it.next() } },
@@ -107,6 +128,7 @@ fun ReadLabRoute(vm: ReplayViewModel, drills: List<Drill>, onBack: () -> Unit) {
 fun ReadLabScreen(
     session: ReadLabSession?,
     controller: PlayerController,
+    cueUi: CueUi?,
     onPick: (ZoneId) -> Unit,
     onAnotherLook: () -> Unit,
     onNext: () -> Unit,
@@ -120,15 +142,14 @@ fun ReadLabScreen(
             Column(Modifier.fillMaxSize()) {
                 ElevateHeader("ReadLab", onBack = onBack, subtitle = "Train your read on your own match")
                 when {
-                    session == null || session.drills.isEmpty() -> Column(Modifier.padding(horizontal = ScreenGutter)) {
+                    session == null || session.drills.isEmpty() -> Column(Modifier.padding(horizontal = ScreenGutter), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(ReadLabText.HEADER, style = MaterialTheme.typography.titleMedium, color = Elevate.colors.ink)
-                        Spacer(Modifier.height(8.dp))
-                        Text(ReadLabText.EMPTY, style = MaterialTheme.typography.bodyMedium)
+                        StateMessage(ElevateIcons.Empty, ReadLabText.EMPTY, actionLabel = "Back to the match", onAction = onBack)
                     }
                     session.finished -> SummaryView(session, onRestart, onBack)
                     landscape -> Row(Modifier.fillMaxSize().padding(horizontal = ScreenGutter), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
-                            Frozen(session, controller)
+                            Frozen(session, controller, cueUi)
                         }
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
                             Answer(session, onPick, onAnotherLook, onNext, onWatch)
@@ -138,7 +159,7 @@ fun ReadLabScreen(
                         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = ScreenGutter).padding(bottom = 24.dp),
                         verticalArrangement = ScreenSpacing,
                     ) {
-                        Frozen(session, controller)
+                        Frozen(session, controller, cueUi)
                         Answer(session, onPick, onAnotherLook, onNext, onWatch)
                     }
                 }
@@ -149,20 +170,24 @@ fun ReadLabScreen(
 
 @UnstableApi
 @Composable
-private fun Frozen(s: ReadLabSession, controller: PlayerController) {
+private fun Frozen(s: ReadLabSession, controller: PlayerController, cueUi: CueUi?) {
     val c = Elevate.colors
     Text(ReadLabText.HEADER, style = MaterialTheme.typography.titleMedium, color = c.ink)
     val attempt = s.attempt ?: return
     VideoCard(Modifier.aspectRatio(16f / 9f)) {
         val player by controller.playerFlow.collectAsState()
         ContentFrame(player = player, modifier = Modifier.fillMaxSize().semantics { contentDescription = "Your match video, frozen just before a hit" })
+        if (cueUi != null && !attempt.locked) ShuttleCueOverlay(cueUi.cue, cueUi.imageW, cueUi.imageH)
         VideoChip("Drill ${s.index + 1} of ${s.drills.size} · frozen before the hit", Modifier.align(Alignment.TopStart).padding(12.dp))
     }
-    Text(
-        if (attempt.locked) "Answer locked." else "Where will the shuttle land? Tap a zone.",
-        style = MaterialTheme.typography.bodyMedium,
-        color = c.ink,
-    )
+    ExplainBox(Explanations.ZonePicker, Modifier.fillMaxWidth()) {
+        Text(
+            if (attempt.locked) "Answer locked." else "Where will the shuttle land? Tap a zone.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = c.ink,
+        )
+    }
+    if (cueUi != null) ShuttleCueToggle(cueUi.on, cueUi.onToggle)
 }
 
 @Composable
@@ -193,7 +218,7 @@ private fun Answer(s: ReadLabSession, onPick: (ZoneId) -> Unit, onAnotherLook: (
             )
         }
     }
-    if (grade != null) Reveal(drill, attempt, grade)
+    if (grade != null) key(drill.hitEventId) { PopIn { Reveal(drill, attempt, grade) } }
     if (!locked && attempt.canRevealMore) {
         SecondaryButton("Another look (a later frame)", onAnotherLook, Modifier.fillMaxWidth())
     }

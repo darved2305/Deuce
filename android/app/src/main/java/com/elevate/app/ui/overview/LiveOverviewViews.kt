@@ -1,5 +1,8 @@
 package com.elevate.app.ui.overview
 
+import com.elevate.app.ui.components.ElevateRadius
+import com.elevate.app.ui.components.Explanations
+import com.elevate.app.ui.components.ExplainBox
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -126,8 +129,8 @@ internal fun LiveRallyList(rows: List<LiveRallyRow>, onOpenRally: (rallyId: Stri
     val c = Elevate.colors
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEach { r ->
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RoundedCornerShape(16.dp)).background(c.surface)
+            ExplainBox(Explanations.Rally, Modifier.fillMaxWidth()) { Row(
+                Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RoundedCornerShape(ElevateRadius.Inner)).background(c.surface)
                     .clickable(role = Role.Button, onClickLabel = "Play from ${clock(r.startMs)}") { onOpenRally(r.rallyId, r.startMs, r.endMs) }
                     .semantics(mergeDescendants = true) { contentDescription = "${r.label}, engine candidates, not confirmed" }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
@@ -145,7 +148,7 @@ internal fun LiveRallyList(rows: List<LiveRallyRow>, onOpenRally: (rallyId: Stri
                     tint = Color.White,
                     modifier = Modifier.size(40.dp).clip(CircleShape).background(c.orange).padding(10.dp),
                 )
-            }
+            } }
         }
     }
 }
