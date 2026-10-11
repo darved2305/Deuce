@@ -100,3 +100,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T02:55Z | #126 | @VrajVed | p3 | mcp: titles and read-only hints on all four tools | D-261011-VV2 | 1.10.0 | mcpkit 0.6.0 (`check`, 12 clients) on this server inside the workspace layout: |
 | 2026-10-11T02:56Z | #99 | @nikhilpravinpise | p3 | api: segments upload mode (B9, Track C) | Implements accepted D-261011-HW8 and D-261011-HW14. No new decision or plan/contract change. The older `docs/lanes/perso | 1.10.0 | These are regression checks using local fakes and the local test database, not deployed-product proof. |
 | 2026-10-11T02:57Z | #129 | @HetanshWaghela | p4 | android: fix main build (duplicated OverviewDerivation functions from the #123 m | none | 1.10.0 | ``` |
+| 2026-10-11T02:58Z | #122 | @HetanshWaghela | p4 | android: a new video never reopens an old unfinished upload (stale-upload hijack | none | 1.10.0 | ``` |
