@@ -219,7 +219,7 @@ private fun ControlsSheet(
             .weight(1f, fill = false)
             .verticalScroll(rememberScrollState())
             .padding(start = 20.dp, end = 20.dp, top = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Slider(
             value = shownMs.toFloat(),
@@ -251,14 +251,15 @@ private fun ControlsSheet(
             ) { controller.togglePlay() }
             SpeedSelector(state.speed) { controller.setSpeed(it) }
         }
-        Spacer(Modifier.height(4.dp))
         if (screen.live == null) AnnotationRow(screen, onOverlayVisible)
         LiveRow(screen.live, onShowLive)
         EngineRow(screen.engine, onShowEngine)
-        CourtSection(screen)
+        CourtToggleRow(screen)
         PreflightRow(screen.preflight)
         SetupRow(screen, onSetUp)
         PipelineRow(screen, pipeline)
+        // The big top-down court is the only tall item: last, so the common actions above never need scrolling.
+        CourtMap(screen)
         Spacer(Modifier.height(4.dp))
     }
     if (!pipeline.analysedHere) {
@@ -517,35 +518,35 @@ private fun PreflightRow(p: PreflightState) {
 }
 
 /**
- * "See the whole court": a Court toggle for the lines drawn on the footage, then the top-down
- * card. Both exist only when setup's four corner taps produced a homography ([screen].court);
- * on HDR the effect pipeline draws nothing, so the card stays but the toggle is not offered
- * rather than switching something that cannot draw.
+ * "See the whole court": a Court toggle for the lines drawn on the footage ([CourtToggleRow]), then
+ * the top-down card ([CourtMap]). Both exist only when setup's four corner taps produced a
+ * homography ([screen].court); on HDR the effect pipeline draws nothing, so the card stays but the
+ * toggle is not offered rather than switching something that cannot draw.
  *
- * The toggle reaches the same activity-scoped [ReplayViewModel] the screen runs on — the call
+ * The toggle reaches the same activity-scoped [ReplayViewModel] the screen runs on - the call
  * site's parameters are fixed, and this matches how SetupFlowScreen gets its own ViewModel.
  */
 @UnstableApi
 @Composable
-private fun CourtSection(screen: Screen.Replay) {
-    val cal = screen.court ?: return
+private fun CourtToggleRow(screen: Screen.Replay) {
+    if (screen.court == null) return
     val c = Elevate.colors
     if (!screen.info.isHdr) {
         val vm: ReplayViewModel = viewModel()
-        Spacer(Modifier.height(8.dp))
         Row(
             Modifier
                 .fillMaxWidth()
+                .heightIn(min = 48.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(c.cream)
                 .toggleable(value = screen.courtVisible, role = Role.Switch, onValueChange = vm::setCourtVisible)
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 12.dp, vertical = 4.dp)
                 .semantics(mergeDescendants = true) {},
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
                 Text("Court lines", style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
-                Text("Every court line, from your corner taps", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+                Text(if (screen.setup != null) "Every court line, from your corner taps" else "Every court line, from the match's court calibration", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
             }
             Switch(
                 checked = screen.courtVisible,
@@ -554,7 +555,12 @@ private fun CourtSection(screen: Screen.Replay) {
             )
         }
     }
-    Spacer(Modifier.height(8.dp))
+}
+
+@UnstableApi
+@Composable
+private fun CourtMap(screen: Screen.Replay) {
+    val cal = screen.court ?: return
     val vm: ReplayViewModel = viewModel()
     val landings by vm.courtLandings.collectAsStateWithLifecycle()
     MiniCourt(cal, landings = landings.map { Triple(it.xM, it.yM, it.state) })
