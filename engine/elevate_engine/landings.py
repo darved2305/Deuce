@@ -60,6 +60,8 @@ def detect_landings(trail: Sequence[Sequence], known_until_ms: int) -> list[dict
         rest = len(f) - 1
         while rest > 0 and float(np.linalg.norm(xy[rest] - xy[rest - 1])) < REST_PX:
             rest -= 1
+        if rest < MIN_FLIGHT_POINTS // 2:  # it never really moved: a static blob, not a flight
+            continue
         steps = np.diff([int(r[0]) for r in f])
         out.append({
             "t_ms": int(f[rest][0]),
@@ -97,6 +99,18 @@ def court_point(calibration: dict | None, image_xy: Sequence[float]) -> dict | N
         return None
     h = np.array(calibration["H"], dtype=float).reshape(3, 3)
     x, y = float(image_xy[0]), float(image_xy[1])
+    # On or beyond the court plane's horizon (e.g. a shuttle held high): no surface point. The
+    # front side is where the court centre (2.5 m, 6.7 m) appears in the image.
+    try:
+        centre = np.linalg.inv(h) @ np.array([2.5, 6.7, 1.0])
+    except np.linalg.LinAlgError:
+        return None
+    if abs(centre[2]) < 1e-12:
+        return None
+    front = float(h[2] @ np.array([centre[0] / centre[2], centre[1] / centre[2], 1.0]))
+    w = float(h[2] @ np.array([x, y, 1.0]))
+    if abs(w) < 1e-9 or np.sign(w) != np.sign(front):
+        return None
     xy_m = _project(h, x, y)
     eps = 1e-6
     jac_h = np.zeros((2, 9))
@@ -109,6 +123,8 @@ def court_point(calibration: dict | None, image_xy: Sequence[float]) -> dict | N
     cov = jac_px @ jac_px.T * IMAGE_SIGMA_PX**2
     if calibration.get("H_cov") is not None:
         cov = cov + jac_h @ np.array(calibration["H_cov"], dtype=float).reshape(9, 9) @ jac_h.T
+    if not (np.all(np.isfinite(xy_m)) and np.all(np.isfinite(cov))):
+        return None
     return {
         "contact_xy_m": [round(float(v), 4) for v in xy_m],
         "cov_m2": [[round(float(v), 6) for v in row] for row in cov],

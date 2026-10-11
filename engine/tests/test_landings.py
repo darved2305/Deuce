@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import numpy as np
+
 from elevate_engine import landings, pipeline, window
 from elevate_engine.api import validate
 from elevate_engine.sports import BADMINTON
@@ -55,3 +57,14 @@ def test_finalize_carries_landings_with_metres_and_validates():
     validate("analysis.finalize.request.v1", body)
     lands = [e for e in body["vision_result"]["events"] if e["type"] == "landing"]
     assert lands and all("contact_xy_m" in e and e["plane"] == "court" for e in lands)
+
+
+def test_points_beyond_the_court_horizon_or_static_flights_give_nothing():
+    h = np.array(CAL["H"]).reshape(3, 3)
+    # The horizon row of this real calibration: w = h[2] . (x, y, 1) = 0 at y = -h20 x - h22 / h21.
+    y_horizon = -(h[2, 0] * 960 + h[2, 2]) / h[2, 1]
+    assert landings.court_point(CAL, [960.0, y_horizon]) is None
+    assert landings.court_point(CAL, [960.0, y_horizon - 50]) is None  # beyond it: not the floor
+    assert landings.court_point(CAL, [960.0, 900.0]) is not None
+    still = [[t, 500.0, 600.0, 0.9, "observed"] for t in range(0, 400, 20)]
+    assert landings.detect_landings(still, known_until_ms=5000) == []
