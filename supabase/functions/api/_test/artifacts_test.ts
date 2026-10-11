@@ -76,7 +76,8 @@ Deno.test("GET artifact owner receives a signed URL expiring in 300 seconds", as
   assert.ok(
     t.adminLog.some((c) =>
       c.kind === "rpc" && c.name === "r2_take_download" &&
-      c.args.p_owner === "u1" && c.args.p_limit === 200
+      c.args.p_owner === "u1" && c.args.p_limit === 1000 &&
+      c.args.p_artifact === "art_1" && c.args.p_ttl === 300
     ),
   );
 });
@@ -108,6 +109,76 @@ Deno.test("GET artifact enforces the daily download cap", async () => {
   assert.equal(body.error.code, "daily_download_limit");
   assert.ok(body.retry_after_s > 0);
   assert.deepEqual(t.signedKeys, []);
+});
+
+Deno.test("GET artifact serves the 1000th URL of the day and refuses the 1001st", async () => {
+  let total = 998;
+  const admin: Handler = (c) => {
+    if (c.kind === "from" && c.table === "artifacts") return ok(ARTIFACT);
+    if (c.kind === "rpc" && c.name === "r2_take_download") {
+      return ok(total < 1000 ? ++total : null);
+    }
+    if (c.kind === "rpc" && c.name === "r2_add_usage") return ok(true);
+    return ok(null);
+  };
+  const r2 = { presignGet: () => Promise.resolve(URL) } as unknown as R2;
+  const user: Handler = (c) =>
+    c.kind === "from" && c.table === "artifacts" ? ok(ARTIFACT) : ok(null);
+  const app = makeApp(user, admin, undefined, [], [], r2);
+  const req = () =>
+    app.fetch(
+      new Request("http://localhost/api/v1/artifacts/art_1", {
+        headers: { Authorization: "Bearer jwt" },
+      }),
+    );
+  assert.equal((await req()).status, 200); // 999th of the day
+  assert.equal((await req()).status, 200); // 1000th of the day
+  const res = await req(); // 1001st
+  assert.equal(res.status, 429);
+  assert.equal((await res.json()).error.code, "daily_download_limit");
+});
+
+Deno.test("GET artifact re-issue within URL validity does not spend the daily cap", async () => {
+  // Emulates r2_take_download's dedupe: a second take for the same artifact inside the
+  // URL's validity returns the day total unchanged.
+  let total = 0;
+  const issued = new Set<string>();
+  const admin: Handler = (c) => {
+    if (c.kind === "from" && c.table === "artifacts") return ok(ARTIFACT);
+    if (c.kind === "rpc" && c.name === "r2_take_download") {
+      const artifact = String(c.args.p_artifact);
+      if (!issued.has(artifact)) {
+        issued.add(artifact);
+        total += 1;
+      }
+      return ok(total);
+    }
+    if (c.kind === "rpc" && c.name === "r2_add_usage") return ok(true);
+    return ok(null);
+  };
+  const r2 = { presignGet: () => Promise.resolve(URL) } as unknown as R2;
+  const adminLog: Call[] = [];
+  const user: Handler = (c) =>
+    c.kind === "from" && c.table === "artifacts" ? ok(ARTIFACT) : ok(null);
+  const app = makeApp(user, admin, undefined, [], adminLog, r2);
+  const req = () =>
+    app.fetch(
+      new Request("http://localhost/api/v1/artifacts/art_1", {
+        headers: { Authorization: "Bearer jwt" },
+      }),
+    );
+  assert.equal((await req()).status, 200);
+  assert.equal((await req()).status, 200);
+  assert.equal(total, 1);
+  const takes = adminLog.filter(
+    (c): c is Extract<Call, { kind: "rpc" }> =>
+      c.kind === "rpc" && c.name === "r2_take_download",
+  );
+  assert.equal(takes.length, 2);
+  for (const c of takes) {
+    assert.equal(c.args.p_artifact, "art_1");
+    assert.equal(c.args.p_ttl, 300);
+  }
 });
 
 Deno.test("GET unknown artifact returns 404", async () => {
