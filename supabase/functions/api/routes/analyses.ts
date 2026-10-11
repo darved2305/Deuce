@@ -82,7 +82,7 @@ const getEvents = createRoute({
   },
 });
 
-type RunRow = { id: string; state: string };
+type RunRow = { id: string; state: string; match_id?: string };
 
 async function dispatch(
   admin: SupabaseClient,
@@ -106,6 +106,9 @@ async function dispatch(
       analysis_id: run.id,
       r2_key: r2Key,
       session_spec: spec.data as Record<string, unknown>,
+      // The run row comes from create_analysis_run (the whole analysis_runs row), so match_id is
+      // the run's own match; the engine echoes it in vision_result (D-261011-HW15).
+      ...(run.match_id ? { match_id: run.match_id, session_id: sessionId } : {}),
     }, modal);
     return { kind: "submitted", modal_call_id: out.modal_call_id };
   } catch (err) {
