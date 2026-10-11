@@ -545,7 +545,7 @@ private fun CourtSection(screen: Screen.Replay) {
         ) {
             Column(Modifier.weight(1f)) {
                 Text("Court lines", style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
-                Text("Every court line, from your corner taps", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+                Text(if (screen.setup != null) "Every court line, from your corner taps" else "Every court line, from the match's court calibration", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
             }
             Switch(
                 checked = screen.courtVisible,
