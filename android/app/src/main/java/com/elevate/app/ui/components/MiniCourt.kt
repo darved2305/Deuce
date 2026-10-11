@@ -51,7 +51,7 @@ fun MiniCourt(
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(ElevateRadius.Card))
             .background(c.cream)
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {

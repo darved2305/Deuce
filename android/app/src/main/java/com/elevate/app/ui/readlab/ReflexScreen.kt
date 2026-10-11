@@ -5,7 +5,24 @@ import com.elevate.app.ui.components.ExplainBox
 import android.content.Context
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.ui.text.style.TextOverflow
+import com.elevate.app.ui.components.ElevateIcons
+import com.elevate.app.ui.components.ElevateMotion
+import com.elevate.app.ui.components.StateMessage
+import com.elevate.app.ui.components.StreakBadge
+import com.elevate.app.ui.components.animatedCount
+import com.elevate.app.ui.components.popIn
+import com.elevate.app.ui.components.rememberReduceMotion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -242,8 +259,8 @@ fun ReflexRoute(vm: ReplayViewModel, drills: List<Drill>, matchKey: String, cueS
         cueUi = cueUi,
         onPick = { z ->
             if (phase == Phase.Armed && !paused && pending == null) {
+                // The zone tap already gave its own tick (see ZonePicker).
                 pending = z to stopwatch.elapsedMs()
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             }
         },
         onRelaxed = { on -> state.update { it.withRelaxed(on) } },
@@ -278,7 +295,11 @@ private fun ReflexScreen(
                 ElevateHeader("Reflex", onBack = onBack, subtitle = "Read the shot before it lands")
                 when {
                     session == null || session.rounds.size < ReflexRounds.MIN_ROUNDS -> Column(Modifier.padding(horizontal = ScreenGutter)) {
-                        Text("Reflex needs at least ${ReflexRounds.MIN_ROUNDS} shots with a known landing in this match.", style = MaterialTheme.typography.bodyMedium)
+                        StateMessage(
+                            ElevateIcons.Empty,
+                            "Reflex needs at least ${ReflexRounds.MIN_ROUNDS} shots with a known landing in this match.",
+                            actionLabel = "Back to the match", onAction = onBack,
+                        )
                     }
                     !session.started -> Intro(session, settlement, cueUi, onRelaxed, onStart, onBack)
                     session.finished && phase != Phase.Reveal -> End(session, settlement, onPlayAgain, onBack)
@@ -347,11 +368,11 @@ private fun Hud(s: ReflexSession, phase: Phase, paused: Boolean, onPause: () -> 
     val n = if (phase == Phase.Reveal) s.index else minOf(s.index + 1, s.rounds.size)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.weight(1f)) {
-            Text("Round $n of ${s.rounds.size}", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
-            Text(
-                "Score ${s.score}" + if (s.streak >= 2) " · streak ${s.streak}" else "",
-                style = MaterialTheme.typography.titleMedium, color = c.ink,
-            )
+            Text("Round $n of ${s.rounds.size}", style = MaterialTheme.typography.labelMedium, color = c.inkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Score ${animatedCount(s.score)}", style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 1)
+                AnimatedVisibility(s.streak >= 2) { StreakBadge(s.streak) }
+            }
         }
         SecondaryButton(if (paused) "Resume" else "Pause", onPause)
         SecondaryButton("Quit", onQuit)
@@ -391,11 +412,26 @@ private fun Play(s: ReflexSession, phase: Phase, paused: Boolean, timeLeft: Floa
         ReflexVerdict.TOO_SLOW -> c.lavender
         null -> Color.White
     }
+    val reduce = rememberReduceMotion()
+    val header = when {
+        phase == Phase.Reveal && result != null -> 2
+        phase == Phase.Armed -> 1
+        else -> 0
+    }
     ElevateCard(tint = tint) {
-        when {
-            phase == Phase.Reveal && result != null -> Verdict(round, result)
-            phase == Phase.Armed -> Countdown(timeLeft, s.timerMs)
-            else -> Text("Get ready. Watch the rally.", style = MaterialTheme.typography.titleMedium, color = c.ink)
+        AnimatedContent(
+            targetState = header,
+            transitionSpec = { (popIn(reduce)) togetherWith (if (reduce) ExitTransition.None else fadeOut(tween(ElevateMotion.Quick))) },
+            modifier = Modifier.fillMaxWidth(),
+            label = "reflex-header",
+        ) { kind ->
+            Column(Modifier.fillMaxWidth()) {
+                when {
+                    kind == 2 && result != null -> Verdict(round, result)
+                    kind == 1 -> Countdown(timeLeft, s.timerMs)
+                    else -> Text("Get ready. Watch the rally.", style = MaterialTheme.typography.titleMedium, color = c.ink)
+                }
+            }
         }
         Spacer(Modifier.height(10.dp))
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -424,7 +460,10 @@ private fun Play(s: ReflexSession, phase: Phase, paused: Boolean, timeLeft: Floa
 @Composable
 private fun Countdown(timeLeft: Float, timerMs: Long) {
     val c = Elevate.colors
-    val color = if (timeLeft > 0.5f) lerp(c.orange, c.mintInk, (timeLeft - 0.5f) * 2f) else lerp(c.error, c.orange, timeLeft * 2f)
+    val reduce = rememberReduceMotion()
+    // The clock ticks every few ms; the bar glides between ticks instead of stepping.
+    val smooth by animateFloatAsState(timeLeft, tween(if (reduce) 0 else 100, easing = LinearEasing), label = "countdown")
+    val color = if (smooth > 0.5f) lerp(c.orange, c.mintInk, (smooth - 0.5f) * 2f) else lerp(c.error, c.orange, smooth * 2f)
     val secs = timeLeft * timerMs / 1000f
     ExplainBox(Explanations.ZonePicker, Modifier.fillMaxWidth()) { Text("Tap where it lands", style = MaterialTheme.typography.titleMedium, color = c.ink) }
     Spacer(Modifier.height(8.dp))
@@ -432,7 +471,7 @@ private fun Countdown(timeLeft: Float, timerMs: Long) {
         Modifier.fillMaxWidth().height(14.dp).clip(CircleShape).background(c.line)
             .semantics { contentDescription = "Time left"; stateDescription = "%.1f seconds".format(secs) },
     ) {
-        Box(Modifier.fillMaxWidth(timeLeft).fillMaxHeight().clip(CircleShape).background(color))
+        Box(Modifier.fillMaxWidth(smooth).fillMaxHeight().clip(CircleShape).background(color))
     }
 }
 
@@ -460,7 +499,10 @@ private fun End(s: ReflexSession, settlement: ReflexSettlement?, onPlayAgain: ()
         verticalArrangement = ScreenSpacing,
     ) {
         ElevateCard(tint = c.mint) {
-            Text("Score ${sum.score}", style = MaterialTheme.typography.displaySmall, color = c.ink)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Score ${animatedCount(sum.score)}", style = MaterialTheme.typography.displaySmall, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                if (sum.bestStreak >= 2) StreakBadge(sum.bestStreak)
+            }
             settlement?.let {
                 Text(
                     if (it.newBest) "New best! ${ReflexText.BEST_LABEL}: ${it.best}" else "${ReflexText.BEST_LABEL}: ${it.best}",
@@ -469,7 +511,7 @@ private fun End(s: ReflexSession, settlement: ReflexSettlement?, onPlayAgain: ()
             }
         }
         ElevateCard {
-            Text("${sum.exact} exact · ${sum.adjacent} adjacent · ${sum.wrong} wrong · ${sum.tooSlow} too slow", style = MaterialTheme.typography.titleMedium, color = c.ink)
+            Text("${sum.exact} exact · ${sum.adjacent} adjacent · ${sum.wrong} wrong · ${sum.tooSlow} too slow", style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
             Text("Accuracy ${sum.accuracyPct}% of ${sum.rounds} rounds", style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
             Text(
                 sum.medianReactionMs?.let { "Median reaction $it ms" } ?: "No round answered in time",
