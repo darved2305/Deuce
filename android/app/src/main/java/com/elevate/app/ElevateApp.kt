@@ -132,6 +132,7 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
             opening = s.opening, error = s.error, onChoose = pickVideo, backend = backend,
             matches = matches.map { com.elevate.app.ui.screens.matchCardOf(it, thumbs[it.analysisId]) },
             onOpenMatch = vm::openHistory,
+            onOpenProfile = vm::openProfile,
         ) {
             // The pill only while something is actually running; a finished run is the history card.
             val running = when (val p = pipeline) {
@@ -142,6 +143,7 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
             }
             if (running) PipelineStatus(pipelineUi)
         }
+        is Screen.Profile -> com.elevate.app.ui.profile.ProfileRoute(onBack = vm::back)
         is Screen.Replay -> {
             if (s.setupAtUs != null && openFacts != null) {
                 // Confirming the setup starts the upload + analysis and opens the Analysing screen at once.
@@ -249,6 +251,7 @@ private fun AnalysisPanels(
             if (w != null && h != null && w > 0 && h > 0) com.elevate.app.ui.readlab.CueSource(ball, w, h) else null
         }
         if (panel == Screen.Panel.ReadLab) {
+            com.elevate.app.ui.profile.RecordReadLabResult(vm.readLab, match?.matchId)
             com.elevate.app.ui.readlab.ReadLabRoute(vm, drills, cueSource, onBack = { vm.showPanel(Screen.Panel.Overview) })
             return
         }

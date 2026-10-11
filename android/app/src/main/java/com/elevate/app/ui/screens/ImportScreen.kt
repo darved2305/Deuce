@@ -72,6 +72,8 @@ fun ImportScreen(
     matches: List<MatchCard> = emptyList(),
     /** Called with the analysisId of the tapped match. */
     onOpenMatch: (String) -> Unit = {},
+    /** Opens "Your game" (the profile); null hides the avatar. */
+    onOpenProfile: (() -> Unit)? = null,
     /** Upload / analysis status of an earlier pick, shown under the main card. Last, so callers can pass it as a trailing lambda. */
     status: @Composable () -> Unit = {},
 ) {
@@ -83,7 +85,7 @@ fun ImportScreen(
                 .safeDrawingPadding()
                 .verticalScroll(rememberScrollState()),
         ) {
-            ElevateHeader(title = "Elevate")
+            ElevateHeader(title = "Elevate", trailing = onOpenProfile?.let { open -> { com.elevate.app.ui.profile.ProfileAvatarButton(open) } })
             Column(Modifier.padding(horizontal = ScreenGutter)) {
                 Spacer(Modifier.height(16.dp))
                 if (matches.isEmpty()) {
