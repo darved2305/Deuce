@@ -1,6 +1,7 @@
 package com.elevate.app.ui.overview
 
 import com.elevate.app.data.analysis.ArtifactAccess
+import com.elevate.app.data.analysis.CacheInfo
 import com.elevate.app.data.upload.UploadProgress
 import com.elevate.app.domain.analysis.AnalysisState
 import com.elevate.app.domain.analysis.AnalysisUiState
@@ -8,6 +9,9 @@ import com.elevate.app.domain.analysis.WindowCoverage
 import com.elevate.app.ui.Screen
 import com.elevate.app.ui.components.StageState
 import com.elevate.app.ui.upload.UploadText
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.roundToInt
@@ -68,6 +72,21 @@ object AnalysingFlow {
         upload: UploadProgress,
         analysis: AnalysisUiState?,
         artifacts: ArtifactAccess = ArtifactAccess.Unknown,
+    ): AnalysingFlowState = state(pipeline, step, upload, analysis, artifacts, cache = null)
+
+    /**
+     * As above, plus [cache] ([com.elevate.app.data.analysis.AnalysisSync.cache]): a finished match
+     * restored from this phone says "Analysed earlier · engine <v> · <date time>" instead of the
+     * offline line (see [analysedEarlier]).
+     */
+    fun state(
+        pipeline: Screen.Pipeline,
+        step: String?,
+        upload: UploadProgress,
+        analysis: AnalysisUiState?,
+        artifacts: ArtifactAccess,
+        cache: CacheInfo?,
+        zone: ZoneId = ZoneId.systemDefault(),
     ): AnalysingFlowState {
         val serverState = analysisState(pipeline, analysis)
         val send = sendStage(pipeline, step, upload)
@@ -78,7 +97,7 @@ object AnalysingFlow {
         return AnalysingFlowState(
             stages = listOf(send, queue, track, match),
             send = if (sending) sendCard(pipeline, step, upload) else null,
-            notice = notice(pipeline, analysis, artifacts),
+            notice = notice(pipeline, analysis, artifacts, cache, zone),
             action = action(pipeline, serverState, analysis),
             canCancel = pipeline == Screen.Pipeline.Uploading,
         )
@@ -94,7 +113,11 @@ object AnalysingFlow {
             Screen.Pipeline.Idle -> st(StageState.Pending, null)
             is Screen.Pipeline.StartingAnalysis, is Screen.Pipeline.Started -> st(StageState.Done, sentValue(upload))
             is Screen.Pipeline.Failed ->
-                if (pipeline.stage == "analysis") st(StageState.Done, sentValue(upload)) else st(StageState.Failed, "stopped")
+                when (pipeline.stage) {
+                    "analysis" -> st(StageState.Done, sentValue(upload))
+                    CANCEL_STAGE -> st(StageState.Failed, "cancel failed")
+                    else -> st(StageState.Failed, "stopped")
+                }
             Screen.Pipeline.Uploading -> when {
                 step != null -> st(StageState.Active, "preparing")
                 else -> when (upload) {
@@ -115,7 +138,8 @@ object AnalysingFlow {
     private fun sendCard(pipeline: Screen.Pipeline, step: String?, upload: UploadProgress): SendCard {
         if (pipeline is Screen.Pipeline.Failed) {
             val kept = upload as? UploadProgress.Failed
-            return SendCard(kept?.let { UploadText.ofTotal(it.acceptedBytes, it.totalBytes) }, kept?.let { UploadText.fraction(it) }, null, null, pipeline.reason)
+            val note = if (pipeline.stage == CANCEL_STAGE) "$CANCEL_FAILED · ${pipeline.reason}" else pipeline.reason
+            return SendCard(kept?.let { UploadText.ofTotal(it.acceptedBytes, it.totalBytes) }, kept?.let { UploadText.fraction(it) }, null, null, note)
         }
         if (step != null) return SendCard(null, null, null, null, step)
         return when (upload) {
@@ -200,11 +224,41 @@ object AnalysingFlow {
         }
     }
 
-    private fun notice(pipeline: Screen.Pipeline, a: AnalysisUiState?, artifacts: ArtifactAccess): String? = when {
+    /**
+     * "Analysed earlier · engine 0.3.0 · 11 Oct 2026 14:05" when the shown result was restored from
+     * this phone's cache, the match is finished (server `completed`, or every window in), and either
+     * the network is unreachable or the analysis is `completed` (nothing more will arrive). The time is
+     * the server's `analysis.completed` event, else when the cache was written; unknown parts are left
+     * out. Null otherwise (an unfinished analysis offline keeps "Offline · showing the last update").
+     */
+    fun analysedEarlier(a: AnalysisUiState?, cache: CacheInfo?, zone: ZoneId = ZoneId.systemDefault()): String? {
+        if (a == null || cache == null || !cache.fromCache) return null
+        val completed = a.state == AnalysisState.COMPLETED
+        val finished = completed || WindowCoverage.readyFromWindows(a)
+        if (!finished || !(a.offline || completed)) return null
+        val engine = a.engineVersion?.takeIf { it.isNotBlank() }?.let { "engine $it" }
+        val atMs = a.stages.lastOrNull { it.type == "analysis.completed" }?.createdAt
+            ?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+            ?: cache.cachedAtMs
+        val time = atMs?.let { Instant.ofEpochMilli(it).atZone(zone).format(DateTimeFormatter.ofPattern("d MMM yyyy HH:mm", Locale.ENGLISH)) }
+        return listOfNotNull(ANALYSED_EARLIER, engine, time).joinToString(" · ")
+    }
+
+    const val ANALYSED_EARLIER = "Analysed earlier"
+
+    /**
+     * `Screen.Pipeline.Failed.stage` when cancelling the upload failed (e.g. the abort request could
+     * not reach the server). Its retry action cancels again; it never restarts the upload.
+     */
+    const val CANCEL_STAGE = "cancel"
+    const val CANCEL_FAILED = "Could not cancel the upload · Try again cancels it"
+
+    private fun notice(pipeline: Screen.Pipeline, a: AnalysisUiState?, artifacts: ArtifactAccess, cache: CacheInfo?, zone: ZoneId): String? = when {
         pipeline is Screen.Pipeline.Failed && pipeline.stage == "analysis" -> "Could not start the analysis · ${pipeline.reason}"
         pipeline is Screen.Pipeline.Failed -> null // the send card carries the reason
         a == null -> null
         a.failureReason != null -> "Stopped · ${a.failureReason}"
+        analysedEarlier(a, cache, zone) != null -> analysedEarlier(a, cache, zone)
         a.offline -> "Offline · showing the last update"
         a.syncError != null -> "Could not update · ${a.syncError}"
         a.windowsDone > 0 && a.windowsDownloaded < a.windowsDone && artifacts is ArtifactAccess.NotServed -> DETECTIONS_NOT_SERVED
@@ -237,7 +291,11 @@ object AnalysingFlow {
             else -> "Sending your video"
         }
         is Screen.Pipeline.StartingAnalysis -> "Starting analysis"
-        is Screen.Pipeline.Failed -> if (pipeline.stage == "analysis") "Analysis not started · retry" else "Upload stopped · retry"
+        is Screen.Pipeline.Failed -> when (pipeline.stage) {
+            "analysis" -> "Analysis not started · retry"
+            CANCEL_STAGE -> "Cancel failed · tap to cancel again"
+            else -> "Upload stopped · retry"
+        }
         is Screen.Pipeline.Started -> when (analysisState(pipeline, analysis)) {
             AnalysisState.COMPLETED -> "Your match is ready"
             AnalysisState.FAILED -> "Analysis stopped"
