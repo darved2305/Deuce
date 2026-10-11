@@ -116,7 +116,7 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
     }
 
     if (panel != Screen.Panel.None && pipeline != Screen.Pipeline.Idle) {
-        AnalysisPanels(vm, panel, pipeline, step, upload, ovm, hero)
+        AnalysisPanels(vm, panel, pipeline, step, upload, ovm, hero, if (analysedHere) openFacts else null)
         return
     }
 
@@ -219,14 +219,26 @@ private fun AnalysisPanels(
     upload: UploadProgress,
     ovm: OverviewViewModel?,
     hero: ReplayViewModel.PipelineHero,
+    /** Facts of the open video when it is the analysed file; ReadLab freezes frames of that file only. */
+    analysedFacts: SourceFacts?,
 ) {
-    if (panel == Screen.Panel.Overview && ovm != null) {
+    if ((panel == Screen.Panel.Overview || panel == Screen.Panel.ReadLab) && ovm != null) {
+        val match by ovm.matchRecord.collectAsStateWithLifecycle()
+        val drills = remember(match, analysedFacts) {
+            com.elevate.app.ui.readlab.ReadLabDrills.fromMatch(match, analysedFacts?.frameTimesUs, analysedFacts?.displayWidth, analysedFacts?.displayHeight)
+        }
+        if (panel == Screen.Panel.ReadLab) {
+            com.elevate.app.ui.readlab.ReadLabRoute(vm, drills, onBack = { vm.showPanel(Screen.Panel.Overview) })
+            return
+        }
         val overview by ovm.overview.collectAsStateWithLifecycle()
         MatchOverviewScreen(
             state = overview,
             eyebrow = hero.eyebrow,
             onOpenRally = { _, startMs, _ -> vm.openRally(startMs) },
             onBack = { vm.showPanel(Screen.Panel.Analysing) },
+            readLabDrills = drills.size,
+            onTrainRead = { vm.showPanel(Screen.Panel.ReadLab) },
         )
         return
     }
