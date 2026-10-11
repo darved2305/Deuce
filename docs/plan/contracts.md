@@ -17,7 +17,7 @@ so nobody waits. Changes need all four to agree; bump the schema version; announ
   airborne points stay in image space.
 - **IDs:** `m_` match, `s_` session, `a_` analysis, `w_` window, `r_` rally, `sh_` shot,
   `e_` event, `p_` player, `t_` track, `mo_` moment, `c_` clip, `rv_` review, `cp_` confirmed
-  point, `cr_` correction, `art_` artifact, `k_` developer key.
+  point, `cr_` correction, `art_` artifact, `k_` developer key, `po_` post.
 - **Provenance:** every derived field carries a sibling state `observed | candidate | inferred | user`.
   A value without a state is not part of `match.v1`.
 - **Capability tier** (target): `core | assisted | experimental | unsupported`. **Status**
@@ -42,7 +42,7 @@ so nobody waits. Changes need all four to agree; bump the schema version; announ
   (code: HTTP status; `knownErrorCodes` in `packages/contracts`): `unauthorized` 401, `not_found` /
   `analysis_not_found` 404, `conflict` / `idempotency_conflict` / `analysis_run_conflict` 409,
   `upload_too_large` 413, `validation_failed` / `invalid_body` 422, `storage_budget_reached` /
-  `daily_upload_limit` / `too_many_part_requests` / `daily_download_limit` 429, `internal` 500,
+  `daily_upload_limit` / `too_many_part_requests` / `daily_download_limit` / `daily_post_limit` 429, `internal` 500,
   `dispatch_in_flight` / `engine_unavailable` / `uploads_paused` / `storage_busy` 503; also
   `upload_parts_invalid` / `upload_not_complete` / `invalid_transition` 409 and `analysis_limit_reached` 429
   (D-261011-HW6, D-261011-HW13).
@@ -286,6 +286,17 @@ Review estimate enum `IN | OUT | TOO_CLOSE | UNOBSERVED`; `TOO_CLOSE` renders as
   every entry, an opponent only their own); `GET /v1/friends` → `{items: [{player_id, display_name,
   challenges, played, wins, losses, ties, last_challenge_at}]}`. Ids are `ch_…`; errors reuse
   `not_found`, `conflict`, `validation_failed`, `idempotency_conflict`.
+- Match posts (contracts 1.12.0, D-261011-HW34): `POST /v1/matches/{id}/posts` + `Idempotency-Key`
+  (`post.create.request.v1`: optional `caption` up to 140 characters) → `post.v1`. The server freezes
+  `post.summary.v1` from stored match data, never from a request summary. `title`, duration and counts
+  are nullable when unavailable; `top_coach_points` contains at most three existing insight captions;
+  `landing_points_m` contains only observed or user-labelled court-metre landings. `landings_in` and
+  `landings_out` are model estimates and the UI labels them `MODEL ESTIMATE`. Repeating the same match
+  and caption within 60 seconds returns the existing post. G12 caps an owner at 20 posts per UTC day
+  (`daily_post_limit` 429 with `retry_after_s`). `GET /v1/feed?cursor=` → `feed.page.v1` with caller
+  and friends' posts, newest first; `GET /v1/posts/{id}` is owner/friend only (others get 404);
+  `DELETE /v1/posts/{id}` is owner-only and returns 204. Friends reuse the D-261011-HW31 challenge
+  relation; no new match access is granted.
 
 ## 9. Zones and sport packs
 

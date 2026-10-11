@@ -4,6 +4,7 @@ import {
   compareMomentInput,
   findMomentsInput,
   getAnalysisProgressInput,
+  getFriendFeedInput,
   getLandingZonesInput,
   getRallyInput,
   rewatchPicksInput,
@@ -56,4 +57,10 @@ test("ids are checked by prefix on every tool", () => {
   ok(getAnalysisProgressInput, { analysis_id: "a_1" });
   bad(getAnalysisProgressInput, { analysis_id: "m_1" });
   assert.equal(getAnalysisProgressInput.parse({ analysis_id: "a_1" }).include_hits, true);
+});
+
+test("get_friend_feed accepts an optional non-empty cursor", () => {
+  ok(getFriendFeedInput, {});
+  ok(getFriendFeedInput, { cursor: "opaque" });
+  bad(getFriendFeedInput, { cursor: "" });
 });

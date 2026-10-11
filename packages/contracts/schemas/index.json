@@ -3,300 +3,324 @@
     "file": "analysis.create.request.v1.schema.json",
     "name": "analysis.create.request.v1",
     "sha256": "c353aa4396810ba3e2a0234d5fc545bee218c6acc4f5bb63e87b372cdc30b5dc",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "analysis.create.response.v1.schema.json",
     "name": "analysis.create.response.v1",
     "sha256": "196eb8171a0fe89d1605f6c822e4229b9c9856c50a2d777f7c349c71b9eca2f3",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "analysis.event.v1.schema.json",
     "name": "analysis.event.v1",
     "sha256": "df73ce1965d99b1d773d1125135a3db2004793831e9123939340c9fcc95d840c",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "analysis.events.page.v1.schema.json",
     "name": "analysis.events.page.v1",
     "sha256": "491ff4935a1e25904e1e57c2a73c0afa3dbc3993c55dd6e036da3b13d9f80a8e",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "analysis.finalize.request.v1.schema.json",
     "name": "analysis.finalize.request.v1",
     "sha256": "b334d6a9552c3a7e7208f04ac156eb2f2b3271a4d80d4c9b28bcd728c94bd330",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "analysis.get.response.v1.schema.json",
     "name": "analysis.get.response.v1",
     "sha256": "5e1bfc794d4cca08261b2cf0ff99736a00c4309cf41b7bf0b436acf8ab503ba9",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "capabilities.v1.schema.json",
     "name": "capabilities.v1",
     "sha256": "c1262e4bdcdb6ee00c5069cad58d014922efe9c8739987e98c7e3b05ca964209",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "challenge.accept.request.v1.schema.json",
     "name": "challenge.accept.request.v1",
     "sha256": "39fa3c71fb1dd092d690c877ad394532dcf8543c3ccfa1bc97f1b4c0fbe9cef0",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "challenge.create.request.v1.schema.json",
     "name": "challenge.create.request.v1",
     "sha256": "3dfd2b55746c249d3c86be647504a167ed2180f06054fb6398fd1f0c506edaee",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "challenge.entry.request.v1.schema.json",
     "name": "challenge.entry.request.v1",
     "sha256": "8dde47c318113c925bcddce8c1691489c1f135e28e61c1d6d161db2616cb7a9d",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "challenge.v1.schema.json",
     "name": "challenge.v1",
     "sha256": "01d020ca56ef826ee89cd3dd7a88927b20f615453efdec825200aaebc80b3778",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "comparisons.response.v1.schema.json",
     "name": "comparisons.response.v1",
     "sha256": "289431f5dcb05d506631a2010737479add832ca2c147b5bb1437af595b8d22c5",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "confirmed.point.v1.schema.json",
     "name": "confirmed.point.v1",
     "sha256": "8794b8c970a0fc61e776b7289f2bcbfe6e508519e1e461c314e54dfca8576d4b",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "elevate.trail_labels.v1.schema.json",
     "name": "elevate.trail_labels.v1",
     "sha256": "5245150759f17694e492797126f1e17ce874bd858374930179593cdf35c57301",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "error.envelope.v1.schema.json",
     "name": "error.envelope.v1",
     "sha256": "f4d7b43c955928bb92a56e8e3680d5cc8bd975f824b2a1fef5db2608338dd88d",
-    "version": "1.11.0"
+    "version": "1.12.0"
+  },
+  {
+    "file": "feed.page.v1.schema.json",
+    "name": "feed.page.v1",
+    "sha256": "b6daa8a5a55270e00556c52280f1380c4875c8c6028c81e3dc710feaa2fb0191",
+    "version": "1.12.0"
   },
   {
     "file": "friends.response.v1.schema.json",
     "name": "friends.response.v1",
     "sha256": "c02f763f6b07fe246be8d6a9e442e0f5953fb8f4d6444f58e161e291467a8cb8",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "health.response.v1.schema.json",
     "name": "health.response.v1",
     "sha256": "33fe0885673d286334a3b51b2dbc44bd072b18254d6e4b9f53ef398c8e485d74",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "internal.artifact.request.v1.schema.json",
     "name": "internal.artifact.request.v1",
     "sha256": "ed9c4fa342edb42e20b71191eae0167cb20e9db6fa492c8fec0eae633c8ed136",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "internal.artifact.response.v1.schema.json",
     "name": "internal.artifact.response.v1",
     "sha256": "d40bc2fd58f3c48671850ae6a81071835cfda4d5413d471e49e949388a0759b7",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "internal.event.request.v1.schema.json",
     "name": "internal.event.request.v1",
     "sha256": "45a0eb332b13bf61a730312ec35a0c776d13e0d31cbe6d369293b010f682f4aa",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "internal.segments.page.v1.schema.json",
     "name": "internal.segments.page.v1",
     "sha256": "3a80a0e3f4b162c92495139ad0f102f503cdc14ded20244b51c92424b6cb99f4",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "match.v1.schema.json",
     "name": "match.v1",
     "sha256": "1959370ab4d99c1f780097192dace46d1a2881fa55763866bb1b568879077913",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "matches.page.v1.schema.json",
     "name": "matches.page.v1",
     "sha256": "313cae6ed664a3d0d7c591d4c0c3a6278ed0fc2e905bb668dc7f050c10715ae1",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "modal.submit.request.v1.schema.json",
     "name": "modal.submit.request.v1",
     "sha256": "f50918861696b2a416b62c633afa6b159984495b9fd21ede5adaad8c355f7523",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "model.descriptor.v1.schema.json",
     "name": "model.descriptor.v1",
     "sha256": "f2ec00d4640db62b0001d48a198367911342cdd73d23ffbbf3e77e12be6ed9ac",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "moments.page.v1.schema.json",
     "name": "moments.page.v1",
     "sha256": "7cf47b1e1a871997d97c840c246553682562153afcddfcf7b9cff9d04cc98ad3",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "opponent.scout.response.v1.schema.json",
     "name": "opponent.scout.response.v1",
     "sha256": "d4a334bf2e64d00c83985fea4ca1c7112942bf7f3963dc2863e682230cb3cd2f",
-    "version": "1.11.0"
+    "version": "1.12.0"
+  },
+  {
+    "file": "post.create.request.v1.schema.json",
+    "name": "post.create.request.v1",
+    "sha256": "ec15d9de7e04fb683252f071beb830a54fb3edf8f62a4e59a4146ee2ca747d27",
+    "version": "1.12.0"
+  },
+  {
+    "file": "post.summary.v1.schema.json",
+    "name": "post.summary.v1",
+    "sha256": "55c37c12608dbf417995a77f40465a2b33d8cadd5f2364a6661818a684d33213",
+    "version": "1.12.0"
+  },
+  {
+    "file": "post.v1.schema.json",
+    "name": "post.v1",
+    "sha256": "b78db829704f9702bab78601dd71eb1e66f526d4852790301341f0fafdcfdb43",
+    "version": "1.12.0"
   },
   {
     "file": "rallies.page.v1.schema.json",
     "name": "rallies.page.v1",
     "sha256": "d1b2054ec70321d276d454e1d37d7404bca1ba3cf07eac0cd81b46ac95f224ce",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "rally.detail.v1.schema.json",
     "name": "rally.detail.v1",
     "sha256": "1f9de96acb2cc0cbf453d2f833b18b44ce2180c2be4dbf1172d08719ead7680e",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "realtime.hint.v1.schema.json",
     "name": "realtime.hint.v1",
     "sha256": "d5cd32d3be9b77248844451d4abdab11a0174487ada84ad5c180407d3b73af6f",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "review.confirm.request.v1.schema.json",
     "name": "review.confirm.request.v1",
     "sha256": "276f45913f2bc0d336a855cbfdb0f230d9e47c65463531c33e1917e92718c6ee",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "rules.state.v1.schema.json",
     "name": "rules.state.v1",
     "sha256": "a81b02c701db4d38566d25452e053a0ac008ae7ad671ca38717511e9fb69b81e",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "segment.complete.response.v1.schema.json",
     "name": "segment.complete.response.v1",
     "sha256": "f3cb39bb1edfe7626ae44fcd55a20bb03fdb25b6cac8eebdc58232a008599dee",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "segment.manifest.v1.schema.json",
     "name": "segment.manifest.v1",
     "sha256": "c7c48f1dc5545560caa19d5e19ba6f37bee1984823588d780b45ceab774a39c2",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "segment.register.request.v1.schema.json",
     "name": "segment.register.request.v1",
     "sha256": "67094f07af16f5fb7fea14303920ec5ac209c0d0e8d633456cc721d71929ef63",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "segment.register.response.v1.schema.json",
     "name": "segment.register.response.v1",
     "sha256": "84c084d807b567ee2979fd8a16923e0c0b9978f8e895c021c6f9d35dc6360b42",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "session.create.request.v1.schema.json",
     "name": "session.create.request.v1",
     "sha256": "2199fb56cfcd6ffa3a6bc9cf9e638d1845c728f3d97b92e14dcaad5bf60b3b20",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "session.create.response.v1.schema.json",
     "name": "session.create.response.v1",
     "sha256": "1c864efc7fc1d2f0bf6f6aaa9df5b3141abf62cc730fa80d298f879d26da9c57",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "session.get.response.v1.schema.json",
     "name": "session.get.response.v1",
     "sha256": "69ce97433710434158b05ed32066d909b3a57c53517c09ea0d02f8a62736b8b8",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "simulation.run.request.v1.schema.json",
     "name": "simulation.run.request.v1",
     "sha256": "73ea5be94c809f288631ff2e2982433a57b9c2af814fcff45d3a0bbd1d88b17d",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "simulation.run.response.v1.schema.json",
     "name": "simulation.run.response.v1",
     "sha256": "80712944701a8a87dcb5c82becec793368a1461c8f25ef9b4ab1a1d2c5ec93e9",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "sport.pack.v1.schema.json",
     "name": "sport.pack.v1",
     "sha256": "e29cef25c8d5368b932b605f1d57fedbc7d382c163dd2245626a9729080513b4",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "sport.zone.v1.schema.json",
     "name": "sport.zone.v1",
     "sha256": "ddc0bb856ac0302afd916c7ac82227f9c99b5c0828e5ee912badebffc7750174",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "upload.abort.response.v1.schema.json",
     "name": "upload.abort.response.v1",
     "sha256": "3c2a82c9d7be2aa9459b5209b03f6eff139c40b5ae9b597e9805425a801ae450",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "upload.complete.request.v1.schema.json",
     "name": "upload.complete.request.v1",
     "sha256": "199123ac673426211335946b37c35e811923974f671940b803f2f345706e9e13",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "upload.complete.response.v1.schema.json",
     "name": "upload.complete.response.v1",
     "sha256": "f569b2e71715f1174853d6f8d6131ee0c021da64670c75494ed3c36dfe500e32",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "upload.parts.request.v1.schema.json",
     "name": "upload.parts.request.v1",
     "sha256": "05d8315b2d600731a2e9c117fc676e149c1cd120cf9c0c69950a82b39205dac4",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "upload.parts.response.v1.schema.json",
     "name": "upload.parts.response.v1",
     "sha256": "3e3c8b1b51ceb9addd9061cda245d54baa735b3c56372e1811479eb601095717",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "vision_result.v1.schema.json",
     "name": "vision_result.v1",
     "sha256": "2eb829aa9cd8f99d7ab4e4daf7550ef55875a00d78e9557e41a89e028ddaac7d",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   {
     "file": "window_result.v1.schema.json",
     "name": "window_result.v1",
     "sha256": "ce74e9baefa3c2993af3bf905d896d2374acede4ab233fb39b9d30cf0dcffe39",
-    "version": "1.11.0"
+    "version": "1.12.0"
   }
 ]
