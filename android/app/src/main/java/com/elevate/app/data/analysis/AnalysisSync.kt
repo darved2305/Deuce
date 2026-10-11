@@ -8,6 +8,7 @@ import com.elevate.app.domain.analysis.AnalysisState
 import com.elevate.app.domain.analysis.AnalysisUiState
 import com.elevate.app.domain.analysis.ArtifactProblem
 import com.elevate.app.domain.analysis.BallTrack
+import com.elevate.app.domain.analysis.HitCandidate
 import com.elevate.app.domain.analysis.WindowResultStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
@@ -107,6 +108,13 @@ class AnalysisSync(
     private val _ballTrack = MutableStateFlow(BallTrack.EMPTY)
     /** Merged ball rows of every downloaded window (engine output; never hand labels). */
     val ballTrack: StateFlow<BallTrack> = _ballTrack.asStateFlow()
+
+    private val _hits = MutableStateFlow<List<HitCandidate>>(emptyList())
+    /**
+     * Engine hit candidates (`type: "hit"` events) of every downloaded window, by time; updated
+     * whenever a window is stored. Candidates only, never confirmed hits.
+     */
+    val hits: StateFlow<List<HitCandidate>> = _hits.asStateFlow()
 
     private val _artifactAccess = MutableStateFlow<ArtifactAccess>(ArtifactAccess.Unknown)
     /** Whether window results can be fetched from the server at all (see [ArtifactAccess]). */
@@ -301,7 +309,10 @@ class AnalysisSync(
                 if (x.isNetwork) { _state.update { it.copy(offline = true) }; break }
             }
         }
-        if (changed) _ballTrack.value = store.track()
+        if (changed) {
+            _ballTrack.value = store.track()
+            _hits.value = store.hits()
+        }
         _state.update { it.copy(windowsDownloaded = downloaded.size, artifactProblems = problems()) }
     }
 

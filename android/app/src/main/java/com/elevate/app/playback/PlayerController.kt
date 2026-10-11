@@ -10,7 +10,9 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.OverlayEffect
+import androidx.media3.effect.TextureOverlay
 import androidx.media3.exoplayer.ExoPlayer
+import com.elevate.app.domain.analysis.LiveHit
 import com.elevate.app.domain.model.TrailTrack
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +44,14 @@ class PlayerController(context: Context) {
 
     private val appContext = context.applicationContext
     val overlay = TrailOverlay()
+    /** Engine hit candidates (dashed "HIT?" rings); drawn above the trail. */
+    val hitOverlay = HitOverlay()
+
+    /** Overlays drawn under the trail (e.g. court lines), set by [setUnderlays]. */
+    @Volatile private var underlays: List<TextureOverlay> = emptyList()
+
+    /** Effect list, bottom to top: underlays, trail, hits (the last overlay draws on top). */
+    private fun overlayEffects() = listOf(OverlayEffect(underlays + listOf<TextureOverlay>(overlay, hitOverlay)))
 
     /**
      * presentationTimeUs of the frame on screen (-1 before the first). Updated for every frame while
@@ -54,7 +64,7 @@ class PlayerController(context: Context) {
     @Volatile private var playing = false
 
     private fun buildPlayer(withOverlay: Boolean): ExoPlayer = ExoPlayer.Builder(appContext).build().apply {
-        setVideoEffects(if (withOverlay) listOf(OverlayEffect(listOf(overlay))) else emptyList())
+        setVideoEffects(if (withOverlay) overlayEffects() else emptyList())
         setVideoFrameMetadataListener { presentationTimeUs, _, _, _ ->
             if (playing || acceptNextFrame) {
                 heldFrameUs = presentationTimeUs
@@ -130,6 +140,7 @@ class PlayerController(context: Context) {
             _playerFlow.value = player
         }
         overlay.setTrack(null)
+        hitOverlay.setHits(emptyList())
         heldFrameUs = -1
         acceptNextFrame = true
         _state.value = PlaybackUiState()
@@ -172,6 +183,30 @@ class PlayerController(context: Context) {
 
     fun setTrack(track: TrailTrack?) {
         overlay.setTrack(track)
+        redrawIfPaused()
+    }
+
+    /**
+     * Overlays drawn under the trail and hits (bottom first), kept across player rebuilds. Applied
+     * at once to an overlay-capable (SDR) player; an HDR player keeps no effects at all.
+     * `setVideoEffects` may run after `prepare()` (media3 1.11.1 ExoPlayer doc).
+     */
+    fun setUnderlays(overlays: List<TextureOverlay>) {
+        underlays = overlays.toList()
+        if (!playerIsForHdr) player.setVideoEffects(overlayEffects())
+    }
+
+    /**
+     * Engine hit candidates for the open file (empty = none). [imageW] x [imageH] is the space of
+     * their `image_xy` (source pixels after rotation); null = the decoded frame size.
+     */
+    fun setHits(hits: List<LiveHit>, imageW: Int? = null, imageH: Int? = null) {
+        hitOverlay.setHits(hits, imageW, imageH)
+        redrawIfPaused()
+    }
+
+    fun setHitsVisible(visible: Boolean) {
+        hitOverlay.visible = visible
         redrawIfPaused()
     }
 
