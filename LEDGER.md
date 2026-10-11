@@ -121,3 +121,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T04:58Z | #151 | @HetanshWaghela | p4 | android: training games say what unlocks them instead of disappearing | none | 1.10.0 | ``` |
 | 2026-10-11T05:03Z | #152 | @HetanshWaghela | p4 | Friends and challenges end to end: challenge a friend on the same shots (contrac | D-261011-HW31 | 1.11.0 | ``` |
 | 2026-10-11T05:05Z | #153 | @HetanshWaghela | p4 | android: Record a match live (pieces upload while recording, analysis starts ear | none | 1.11.0 | ``` |
+| 2026-10-11T05:09Z | #132 | @nikhilpravinpise | p3 | api: B6 read routes on contracts 1.10.0 (capabilities, matches, rallies, moments | D-261011-HW16 | 1.11.0 | Live deployed API proof was not run because deploy and live API use were prohibited. Person 3's exact Bearer-authenticat |
