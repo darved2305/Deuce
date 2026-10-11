@@ -20,14 +20,14 @@ class ImportScreenTest {
     @Test fun chooseButtonOpensThePicker() {
         var clicks = 0
         rule.setContent { ElevateTheme { ImportScreen(opening = false, error = null, onChoose = { clicks++ }) } }
-        rule.onNodeWithText("Choose a match video").assertIsEnabled().performClick()
+        rule.onNodeWithText("Add a match").assertIsEnabled().performClick()
         assertEquals(1, clicks)
     }
 
     @Test fun whileOpeningTheButtonIsDisabledAndSaysSo() {
         rule.setContent { ElevateTheme { ImportScreen(opening = true, error = null, onChoose = {}) } }
         rule.onNodeWithText("Opening…").assertIsNotEnabled()
-        rule.onNodeWithText("Choose a match video").assertDoesNotExist()
+        rule.onNodeWithText("Add a match").assertDoesNotExist()
     }
 
     @Test fun anImportErrorIsShown() {

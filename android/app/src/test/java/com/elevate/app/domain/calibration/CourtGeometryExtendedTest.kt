@@ -82,7 +82,7 @@ class CourtGeometryExtendedTest {
         val s = SetupState(srcW = 1920.0, srcH = 1080.0, frameMs = 500, step = Step.Court)
             .let { start -> Corner.entries.fold(start) { st, c -> reduce(st, SetupAction.Tap(pt(960, 540))).copyCorner(c, offFrameCourt.getValue(c)) } }
         assertThat(s.offFrameCorners).isEqualTo(2)
-        val r = s.copy(step = Step.Review, me = pt(900, 700)).result()!!
+        val r = s.copy(step = Step.WhoIsMe, me = pt(900, 700)).result()!!
         val pts = r.calibrationInput!!.pointsPx
         assertThat(pts.nearLeft).containsExactly(-150.0, 1260.0).inOrder()
         assertThat(pts.nearRight).containsExactly(2070.0, 1260.0).inOrder()

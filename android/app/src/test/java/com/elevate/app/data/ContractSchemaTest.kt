@@ -45,9 +45,11 @@ class ContractSchemaTest {
         .first { File(it, "packages/contracts/schemas").isDirectory }
     private fun schema(name: String) = Json.parseToJsonElement(File(repo, "packages/contracts/schemas/$name.schema.json").readText()).jsonObject
 
-    /** Object variants of a schema node: itself, or each member of anyOf/oneOf. */
+    /** Object variants of a schema node: itself, or each member of anyOf/oneOf (a `null` member is not an object variant). */
     private fun variants(node: JsonObject): List<JsonObject> =
-        (node["anyOf"] ?: node["oneOf"])?.jsonArray?.map { it.jsonObject }?.flatMap(::variants) ?: listOf(node)
+        (node["anyOf"] ?: node["oneOf"])?.jsonArray?.map { it.jsonObject }
+            ?.filterNot { it["type"]?.let { t -> t is kotlinx.serialization.json.JsonPrimitive && t.content == "null" } == true }
+            ?.flatMap(::variants) ?: listOf(node)
 
     private fun props(v: JsonObject) = v["properties"]?.jsonObject?.keys.orEmpty()
     private fun required(v: JsonObject) = v["required"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty().toSet()

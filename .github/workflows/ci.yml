@@ -129,6 +129,9 @@ jobs:
         name: Vendored contracts match packages/contracts
         run: deno run --allow-read supabase/scripts/sync-contracts.ts --check
       - if: steps.has.outputs.ok == 'true'
+        name: Vendored rules match packages/rules
+        run: deno run --allow-read supabase/scripts/sync-rules.ts --check
+      - if: steps.has.outputs.ok == 'true'
         working-directory: supabase/functions
         run: |
           deno fmt --check
