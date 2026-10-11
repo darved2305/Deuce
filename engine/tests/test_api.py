@@ -31,7 +31,8 @@ EVENT_ROW = json.dumps({"seq": 3, "type": "window.completed"})
 def test_event_posts_contract_body_to_the_internal_route_with_token():
     server = FakeServer((200, EVENT_ROW))
     body = {"type": "window.completed", "window_seq": 0, "decode_window_us": [0, 6_750_000],
-            "emit_range_us": [0, 6_000_000], "artifact_id": "art_1"}  # fmt: skip
+            "emit_range_us": [0, 6_000_000], "artifact_id": "art_1",
+            "windows_expected": 81}  # fmt: skip  # contracts 1.8.0: lets the app show n of N
     assert api(server).event("a_1", body)["seq"] == 3
     url, token, sent = server.calls[0]
     assert url.endswith("/internal/analyses/a_1/events") and token == "s3cret" and sent == body
@@ -74,3 +75,33 @@ def test_artifact_registration_returns_the_api_id():
 
 def test_token_is_not_in_the_repr():
     assert "s3cret" not in repr(api(FakeServer()))
+
+
+def minimal_finalize():
+    from elevate_engine import finalize
+
+    spec = {
+        "sport": "badminton",
+        "format": "singles",
+        "ruleset": {"id": "bwf_3x21", "version": "1"},
+    }
+    return finalize.request(analysis_id="a_1", match_id="m_1", r2_key="orig/s_1/source.mp4",
+                            session_spec=spec, engine_version="0.1.0", models=["tracknet_v3"],
+                            artifacts={"ball_track": None, "player_tracks": None},
+                            window_events=[], calibration=None)  # fmt: skip
+
+
+def test_finalize_whose_response_was_lost_is_not_reported_as_a_failure():
+    # The first attempt committed but answered 502; the retry is told it is already finalized.
+    server = FakeServer(
+        (502, "bad gateway"), (409, '{"error":{"message":"analysis already finalized"}}')
+    )
+    body = minimal_finalize()
+    assert api(server).finalize("a_1", body) == {"state": "already_finalized"}
+
+
+def test_a_first_attempt_conflict_is_still_an_error():
+    server = FakeServer((409, '{"error":{"message":"analysis already finalized"}}'))
+    body = minimal_finalize()
+    with pytest.raises(ApiError):
+        api(server).finalize("a_1", body)

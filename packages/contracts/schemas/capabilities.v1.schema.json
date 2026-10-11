@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "capabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "ball": {
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "unknown",
+                "pass",
+                "unmet",
+                "could-not-run"
+              ],
+              "type": "string"
+            },
+            "tier": {
+              "enum": [
+                "core",
+                "assisted",
+                "experimental",
+                "unsupported"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "tier",
+            "status"
+          ],
+          "type": "object"
+        },
+        "court": {
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "unknown",
+                "pass",
+                "unmet",
+                "could-not-run"
+              ],
+              "type": "string"
+            },
+            "tier": {
+              "enum": [
+                "core",
+                "assisted",
+                "experimental",
+                "unsupported"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "tier",
+            "status"
+          ],
+          "type": "object"
+        },
+        "reviews": {
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "unknown",
+                "pass",
+                "unmet",
+                "could-not-run"
+              ],
+              "type": "string"
+            },
+            "tier": {
+              "enum": [
+                "core",
+                "assisted",
+                "experimental",
+                "unsupported"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "tier",
+            "status"
+          ],
+          "type": "object"
+        },
+        "score": {
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "unknown",
+                "pass",
+                "unmet",
+                "could-not-run"
+              ],
+              "type": "string"
+            },
+            "tier": {
+              "enum": [
+                "core",
+                "assisted",
+                "experimental",
+                "unsupported"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "tier",
+            "status"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "court",
+        "ball",
+        "reviews",
+        "score"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "capabilities"
+  ],
+  "type": "object"
+}

@@ -404,6 +404,11 @@ def calibrate(
 
 def from_calibration_input(calibration_input: dict, width: int, height: int) -> Calibration:
     """Calibrate from `session_spec.calibration_input` (contracts §2)."""
+    if not isinstance(calibration_input, dict):
+        raise CalibrationError("no calibration_input")
     if calibration_input.get("plane") != "court":
         raise CalibrationError("only the court plane is supported")
-    return calibrate(calibration_input["points_px"], calibration_input["template"], width, height)
+    points, template = calibration_input.get("points_px"), calibration_input.get("template")
+    if not isinstance(points, dict) or not isinstance(template, str):
+        raise CalibrationError("calibration_input needs points_px and template")
+    return calibrate(points, template, width, height)

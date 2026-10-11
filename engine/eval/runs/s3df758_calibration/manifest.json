@@ -1,0 +1,6 @@
+{
+  "source": "session s_3df758f240434f74820e829033966138 (Person 2's A55 upload, analysis a_73b8c407edb6440a953f0204796370e6); taps pasted by @nikhilpravinpise in issue #61 from the sessions row",
+  "video": "same file as h13g_singles (session source sha256 534e6ff4..., listed in fixtures/fixture_trail.json accepted_file_sha256)",
+  "command": "PYTHONPATH=. uv run python eval/calibration_check.py h13g_singles.mp4 eval/runs/s3df758_calibration/calibration_input.json out.jpg",
+  "visual_check": "Projected lines on the real frame at 41260 ms: far baseline, both singles sidelines and the near baseline sit on the painted lines; the near short service line is ~16 px below the painted one and the centre line ~18 px off at the near baseline, consistent with tier B (worst sigma 0.19 m). Both far taps share y=664.4 and both near taps y=1014.7, which suggests the app snaps taps (see #62)."
+}

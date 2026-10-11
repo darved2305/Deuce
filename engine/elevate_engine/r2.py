@@ -16,10 +16,20 @@ from pathlib import Path
 
 ORIG_KEY = re.compile(r"orig/s_[A-Za-z0-9_-]+/source\.mp4")
 WINDOW_KEY = re.compile(r"analysis/a_[A-Za-z0-9_-]+/[^/]+/windows/[0-9]+\.json")
+# G8: at most 2 track files per analysis; named by artifact kind (contracts §4, keys.ts).
+TRACK_KEY = re.compile(r"analysis/a_[A-Za-z0-9_-]+/[^/]+/tracks/(ball_track|player_tracks)\.json")
 
 
 class WritesDisabled(RuntimeError):
     """R2_WRITES_ENABLED is not "true": the kill switch is on."""
+
+
+def track_key(analysis_id: str, engine_version: str, kind: str) -> str:
+    """contracts §4: analysis/{analysis_id}/{engine_version}/tracks/{kind}.json"""
+    key = f"analysis/{analysis_id}/{engine_version}/tracks/{kind}.json"
+    if not TRACK_KEY.fullmatch(key):
+        raise ValueError(f"not a contract track key: {key}")
+    return key
 
 
 def window_key(analysis_id: str, engine_version: str, window_seq: int) -> str:
@@ -65,8 +75,8 @@ class R2:
         """One PutObject. Returns {r2_key, bytes, sha256} for the artifact registration."""
         if not self.writes_enabled:
             raise WritesDisabled("R2_WRITES_ENABLED is not true; not writing " + key)
-        if not WINDOW_KEY.fullmatch(key):
-            raise ValueError(f"engine may only write contract window keys here: {key}")
+        if not (WINDOW_KEY.fullmatch(key) or TRACK_KEY.fullmatch(key)):
+            raise ValueError(f"engine may only write contract window or track keys here: {key}")
         self.client.put_object(
             Bucket=self.bucket, Key=key, Body=data, ContentType="application/json"
         )
