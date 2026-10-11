@@ -1,14 +1,75 @@
 import assert from "node:assert/strict";
+import analysisCreateResponse from "../../../../packages/contracts/schemas/analysis.create.response.v1.schema.json" with {
+  type: "json",
+};
+import analysisEvent from "../../../../packages/contracts/schemas/analysis.event.v1.schema.json" with {
+  type: "json",
+};
+import analysisEventsPage from "../../../../packages/contracts/schemas/analysis.events.page.v1.schema.json" with {
+  type: "json",
+};
+import analysisGetResponse from "../../../../packages/contracts/schemas/analysis.get.response.v1.schema.json" with {
+  type: "json",
+};
+import errorEnvelope from "../../../../packages/contracts/schemas/error.envelope.v1.schema.json" with {
+  type: "json",
+};
+import healthResponse from "../../../../packages/contracts/schemas/health.response.v1.schema.json" with {
+  type: "json",
+};
+import internalArtifactRequest from "../../../../packages/contracts/schemas/internal.artifact.request.v1.schema.json" with {
+  type: "json",
+};
+import internalArtifactResponse from "../../../../packages/contracts/schemas/internal.artifact.response.v1.schema.json" with {
+  type: "json",
+};
+import internalEventRequest from "../../../../packages/contracts/schemas/internal.event.request.v1.schema.json" with {
+  type: "json",
+};
+import matchV1 from "../../../../packages/contracts/schemas/match.v1.schema.json" with {
+  type: "json",
+};
+import sessionCreateResponse from "../../../../packages/contracts/schemas/session.create.response.v1.schema.json" with {
+  type: "json",
+};
+import sessionGetResponse from "../../../../packages/contracts/schemas/session.get.response.v1.schema.json" with {
+  type: "json",
+};
+import uploadAbortResponse from "../../../../packages/contracts/schemas/upload.abort.response.v1.schema.json" with {
+  type: "json",
+};
+import uploadCompleteResponse from "../../../../packages/contracts/schemas/upload.complete.response.v1.schema.json" with {
+  type: "json",
+};
+import uploadPartsResponse from "../../../../packages/contracts/schemas/upload.parts.response.v1.schema.json" with {
+  type: "json",
+};
 
 // Minimal JSON Schema (draft 2020-12 subset used by packages/contracts/schemas) checker.
 type Schema = Record<string, unknown>;
 
+const schemas: Record<string, Schema> = {
+  "analysis.create.response.v1": analysisCreateResponse as Schema,
+  "analysis.event.v1": analysisEvent as Schema,
+  "analysis.events.page.v1": analysisEventsPage as Schema,
+  "analysis.get.response.v1": analysisGetResponse as Schema,
+  "error.envelope.v1": errorEnvelope as Schema,
+  "health.response.v1": healthResponse as Schema,
+  "internal.artifact.request.v1": internalArtifactRequest as Schema,
+  "internal.artifact.response.v1": internalArtifactResponse as Schema,
+  "internal.event.request.v1": internalEventRequest as Schema,
+  "match.v1": matchV1 as Schema,
+  "session.create.response.v1": sessionCreateResponse as Schema,
+  "session.get.response.v1": sessionGetResponse as Schema,
+  "upload.abort.response.v1": uploadAbortResponse as Schema,
+  "upload.complete.response.v1": uploadCompleteResponse as Schema,
+  "upload.parts.response.v1": uploadPartsResponse as Schema,
+};
+
 export function load(name: string): Schema {
-  const url = new URL(
-    `../../../../packages/contracts/schemas/${name}.schema.json`,
-    import.meta.url,
-  );
-  return JSON.parse(Deno.readTextFileSync(url));
+  const schema = schemas[name];
+  if (!schema) throw new Error(`unknown contract schema: ${name}`);
+  return schema;
 }
 
 export function check(s: Schema, v: unknown, path = "$"): string[] {
