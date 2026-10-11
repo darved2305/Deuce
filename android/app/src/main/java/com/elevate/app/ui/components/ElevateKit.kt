@@ -91,7 +91,7 @@ fun ElevateHeader(
                 modifier = Modifier.semantics { heading() },
             )
             if (subtitle != null) {
-                Text(subtitle, style = MaterialTheme.typography.labelMedium, color = if (dark) Color.White.copy(alpha = 0.75f) else c.inkMuted, maxLines = 1)
+                Text(subtitle, style = MaterialTheme.typography.labelMedium, color = if (dark) Color.White.copy(alpha = 0.75f) else c.inkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { trailing?.invoke() }
@@ -219,7 +219,7 @@ fun PillChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Mod
     val c = Elevate.colors
     Box(
         modifier
-            .heightIn(min = 44.dp)
+            .heightIn(min = 48.dp)
             .clip(CircleShape)
             .background(if (selected) c.peach else Color.White)
             .border(1.dp, if (selected) c.orange else c.line, CircleShape)
@@ -248,7 +248,7 @@ fun SectionTitle(text: String, action: String? = null, onAction: (() -> Unit)? =
         if (action != null && onAction != null) {
             Text(
                 action, style = MaterialTheme.typography.labelLarge, color = c.orangeText,
-                modifier = Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = onAction).padding(8.dp),
+                modifier = Modifier.heightIn(min = 48.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onAction).padding(horizontal = 12.dp, vertical = 12.dp),
             )
         }
     }
@@ -283,9 +283,11 @@ fun StageRow(label: String, state: StageState, value: String? = null) {
             label,
             style = MaterialTheme.typography.titleMedium,
             color = if (state == StageState.Pending) c.inkMuted else c.ink,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (value != null) Text(value, style = MaterialTheme.typography.labelLarge, color = c.inkMuted, textAlign = TextAlign.End)
+        if (value != null) Text(value, style = MaterialTheme.typography.labelLarge, color = c.inkMuted, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
     }
 }
 

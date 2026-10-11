@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.heightIn
 import com.elevate.app.data.history.HistoryStatus
 import com.elevate.app.data.history.MatchHistoryEntry
 import com.elevate.app.data.history.status
@@ -49,6 +50,10 @@ import androidx.compose.ui.unit.dp
 import com.elevate.app.domain.repository.BackendStatus
 import com.elevate.app.ui.components.ElevateCard
 import com.elevate.app.ui.components.ElevateHeader
+import com.elevate.app.ui.components.ExplainBox
+import com.elevate.app.ui.components.ExplainHintBanner
+import com.elevate.app.ui.components.Explanation
+import com.elevate.app.ui.components.Explanations
 import com.elevate.app.ui.components.ElevateIcons
 import com.elevate.app.ui.components.Headline
 import com.elevate.app.ui.components.PeachPage
@@ -86,7 +91,9 @@ fun ImportScreen(
                 } else {
                     Headline("Your matches", eyebrow = matchesEyebrow(matches.size))
                 }
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(16.dp))
+                ExplainHintBanner()
+                Spacer(Modifier.height(16.dp))
 
                 ElevateCard(tint = c.peachDeep.copy(alpha = 0.6f)) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
@@ -95,18 +102,20 @@ fun ImportScreen(
                             contentAlignment = Alignment.Center,
                         ) { Icon(ElevateIcons.Film, contentDescription = null, tint = c.orange) }
                         Spacer(Modifier.size(16.dp))
-                        Column {
-                            Text("Pick a match from your gallery", style = MaterialTheme.typography.titleMedium, color = c.ink)
+                        Column(Modifier.weight(1f)) {
+                            Text("From your gallery", style = MaterialTheme.typography.titleMedium, color = c.ink)
                             Text("It plays right here. You choose when to upload.", style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
                         }
                     }
-                    Spacer(Modifier.height(20.dp))
-                    PrimaryButton(
-                        text = if (opening) "Opening…" else "Add a match",
-                        onClick = onChoose,
-                        busy = opening,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                    )
+                    Spacer(Modifier.height(16.dp))
+                    ExplainBox(Explanations.AddMatch, Modifier.fillMaxWidth()) {
+                        PrimaryButton(
+                            text = if (opening) "Opening…" else "Add a match",
+                            onClick = onChoose,
+                            busy = opening,
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(16.dp))
@@ -135,16 +144,19 @@ fun ImportScreen(
                     )
                 }
 
-                Spacer(Modifier.height(24.dp))
-                SectionTitle("Filming tips")
-                Tip(ElevateIcons.Target, "Both baselines in view", "Stand the phone behind one baseline, a little high.")
-                HorizontalDivider(color = c.line)
-                Tip(ElevateIcons.Bolt, "60 fps if you can", "More frames give the shuttle tracker more to work with.")
-                HorizontalDivider(color = c.line)
-                Tip(ElevateIcons.Eye, "Keep it still", "A fence, bag or tripod. No hand-holding.")
-                HorizontalDivider(color = c.line)
+                // Filming tips are for the first match only: with matches on the list the page stays short.
+                if (matches.isEmpty()) {
+                    Spacer(Modifier.height(24.dp))
+                    SectionTitle("Filming tips")
+                    Tip(ElevateIcons.Target, "Both baselines in view", "Stand the phone behind one baseline, a little high.")
+                    HorizontalDivider(color = c.line)
+                    Tip(ElevateIcons.Bolt, "60 fps if you can", "More frames give the shuttle tracker more to work with.")
+                    HorizontalDivider(color = c.line)
+                    Tip(ElevateIcons.Eye, "Keep it still", "A fence, bag or tripod. No hand-holding.")
+                    HorizontalDivider(color = c.line)
+                }
 
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(24.dp))
                 BackendLine(backend)
                 Spacer(Modifier.height(16.dp))
             }
@@ -249,11 +261,17 @@ private fun MatchRow(card: MatchCard, onOpen: () -> Unit) {
             }
             Spacer(Modifier.size(14.dp))
             Column(Modifier.weight(1f)) {
-                StatusChip(chip, card.status)
+                ExplainBox(
+                    when (card.status) {
+                        HistoryStatus.Analysing -> Explanations.InPieces
+                        HistoryStatus.Failed -> Explanations.UploadResumes
+                        else -> Explanations.CoachReport
+                    },
+                ) { StatusChip(chip, card.status) }
                 Spacer(Modifier.height(4.dp))
                 Text(card.title, style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (line.isNotEmpty()) Text(line, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
-                Text(footer, style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+                if (line.isNotEmpty()) Text(line, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(footer, style = MaterialTheme.typography.labelMedium, color = c.inkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -284,7 +302,7 @@ private fun Tip(icon: ImageVector, title: String, body: String) {
             contentAlignment = Alignment.Center,
         ) { Icon(icon, contentDescription = null, tint = c.lavenderInk, modifier = Modifier.size(22.dp)) }
         Spacer(Modifier.size(16.dp))
-        Column {
+        Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleMedium, color = c.ink)
             Text(body, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
         }
@@ -315,9 +333,13 @@ private fun BackendLine(status: BackendStatus?) {
             },
     ) {
         Spacer(Modifier.weight(1f))
-        Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
-        Spacer(Modifier.size(8.dp))
-        Text(text, style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+        ExplainBox(Explanations.Cloud) {
+            Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+                Spacer(Modifier.size(8.dp))
+                Text(text, style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+            }
+        }
         Spacer(Modifier.weight(1f))
     }
 }
