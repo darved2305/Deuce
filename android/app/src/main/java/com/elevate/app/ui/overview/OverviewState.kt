@@ -1,12 +1,15 @@
 package com.elevate.app.ui.overview
 
 import androidx.compose.ui.graphics.ImageBitmap
+import com.elevate.app.data.api.MatchCalibration
 import com.elevate.app.data.api.MatchCapability
+import com.elevate.app.data.api.MatchPlayer
 import com.elevate.app.data.api.MatchRecord
 import com.elevate.app.domain.analysis.AnalysisUiState
 import com.elevate.app.domain.analysis.HitCandidate
 import com.elevate.app.domain.analysis.HitRallies
 import com.elevate.app.domain.analysis.RallyCandidate
+import com.elevate.app.domain.calibration.CourtModel
 import com.elevate.app.domain.model.TrailTrack
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -56,15 +59,34 @@ data class RallyRow(
 sealed interface RalliesState {
     data class NotAvailable(val reason: String) : RalliesState
     data class Available(val rows: List<RallyRow>, val sourceLabel: String, val timelineMs: Long) : RalliesState
+    /** `match.v1` has no rallies: candidates grouped from its hit events (or the windows'), never confirmed. */
+    data class FromHits(val rows: List<LiveRallyRow>, val sourceLabel: String) : RalliesState
 }
 
-data class CourtMark(val xM: Double, val yM: Double, val state: String, val shotId: String, val rallyId: String)
+/**
+ * One landing as the record gives it: [xM]/[yM] in the calibration template's court metres, [id] the
+ * landing event's (or shot's) id, [rallyId] null until rallies are segmented.
+ */
+data class CourtMark(val xM: Double, val yM: Double, val state: String, val id: String, val rallyId: String?)
 
 sealed interface CourtState {
     /** Not a badminton match: no court template drawn here yet. */
     data class NotApplicable(val reason: String) : CourtState
-    /** Court drawn at true proportions; [marks] only from real landing values. */
-    data class Badminton(val singles: Boolean, val marks: List<CourtMark>, val note: String) : CourtState
+    /**
+     * Court drawn at true proportions; [marks] only from real landing values. [frameOffsetM] is added
+     * to a mark's x to place it on the drawing (the doubles rectangle, x = 0 at the left doubles
+     * sideline): 0.46 m for `badminton_singles`, whose x = 0 is the left singles sideline.
+     */
+    data class Badminton(
+        val singles: Boolean,
+        val marks: List<CourtMark>,
+        val note: String,
+        val frameOffsetM: Double = 0.0,
+        /** "Court from your taps · tier B"; null without a match record. */
+        val chip: String? = null,
+        /** "92% of the court in frame · fit error 1.8 px". */
+        val detail: String? = null,
+    ) : CourtState
 }
 
 /**
@@ -84,6 +106,8 @@ data class HitTimelineState(
     val timelineMs: Long = 0,
     /** Merged `emit_range_us` of the windows read, in ms: what the ticks can claim to cover. */
     val coveredMs: List<LongRange> = emptyList(),
+    /** Set when the hits are `match.v1` events ("the match record · engine 0.4.0"); windows are then not the denominator. */
+    val recordSource: String? = null,
 ) {
     companion object {
         val EMPTY = HitTimelineState()
@@ -110,7 +134,14 @@ data class MatchOverviewState(
     val hitTimeline: HitTimelineState = HitTimelineState.EMPTY,
     /** Built from the live windows while `match.v1` is missing; null once the record is read. */
     val live: LiveOverviewState? = null,
+    /** "Opponent · no track linked yet"; null when the record names no opponent. */
+    val opponent: String? = null,
+    /** Score from confirmed points only; null without a match record. */
+    val score: ScoreLine? = null,
 )
+
+/** The score as people confirmed it (D-007): never from a model estimate. */
+data class ScoreLine(val headline: String, val detail: String?, val confirmed: Boolean)
 
 /** Pure derivations: every displayed count with its denominator, nothing invented. */
 object OverviewDerivation {
@@ -143,6 +174,7 @@ object OverviewDerivation {
             fixture != null -> OverviewSource.HandLabelledReference(fixture.first, fixture.second.provenance.labelledBy)
             else -> OverviewSource.Nothing
         }
+        val hits = match?.let { recordHitTimeline(it, sourceDurationMs) } ?: hitTimeline
         return MatchOverviewState(
             source = source,
             title = title,
@@ -150,7 +182,7 @@ object OverviewDerivation {
             thumbnail = thumbnail,
             analysis = analysis,
             selectedPlayer = selectedPlayer(match),
-            rallies = rallies(match, sourceFrameTimesUs, sourceDurationMs),
+            rallies = rallies(match, sourceFrameTimesUs, sourceDurationMs, hits),
             court = court(match),
             capabilities = match?.capabilities?.let {
                 listOf("Court" to it.court, "Ball" to it.ball, "Reviews" to it.reviews, "Score" to it.score)
@@ -158,9 +190,91 @@ object OverviewDerivation {
             matchProblem = matchProblem,
             referenceDetail = fixture?.second?.let(::referenceDetail),
             referenceRange = fixture?.second?.let { (it.rangeStartUs / 1000)..((it.rangeEndUs + 999) / 1000) },
-            hitTimeline = hitTimeline,
+            hitTimeline = hits,
             live = live.takeIf { match == null },
+            opponent = opponent(match),
+            score = match?.let(::score),
         )
+    }
+
+    /**
+     * The record's hit events (`type: "hit"`) as the timeline, with rally candidates grouped from
+     * them (#72). Null when the record has no hits, so the window timeline (labelled as such) stays.
+     */
+    fun recordHitTimeline(match: MatchRecord, sourceDurationMs: Long?): HitTimelineState? {
+        val hits = match.events.filter { it.type == "hit" }.map { e ->
+            HitCandidate(
+                tMs = e.tMs,
+                sigmaMs = e.tSigmaMs,
+                trackId = e.trackId,
+                imageXy = e.imageXy?.takeIf { it.size == 2 && it.all(Double::isFinite) }?.let { it[0] to it[1] },
+                cues = e.cues,
+                state = e.state,
+            )
+        }.sortedBy { it.tMs }
+        if (hits.isEmpty()) return null
+        return HitTimelineState(
+            hits = hits,
+            rallies = HitRallies.group(hits),
+            timelineMs = maxOf(sourceDurationMs ?: 0, hits.last().tMs),
+            recordSource = "the match record · engine ${match.analysis.engineVersion}",
+        )
+    }
+
+    /** The player the user confirmed as themselves (`who_is_me`), else the one labelled "you". */
+    fun you(match: MatchRecord?): MatchPlayer? =
+        match?.players?.firstOrNull { it.identity == "user_confirmed" } ?: match?.players?.firstOrNull { it.label == "you" }
+
+    /** Label shown for a player id: "you", the record's label, or the id when the record does not name it. */
+    private fun who(match: MatchRecord, playerId: String): String =
+        if (playerId == you(match)?.playerId) "you" else match.players.firstOrNull { it.playerId == playerId }?.label ?: playerId
+
+    private fun identityText(identity: String): String = when (identity) {
+        "user_confirmed" -> "confirmed by you"
+        "user_named" -> "named by you"
+        "engine" -> "from the engine"
+        else -> identity
+    }
+
+    private fun tracksText(n: Int): String = if (n == 0) "no track linked yet" else "$n track${if (n == 1) "" else "s"}"
+
+    fun opponent(match: MatchRecord?): String? {
+        if (match == null) return null
+        val me = you(match)
+        val others = match.players.filter { it.playerId != me?.playerId }
+        if (others.isEmpty()) return null
+        return others.joinToString(" · ") { p ->
+            val name = if (p.label.equals("opponent", ignoreCase = true)) "Opponent" else "Opponent: ${p.label}"
+            // An engine record with no track is only the format's second player, not a detection (#92).
+            if (p.identity == "engine" && p.trackIds.isEmpty()) "$name · ${tracksText(0)}"
+            else "$name · ${identityText(p.identity)} · ${tracksText(p.trackIds.size)}"
+        }
+    }
+
+    /**
+     * Points per player from `confirmed_points` only (contracts §7: the score changes only from
+     * them); games from `score.games` as recorded. No confirmation, no score.
+     */
+    fun score(match: MatchRecord): ScoreLine {
+        val points = match.confirmedPoints
+        if (points.isEmpty()) return ScoreLine("No confirmed points yet", "The score counts only points you confirm", confirmed = false)
+        val me = you(match)
+        val order = listOfNotNull(me?.playerId) + match.players.map { it.playerId }.filter { it != me?.playerId } +
+            points.map { it.winner }
+        val counts = points.groupingBy { it.winner }.eachCount()
+        val headline = order.distinct().joinToString(" · ") { id ->
+            "${who(match, id).replaceFirstChar { it.titlecase(Locale.ROOT) }} ${counts[id] ?: 0}"
+        }
+        val rallies = match.rallies.size.takeIf { it > 0 }?.let { " of $it rall${if (it == 1) "y" else "ies"}" }.orEmpty()
+        val games = match.score?.games.orEmpty().filter { it.size == 2 }
+        val gamesText = if (games.isEmpty()) {
+            null
+        } else {
+            val youFirst = me != null && match.players.size == 2 && match.players[0].playerId == me.playerId
+            (if (youFirst) "games (you first) " else "games as recorded ") + games.joinToString(", ") { "${it[0]}–${it[1]}" }
+        }
+        val detail = listOfNotNull("${points.size} confirmed point${if (points.size == 1) "" else "s"}$rallies", gamesText).joinToString(" · ")
+        return ScoreLine(headline, detail, confirmed = true)
     }
 
     /**
@@ -198,24 +312,35 @@ object OverviewDerivation {
     }
 
     fun selectedPlayer(match: MatchRecord?): String {
-        val me = match?.players?.firstOrNull { it.label == "you" } ?: return "Player not selected yet"
-        val how = when (me.identity) {
-            "user_confirmed" -> "confirmed by you"
-            "user_named" -> "named by you"
-            else -> me.identity
-        }
-        return "You · ${me.trackIds.size} track${if (me.trackIds.size == 1) "" else "s"} · $how"
+        val me = you(match) ?: return "Player not selected yet"
+        val tracks = if (me.trackIds.isEmpty()) null else tracksText(me.trackIds.size)
+        return listOfNotNull("You", tracks, identityText(me.identity)).joinToString(" · ")
     }
 
-    fun rallies(match: MatchRecord?, frameTimesUs: LongArray?, durationMs: Long?): RalliesState {
+    fun rallies(match: MatchRecord?, frameTimesUs: LongArray?, durationMs: Long?, hits: HitTimelineState? = null): RalliesState {
         if (match == null) return RalliesState.NotAvailable("Rallies not available yet: no match record from the server")
-        if (match.rallies.isEmpty()) return RalliesState.NotAvailable("Rallies not available yet: the match record has none")
+        if (match.rallies.isEmpty()) {
+            if (hits != null && hits.rallies.isNotEmpty()) {
+                val n = hits.hits.size
+                val where = hits.recordSource ?: "the engine windows"
+                return RalliesState.FromHits(
+                    LiveOverview.rallyRows(hits),
+                    "Grouped from $n hit candidate${if (n == 1) "" else "s"} in $where · the record has no rallies yet · not confirmed",
+                )
+            }
+            return RalliesState.NotAvailable("Rallies not available yet: the match record has none")
+        }
         val ordered = match.rallies.sortedBy { it.startMs }
-        val players = match.players
+        val me = you(match)
         val rows = ordered.map { r ->
             val frames = frameTimesUs?.let { countFrames(it, r.startMs * 1000, r.endMs * 1000) }
-            val winnerPlayer = players.indexOfFirst { it.playerId == r.winner }
-            val who = players.getOrNull(winnerPlayer)?.label ?: r.winner
+            val known = match.players.any { it.playerId == r.winner }
+            val side = when {
+                me != null && r.winner == me.playerId -> 0
+                known -> 1
+                else -> -1
+            }
+            val who = who(match, r.winner)
             val confirmed = r.winnerState == "user"
             RallyRow(
                 rallyId = r.rallyId,
@@ -225,7 +350,7 @@ object OverviewDerivation {
                 ballCoverage = ballCoverageLabel(r.ballCoverage, frames),
                 winner = if (confirmed) "Won by $who · confirmed" else "Winner candidate: $who · MODEL ESTIMATE",
                 winnerConfirmed = confirmed,
-                winnerSide = winnerPlayer,
+                winnerSide = side,
                 state = r.state,
             )
         }
@@ -241,35 +366,81 @@ object OverviewDerivation {
         return if (frames != null && frames > 0) "ball seen in $pct% of $frames frames" else "ball seen in $pct% of frames"
     }
 
+    /** "Court from your taps · tier B" (method `tap`), else the method named verbatim. */
+    fun courtChip(cal: MatchCalibration?): String {
+        if (cal == null) return "Court not calibrated"
+        val how = if (cal.method == "tap") "Court from your taps" else "Court from ${cal.method}"
+        return "$how · tier ${cal.tier}"
+    }
+
+    /** "92% of the court in frame · fit error 1.8 px"; parts with invalid values are left out. */
+    fun courtDetail(cal: MatchCalibration?): String? {
+        if (cal == null) return null
+        val parts = listOfNotNull(
+            cal.visibleFraction.takeIf { it.isFinite() && it in 0.0..1.0 }?.let { "${(it * 100).roundToInt()}% of the court in frame" },
+            cal.residualPx.takeIf { it.isFinite() && it >= 0 }?.let { String.format(Locale.ROOT, "fit error %.1f px", it) },
+        )
+        return parts.joinToString(" · ").ifEmpty { null }
+    }
+
+    /**
+     * Landing marks from `events` with `type: "landing"` (contracts §7; `contact_xy_m` in the
+     * calibration template's court metres); a record without landing events falls back to its
+     * shots' `landing_xy_m`. Every count says what it is out of; nothing is drawn without metres.
+     */
     fun court(match: MatchRecord?): CourtState {
         if (match != null && match.sport != "badminton") {
             return CourtState.NotApplicable("Court view is drawn for badminton only so far")
         }
         val singles = match?.format != "doubles"
         if (match == null) return CourtState.Badminton(singles, emptyList(), "No landings yet")
-        if (match.calibration?.plane != "court") return CourtState.Badminton(singles, emptyList(), "No landings: ${if (match.calibration == null) "the match is not calibrated" else "calibration is not on the court plane"}")
-        val all = match.shots
-        val withLanding = all.filter { s ->
-            val xy = s.chosen.landingXyM
-            xy.size == 2 && xy[0].isFinite() && xy[1].isFinite()
-        }
-        val drawable = withLanding.filter { s ->
-            val (x, y) = s.chosen.landingXyM
-            x in -MARGIN_M..COURT_WIDTH_M + MARGIN_M && y in -MARGIN_M..COURT_LENGTH_M + MARGIN_M
-        }
-        val marks = drawable.map { CourtMark(it.chosen.landingXyM[0], it.chosen.landingXyM[1], it.chosen.landingState, it.shotId, it.rallyId) }
-        val note = when {
-            all.isEmpty() -> "No landings yet"
-            marks.isEmpty() -> "No landings to draw from ${all.size} shot${if (all.size == 1) "" else "s"}"
-            else -> buildString {
-                append("${marks.size} landing${if (marks.size == 1) "" else "s"} of ${all.size} shot${if (all.size == 1) "" else "s"}")
-                val byState = marks.groupingBy { it.state }.eachCount().toSortedMap()
-                append(" (" + byState.entries.joinToString(", ") { "${it.value} ${it.key}" } + ")")
-                val off = withLanding.size - drawable.size
-                if (off > 0) append(" · $off further than ${MARGIN_M.toInt()} m outside the court, not drawn")
+        val cal = match.calibration
+        val chip = courtChip(cal)
+        val detail = courtDetail(cal)
+        val landingEvents = match.events.filter { it.type == "landing" }
+        val fromEvents = landingEvents.isNotEmpty()
+        val total = if (fromEvents) landingEvents.size else match.shots.size
+        fun empty(note: String) = CourtState.Badminton(singles, emptyList(), note, chip = chip, detail = detail)
+        if (total == 0) return empty("No landings in this match")
+        val noun = if (fromEvents && landingEvents.all { it.state == "candidate" }) "landing candidate" else "landing"
+        val count = "$total $noun${if (total == 1) "" else "s"}"
+        if (cal == null) return empty("$count · not drawn: the match is not calibrated")
+        if (cal.plane != "court") return empty("$count · not drawn: calibration is not on the court plane")
+        val bounds = CourtModel.courtBounds(cal.template) ?: return empty("$count · not drawn: no court drawing for template ${cal.template}")
+        val offset = 0.0 - bounds.first // not -x: keeps +0.0 for the doubles frame
+        val positioned: List<CourtMark> = if (fromEvents) {
+            landingEvents.mapNotNull { e ->
+                val xy = e.contactXyM
+                if (xy == null || xy.size != 2 || !xy.all(Double::isFinite) || (e.plane != null && e.plane != "court")) null
+                else CourtMark(xy[0], xy[1], e.state, e.eventId, e.rallyId)
+            }
+        } else {
+            match.shots.mapNotNull { s ->
+                val xy = s.chosen.landingXyM
+                if (xy.size != 2 || !xy.all(Double::isFinite)) null else CourtMark(xy[0], xy[1], s.chosen.landingState, s.shotId, s.rallyId)
             }
         }
-        return CourtState.Badminton(singles, marks, note)
+        val marks = positioned.filter { mk ->
+            val x = mk.xM + offset
+            x in -MARGIN_M..COURT_WIDTH_M + MARGIN_M && mk.yM in -MARGIN_M..COURT_LENGTH_M + MARGIN_M
+        }
+        fun byState() = " (" + marks.groupingBy { it.state }.eachCount().toSortedMap().entries.joinToString(", ") { "${it.value} ${it.key}" } + ")"
+        val off = positioned.size - marks.size
+        val offText = if (off > 0) " · $off further than ${MARGIN_M.toInt()} m outside the court, not drawn" else ""
+        val shots = "$total shot${if (total == 1) "" else "s"}"
+        val note = when {
+            fromEvents -> buildString {
+                append(count)
+                if (marks.size != total) append(" · ${marks.size} drawn")
+                if (marks.map { it.state }.distinct().size > 1) append(byState())
+                val noMetres = total - positioned.size
+                if (noMetres > 0) append(" · $noMetres without a court position")
+                append(offText)
+            }
+            marks.isEmpty() -> "No landings to draw from $shots"
+            else -> "${marks.size} landing${if (marks.size == 1) "" else "s"} of $shots" + byState() + offText
+        }
+        return CourtState.Badminton(singles, marks, note, offset, chip, detail)
     }
 
     fun referenceDetail(t: TrailTrack): String {

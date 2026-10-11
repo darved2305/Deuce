@@ -45,6 +45,20 @@ class Homography private constructor(
     )
 
     companion object {
+        /**
+         * From `match.v1` `calibration.H` (row-major, image pixels → court metres). The sign is fixed
+         * so the image centre ([imageW]/2, [imageH]/2) reads w > 0, as for tapped corners.
+         */
+        fun fromImageToCourt(hImageToCourt: List<Double>, imageW: Int, imageH: Int): Homography? {
+            if (hImageToCourt.size != 9 || !hImageToCourt.all(Double::isFinite)) return null
+            var hInv = hImageToCourt.toDoubleArray()
+            val w = hInv[6] * imageW / 2.0 + hInv[7] * imageH / 2.0 + hInv[8]
+            if (w == 0.0) return null
+            if (w < 0) hInv = DoubleArray(9) { -hInv[it] }
+            val h = inv3(hInv) ?: return null
+            return Homography(h, hInv)
+        }
+
         /** Below this pivot the 8×8 system is singular (normalised coordinates keep terms ~1). */
         private const val EPS = 1e-10
 

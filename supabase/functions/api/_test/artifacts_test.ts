@@ -11,7 +11,7 @@ const URL =
   "https://r2.test/artifact?X-Amz-Date=20300102T030405Z&X-Amz-Expires=300";
 
 type Opts = {
-  owned?: unknown;
+  visible?: unknown;
   artifact?: unknown;
   grants?: unknown;
   download?: unknown;
@@ -22,7 +22,7 @@ function build(o: Opts = {}) {
   const signedKeys: string[] = [];
   const user: Handler = (c) => {
     if (c.kind === "from" && c.table === "artifacts") {
-      return ok("owned" in o ? o.owned : ARTIFACT);
+      return ok("visible" in o ? o.visible : ARTIFACT);
     }
     return ok(null);
   };
@@ -82,24 +82,22 @@ Deno.test("GET artifact owner receives a signed URL expiring in 300 seconds", as
 });
 
 Deno.test("GET artifact returns 404 to a non-owner without a share grant", async () => {
-  const t = build({ owned: null, artifact: ARTIFACT, grants: [] });
+  const t = build({ visible: null, artifact: ARTIFACT, grants: [] });
   const res = await get(t.app);
   assert.equal(res.status, 404);
   assert.equal((await res.json()).error.code, "not_found");
   assert.deepEqual(t.signedKeys, []);
 });
 
-Deno.test("GET artifact remains owner-only even with an active share grant", async () => {
-  const t = build({
-    owned: null,
-    artifact: ARTIFACT,
-    grants: [{ scope: "read", revoked_at: null }],
-  });
+Deno.test("GET artifact signs a row returned by caller-scoped RLS", async () => {
+  const t = build({ visible: ARTIFACT });
   const res = await get(t.app);
-  assert.equal(res.status, 404);
-  assert.equal((await res.json()).error.code, "not_found");
-  assert.deepEqual(t.signedKeys, []);
-  assert.equal(t.adminLog.length, 0);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), {
+    url: URL,
+    expires_at: "2030-01-02T03:09:05.000Z",
+  });
+  assert.deepEqual(t.signedKeys, [ARTIFACT.r2_key]);
 });
 
 Deno.test("GET artifact enforces the daily download cap", async () => {
@@ -113,7 +111,7 @@ Deno.test("GET artifact enforces the daily download cap", async () => {
 });
 
 Deno.test("GET unknown artifact returns 404", async () => {
-  const t = build({ owned: null, artifact: null });
+  const t = build({ visible: null, artifact: null });
   const res = await get(t.app);
   assert.equal(res.status, 404);
   assert.equal((await res.json()).error.code, "not_found");

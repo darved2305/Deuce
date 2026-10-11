@@ -1,0 +1,10 @@
+{
+  "what": "Real D-FINE-S person boxes for h13g_singles.mp4 31-91 s, per 6 s window, as Models.candidates returned them (about 12 fps on the emitted frames). Input of the live player-id regression test.",
+  "modal_app_run": "ap-igQSaM44yIqvQB2dY7hcDv",
+  "command": "modal run -m elevate_engine.modal_app::run_clip --clip h13g_singles.mp4 --start-s 31 --end-s 91 --out-dir <out> --analysis-id a_offline_h13g --calibration-input eval/runs/s3df758_calibration/calibration_input.json",
+  "engine_code": "branch p1/live-players (Models.candidates with inline D-FINE)",
+  "windows": 10,
+  "persons": 1421,
+  "check": "window 1 (37000-43000 ms) rows are identical to eval/runs/h13g_w1/persons.json (145 rows, max difference 0), which came from the separate Models.window path",
+  "sha256": "a020abfe277aa9ba79268b6ab8e55b00ee84941aaf423383f6fe07276760f89f"
+}
