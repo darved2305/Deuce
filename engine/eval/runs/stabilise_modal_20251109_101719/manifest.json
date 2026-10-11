@@ -1,0 +1,42 @@
+{
+  "clip": "20251109_101719.mp4 (handheld, badminton-videos.zip; sha256 ca2303cea54a48be114689bfff802e35d86615dc97966aec43a7bdc52c9f5679)",
+  "range_s": [
+    0,
+    7.08
+  ],
+  "runs": {
+    "off": "ap-LoumkSIXGWBLqTDCZILGPe",
+    "on (--stabilise)": "ap-yotk6iUvhmM8BTPJkbPRHC",
+    "h13g 31-43 s with --stabilise": "ap-D9QMKjBiUVGerYOYSjHvwm"
+  },
+  "result": {
+    "observed_rows": {
+      "off": 75,
+      "on": 72
+    },
+    "ball_coverage_window0": {
+      "off": 0.2078,
+      "on": 0.1994
+    },
+    "window1": "0 rows in both (no shuttle in play)",
+    "events": {
+      "off": 3,
+      "on": 2
+    },
+    "only_off_ms": [
+      2199,
+      2216,
+      4581,
+      5398
+    ],
+    "only_on_ms": [
+      5048
+    ],
+    "shared_rows": 71,
+    "shared_moved_gt_3px": 32,
+    "visual": "Contact sheet of both trails on the real frames: 3 of the off-only rows are at the top frame edge and unclear, 5398 is near a racket; the on-only 5048 is near the far player's raised racket; shared rows move a few px on the same object. No visible gain or loss.",
+    "h13g": "ball rows, event times, positions and cues identical to the run without the flag (gate below 0.5 px); only analysis-id-derived ids differ"
+  },
+  "decision": "Keep STABILISE.enabled=False: no measurable gain on this clip, extra CPU per window, h13g unchanged either way. Revisit with longer handheld footage and hand labels.",
+  "note": "Modal runs include D-FINE person masks (production path)."
+}

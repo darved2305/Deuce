@@ -1,0 +1,36 @@
+{
+  "clip": "20251109_101719.mp4",
+  "range_ms": [
+    0,
+    7080
+  ],
+  "windows": 2,
+  "frames": 425,
+  "ball_rows": 72,
+  "tracker": {
+    "tracklets": 3,
+    "kept": 3,
+    "dropped_static": 0,
+    "dropped_short": 0,
+    "frames_with_ball": 72,
+    "inferred": 0,
+    "static_filter_dropped": 0
+  },
+  "calibration": null,
+  "persons": 565,
+  "player_rows_per_window": [
+    144,
+    26
+  ],
+  "player_track_ids": [
+    "t_1",
+    "t_2"
+  ],
+  "player_foot_y_m": {},
+  "onsets": 27,
+  "hits": 2,
+  "background_s": 1339.6,
+  "windows_s": 78.6,
+  "total_s": 1418.3,
+  "realtime_factor": 200.33
+}

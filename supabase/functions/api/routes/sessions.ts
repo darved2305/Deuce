@@ -69,6 +69,7 @@ const abortedResponse = () =>
 const createSession = createRoute({
   method: "post",
   path: "/v1/sessions",
+  operationId: "createSession",
   request: {
     headers: IdemHeader,
     body: {
@@ -92,6 +93,7 @@ const createSession = createRoute({
 const getSession = createRoute({
   method: "get",
   path: "/v1/sessions/{id}",
+  operationId: "getSession",
   request: { params: z.object({ id: SessionId }) },
   responses: {
     200: {
@@ -106,6 +108,7 @@ const getSession = createRoute({
 const uploadParts = createRoute({
   method: "post",
   path: "/v1/sessions/{id}/upload/parts",
+  operationId: "createUploadParts",
   request: {
     params: z.object({ id: SessionId }),
     body: {
@@ -130,6 +133,7 @@ const uploadParts = createRoute({
 const uploadComplete = createRoute({
   method: "post",
   path: "/v1/sessions/{id}/upload/complete",
+  operationId: "completeUpload",
   request: {
     params: z.object({ id: SessionId }),
     body: {
@@ -157,6 +161,7 @@ const uploadComplete = createRoute({
 const uploadAbort = createRoute({
   method: "post",
   path: "/v1/sessions/{id}/upload/abort",
+  operationId: "abortUpload",
   request: { params: z.object({ id: SessionId }) },
   responses: {
     200: {
@@ -171,6 +176,7 @@ const uploadAbort = createRoute({
 const registerSegment = createRoute({
   method: "post",
   path: "/v1/sessions/{id}/segments",
+  operationId: "registerSegment",
   request: {
     params: z.object({ id: SessionId }),
     body: {
@@ -206,8 +212,12 @@ const registerSegment = createRoute({
 const completeSegment = createRoute({
   method: "post",
   path: "/v1/sessions/{id}/segments/{seq}/complete",
+  operationId: "completeSegment",
   request: {
-    params: z.object({ id: SessionId, seq: z.coerce.number().int().min(0) }),
+    params: z.object({
+      id: SessionId,
+      seq: z.string().transform(Number).pipe(z.number().int().min(0)),
+    }),
   },
   responses: {
     200: {

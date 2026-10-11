@@ -12,6 +12,7 @@ import type { R2 } from "../lib/r2.ts";
 const getMatch = createRoute({
   method: "get",
   path: "/v1/matches/{id}",
+  operationId: "getMatch",
   request: { params: z.object({ id: matchIdSchema }) },
   responses: {
     200: {
@@ -39,6 +40,7 @@ const R2_DELETE_RETRY_MS = [250, 500] as const;
 const deleteMatch = createRoute({
   method: "delete",
   path: "/v1/matches/{id}",
+  operationId: "deleteMatch",
   request: { params: z.object({ id: matchIdSchema }) },
   responses: {
     202: {

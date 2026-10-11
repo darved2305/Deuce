@@ -11,6 +11,7 @@ import { ApiFailure } from "../lib/errors.ts";
 const getComparisons = createRoute({
   method: "get",
   path: "/v1/matches/{mid}/shots/{shot_id}/comparisons",
+  operationId: "getShotComparisons",
   request: {
     params: z.object({ mid: matchIdSchema, shot_id: shotIdSchema }),
     query: z.object({
