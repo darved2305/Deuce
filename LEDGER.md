@@ -88,3 +88,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T01:04Z | #108 | @VrajVed | p1 | engine: landing guards (horizon, non-finite, static) | none | 1.10.0 | The same real tracked rows as #106 (Modal run `ap-OC1nn0d4By8WZb0voixnPt`, `h13g_singles` 31–91 s) and the real tier B |
 | 2026-10-11T02:00Z | #116 | @nikhilpravinpise | p3 | api: unhandled errors return error.envelope.v1 (#107 follow-up) | none (enforces the existing error.envelope.v1 contract) | 1.10.0 | ``` |
 | 2026-10-11T02:00Z | #115 | @nikhilpravinpise | p3 | test: artifacts route follows match-scope share RLS (HW14) | D-261011-HW14 (item 7: match-scope share grant exposes the full match.v1). No new decisions. | 1.10.0 | ``` |
+| 2026-10-11T02:00Z | #111 | @nikhilpravinpise | p3 | api: POST /v1/matches/{id}/corrections, append-only (B5) |  | 1.10.0 |  |
