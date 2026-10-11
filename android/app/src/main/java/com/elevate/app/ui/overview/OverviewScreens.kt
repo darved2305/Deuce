@@ -208,6 +208,8 @@ fun MatchOverviewScreen(
     onBack: () -> Unit,
     readLabDrills: Int = 0,
     onTrainRead: () -> Unit = {},
+    reflexRounds: Int = 0,
+    onReflex: () -> Unit = {},
 ) {
     BackHandler(onBack = onBack)
     val hero = AnalysingHero(eyebrow, state.thumbnail, state.title)
@@ -228,6 +230,7 @@ fun MatchOverviewScreen(
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
                             OverviewTop(state, hero, play)
                             com.elevate.app.ui.readlab.ReadLabEntryButton(readLabDrills, onTrainRead)
+                            com.elevate.app.ui.readlab.ReflexEntryButton(reflexRounds, onReflex)
                         }
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
                             OverviewCourt(state)
@@ -242,6 +245,7 @@ fun MatchOverviewScreen(
                     ) {
                         OverviewTop(state, hero, play)
                         com.elevate.app.ui.readlab.ReadLabEntryButton(readLabDrills, onTrainRead)
+                        com.elevate.app.ui.readlab.ReflexEntryButton(reflexRounds, onReflex)
                         OverviewCourt(state)
                         OverviewRallies(state, onOpenRally)
                         OverviewHits(state, onOpenRally)

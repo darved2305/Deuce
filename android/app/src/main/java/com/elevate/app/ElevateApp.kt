@@ -236,13 +236,18 @@ private fun AnalysisPanels(
     /** Facts of the open video when it is the analysed file; ReadLab freezes frames of that file only. */
     analysedFacts: SourceFacts?,
 ) {
-    if ((panel == Screen.Panel.Overview || panel == Screen.Panel.ReadLab) && ovm != null) {
+    if ((panel == Screen.Panel.Overview || panel == Screen.Panel.ReadLab || panel == Screen.Panel.Reflex) && ovm != null) {
         val match by ovm.matchRecord.collectAsStateWithLifecycle()
         val drills = remember(match, analysedFacts) {
             com.elevate.app.ui.readlab.ReadLabDrills.fromMatch(match, analysedFacts?.frameTimesUs, analysedFacts?.displayWidth, analysedFacts?.displayHeight)
         }
+        val reflexRounds = remember(drills) { com.elevate.app.ui.readlab.ReflexRounds.of(drills).size }
         if (panel == Screen.Panel.ReadLab) {
             com.elevate.app.ui.readlab.ReadLabRoute(vm, drills, onBack = { vm.showPanel(Screen.Panel.Overview) })
+            return
+        }
+        if (panel == Screen.Panel.Reflex) {
+            com.elevate.app.ui.readlab.ReflexRoute(vm, drills, match?.matchId.orEmpty(), onBack = { vm.showPanel(Screen.Panel.Overview) })
             return
         }
         val overview by ovm.overview.collectAsStateWithLifecycle()
@@ -253,6 +258,8 @@ private fun AnalysisPanels(
             onBack = { vm.showPanel(Screen.Panel.None); vm.back() },
             readLabDrills = drills.size,
             onTrainRead = { vm.showPanel(Screen.Panel.ReadLab) },
+            reflexRounds = reflexRounds,
+            onReflex = { vm.showPanel(Screen.Panel.Reflex) },
         )
         return
     }
