@@ -9,6 +9,7 @@ import {
   rallyDetail,
   rewatchPicks,
   windowProgress,
+  eventSummary,
   type Match,
 } from "../src/coach.ts";
 import { matchFixture, MATCH_ID } from "./fixture.ts";
@@ -108,4 +109,27 @@ test("countHits counts only hit events and tolerates bad bodies", () => {
   assert.equal(countHits({ events: [{ type: "hit" }, { type: "bounce" }, { type: "hit" }] }), 2);
   assert.equal(countHits(null), 0);
   assert.equal(countHits({ events: "nope" }), 0);
+});
+
+test("eventSummary counts per type and state over the whole record and keeps candidates as candidates", () => {
+  // Shape and mix seen on the deployed API for match m_e4e43ddfcae54f6aa09808b535d0fb95.
+  const events = [
+    { event_id: "e_3", type: "landing", t_ms: 58300, t_sigma_ms: 10, state: "candidate", cues: ["trajectory"] },
+    { event_id: "e_1", type: "hit", t_ms: 780, t_sigma_ms: 20, state: "candidate", cues: ["trajectory"] },
+    { event_id: "e_2", type: "hit", t_ms: 2100, state: "candidate" },
+  ];
+  const all = eventSummary(events);
+  assert.equal(all.total_events, 3);
+  assert.deepEqual(all.counts, [
+    { type: "hit", state: "candidate", count: 2 },
+    { type: "landing", state: "candidate", count: 1 },
+  ]);
+  assert.deepEqual(all.items.map((e) => e.event_id), ["e_1", "e_2", "e_3"]);
+  assert.equal(all.items[1].t_sigma_ms, null);
+  const hits = eventSummary(events, { type: "hit", limit: 1 });
+  assert.equal(hits.matching, 2);
+  assert.equal(hits.items.length, 1);
+  assert.equal(hits.total_events, 3);
+  assert.equal(eventSummary(events, { state: "observed" }).matching, 0);
+  assert.equal(eventSummary(events, { limit: 0 }).items.length, 0);
 });

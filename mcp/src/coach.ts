@@ -46,6 +46,14 @@ export type Match = {
     evidence_moment_ids: string[];
   }>;
 };
+export type MatchEvent = {
+  event_id: string;
+  type: string;
+  t_ms: number;
+  t_sigma_ms?: number | null;
+  state: State;
+  cues?: string[];
+};
 type Rally = Match["rallies"][number];
 type Shot = Match["shots"][number];
 type Moment = Match["moments"][number];
@@ -299,4 +307,42 @@ export function countHits(windowResult: unknown): number {
   return events.filter((e) =>
     typeof e === "object" && e !== null && (e as { type?: unknown }).type === "hit"
   ).length;
+}
+
+export type EventFilters = { type?: string; state?: string; limit?: number };
+
+/**
+ * The engine's detections on the match timeline (hits, landings, ...), exactly as recorded:
+ * counts per type and provenance state over the whole record, plus the first `limit` items in
+ * time order that pass the filters. Nothing is promoted: a "candidate" stays a candidate.
+ */
+export function eventSummary(events: MatchEvent[], filters: EventFilters = {}) {
+  const counts = new Map<string, number>();
+  for (const e of events) {
+    const key = `${e.type}/${e.state}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const matching = events
+    .filter((e) =>
+      (filters.type === undefined || e.type === filters.type) &&
+      (filters.state === undefined || e.state === filters.state)
+    )
+    .sort((a, b) => a.t_ms - b.t_ms);
+  const limit = filters.limit ?? 20;
+  return {
+    total_events: events.length,
+    counts: [...counts.entries()].sort().map(([key, count]) => {
+      const [type, state] = key.split("/");
+      return { type, state, count };
+    }),
+    matching: matching.length,
+    items: matching.slice(0, limit).map((e) => ({
+      event_id: e.event_id,
+      type: e.type,
+      state: e.state,
+      t_ms: e.t_ms,
+      t_sigma_ms: e.t_sigma_ms ?? null,
+      cues: e.cues ?? [],
+    })),
+  };
 }
