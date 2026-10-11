@@ -124,3 +124,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T05:09Z | #132 | @nikhilpravinpise | p3 | api: B6 read routes on contracts 1.10.0 (capabilities, matches, rallies, moments | D-261011-HW16 | 1.11.0 | Live deployed API proof was not run because deploy and live API use were prohibited. Person 3's exact Bearer-authenticat |
 | 2026-10-11T05:10Z | #140 | @nikhilpravinpise | p3 | docs: Person 3 API reference and runbook | none | 1.11.0 | ``` |
 | 2026-10-11T05:26Z | #157 | @darved2305 | p2 | android: ReadLab reveal shows the real landing; training row shows Read, Reflex  | none | 1.11.0 | Galaxy A55 `RZCY12S9LRD`, this branch installed, real h13g footage. Analysis `a_fdcb5c99c85140e898bd1c777d736cec` / matc |
+| 2026-10-11T05:33Z | #158 | @HetanshWaghela | p4 | web: dev-site API reference shows all 29 live routes | none | 1.11.0 | ``` |
