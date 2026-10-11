@@ -790,3 +790,17 @@ Template (copy to the end of the file):
   at dispatch, accept null artifacts; #82); Person 2 (Kotlin `MatchArtifacts` nullable, done in this
   PR). Contracts 1.9.0, additive except the nullable artifact ids.
 - **PRs:** this PR.
+
+## D-261011-HW16 · Contracts 1.10.0: read routes for matches, rallies, moments, capabilities (#65)
+- **Status:** accepted · **Date:** 2026-10-11 · **Owner:** @HetanshWaghela (Person 4) · **Supersedes:** none
+- **In one line:** Person 3's proposal on #65 with one edit: capabilities reuse match.v1's `{tier, status}`.
+- **Decision:**
+  1. One page envelope `{items, next_cursor}`; cursor opaque, null on the last page; `limit` default
+     20, max 20 on `/v1/moments`, max 100 elsewhere.
+  2. Items reuse match.v1 pieces: `matches.page.v1` items are `{match_id, sport, format, ruleset,
+     created_at, state, score: {games}}`; `rallies.page.v1` items are match.v1 rallies;
+     `rally.detail.v1` is a rally plus its `shots`; `moments.page.v1` items are match.v1 moments plus
+     `match_id`. Moment filters: `?tag=`, and `?match_id=` on `/v1/moments` (moments carry no player).
+  3. `capabilities.v1 = {capabilities: {court, ball, reviews, score}}`, each `{tier, status}`.
+- **Blast radius:** Person 3 builds the six routes after `GET /v1/matches/{id}`; additive.
+- **PRs:** this PR.
