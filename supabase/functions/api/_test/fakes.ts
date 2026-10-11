@@ -52,9 +52,41 @@ export function fakeClient(handler: Handler, log: Call[] = []): SupabaseClient {
         state.filters[`${k} in`] = values;
         return chain;
       },
-      order: () => chain,
-      limit: (n: number) => {
-        state.filters["limit"] = n;
+      contains: (k: string, v: unknown) => {
+        state.filters[`${k}_contains`] = v;
+        return chain;
+      },
+      or: (
+        filters: string,
+        options?: { referencedTable?: string; foreignTable?: string },
+      ) => {
+        const table = options?.referencedTable ?? options?.foreignTable;
+        state.filters[table ? `${table}.or` : "or"] = filters;
+        return chain;
+      },
+      order: (
+        k: string,
+        options?: {
+          referencedTable?: string;
+          foreignTable?: string;
+          ascending?: boolean;
+        },
+      ) => {
+        const table = options?.referencedTable ?? options?.foreignTable;
+        const key = table ? `${table}.order` : "order";
+        const previous = state.filters[key];
+        state.filters[key] = [
+          ...(Array.isArray(previous) ? previous : []),
+          { column: k, ...options },
+        ];
+        return chain;
+      },
+      limit: (
+        n: number,
+        options?: { referencedTable?: string; foreignTable?: string },
+      ) => {
+        const table = options?.referencedTable ?? options?.foreignTable;
+        state.filters[table ? `${table}.limit` : "limit"] = n;
         return chain;
       },
       insert: (p: unknown) => {
