@@ -24,6 +24,7 @@ export const artifactIdSchema = idSchema("art_");
 export const developerKeyIdSchema = idSchema("k_");
 export const calibrationIdSchema = idSchema("cal_");
 export const insightIdSchema = idSchema("in_");
+export const challengeIdSchema = idSchema("ch_");
 
 export const idSchemas = {
   m_: matchIdSchema,
@@ -46,6 +47,7 @@ export const idSchemas = {
   k_: developerKeyIdSchema,
   cal_: calibrationIdSchema,
   in_: insightIdSchema,
+  ch_: challengeIdSchema,
 } as const;
 
 export const provenanceStateSchema = z.enum([

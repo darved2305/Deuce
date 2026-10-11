@@ -26,6 +26,17 @@ import com.elevate.app.data.api.RealtimeHint
 import com.elevate.app.data.api.WindowEvent
 import com.elevate.app.data.api.WindowQuality
 import com.elevate.app.data.api.WindowResult
+import com.elevate.app.domain.community.Challenge
+import com.elevate.app.domain.community.ChallengeAcceptRequest
+import com.elevate.app.domain.community.ChallengeCreateRequest
+import com.elevate.app.domain.community.ChallengeEntry
+import com.elevate.app.domain.community.ChallengeEntryRequest
+import com.elevate.app.domain.community.ChallengePlayer
+import com.elevate.app.domain.community.ChallengeRound
+import com.elevate.app.domain.community.ChallengeRoundResult
+import com.elevate.app.domain.community.ChallengeViewer
+import com.elevate.app.domain.community.Friend
+import com.elevate.app.domain.community.FriendsResponse
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import kotlinx.serialization.KSerializer
@@ -155,6 +166,28 @@ class ContractSchemaTest {
         check(sub(m, "confirmed_points", "[]"), MatchConfirmedPoint.serializer().descriptor, "match.v1.confirmed_points[]", subset = true)
         check(sub(m, "score"), MatchScore.serializer().descriptor, "match.v1.score", lenient = setOf("timeline", "games"))
         check(sub(m, "score", "timeline", "[]"), MatchScoreStep.serializer().descriptor, "match.v1.score.timeline[]")
+    }
+
+    /** Friends and challenges (contracts 1.11.0, D-261011-HW31). */
+    @Test fun challengesAndFriends() {
+        val create = schema("challenge.create.request.v1")
+        check(create, ChallengeCreateRequest.serializer().descriptor, "challenge.create.request.v1")
+        check(sub(create, "rounds", "[]"), ChallengeRound.serializer().descriptor, "challenge.create.request.v1.rounds[]")
+        check(sub(create, "round_results", "[]"), ChallengeRoundResult.serializer().descriptor, "challenge.create.request.v1.round_results[]")
+        check(schema("challenge.accept.request.v1"), ChallengeAcceptRequest.serializer().descriptor, "challenge.accept.request.v1")
+        val entryReq = schema("challenge.entry.request.v1")
+        check(entryReq, ChallengeEntryRequest.serializer().descriptor, "challenge.entry.request.v1")
+        check(sub(entryReq, "round_results", "[]"), ChallengeRoundResult.serializer().descriptor, "challenge.entry.request.v1.round_results[]")
+        val c = schema("challenge.v1")
+        check(c, Challenge.serializer().descriptor, "challenge.v1")
+        check(sub(c, "rounds", "[]"), ChallengeRound.serializer().descriptor, "challenge.v1.rounds[]")
+        check(sub(c, "creator"), ChallengePlayer.serializer().descriptor, "challenge.v1.creator")
+        check(sub(c, "creator", "round_results", "[]"), ChallengeRoundResult.serializer().descriptor, "challenge.v1.creator.round_results[]")
+        check(sub(c, "entries", "[]"), ChallengeEntry.serializer().descriptor, "challenge.v1.entries[]")
+        check(sub(c, "viewer"), ChallengeViewer.serializer().descriptor, "challenge.v1.viewer")
+        val f = schema("friends.response.v1")
+        check(f, FriendsResponse.serializer().descriptor, "friends.response.v1")
+        check(sub(f, "items", "[]"), Friend.serializer().descriptor, "friends.response.v1.items[]")
     }
 
     /** The fenced JSON examples in contracts.md decode with these readers. */

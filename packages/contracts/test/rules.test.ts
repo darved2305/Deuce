@@ -346,3 +346,35 @@ test("1.10.0 (#65): read pages reuse match.v1 pieces", () => {
   assert.equal(zodAccepts("capabilities.v1", { capabilities: m.capabilities }), true, "capabilities");
   assert.equal(zodAccepts("matches.page.v1", { items: [], next_cursor: "" }), false, "empty cursor is not a cursor");
 });
+
+test("1.11.0 (D-261011-HW31): friends and challenges shapes", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const round = { hit_event_id: "e_1", landing_event_id: "e_2", contact_ms: 4200, contact_sigma_ms: 8, ladder_us: [3950000, 4050000, 4130000] };
+  const result = { hit_event_id: "e_1", pick: "B2", reaction_ms: 640, verdict: "exact", points: 120 };
+  const rounds = [round, { ...round, hit_event_id: "e_3" }, { ...round, hit_event_id: "e_5" }];
+  const create = { match_id: "m_doc", display_name: "Hetansh", rounds, score: 120, round_results: [result] };
+  assert.equal(zodAccepts("challenge.create.request.v1", create), true);
+  assert.equal(jsonAccepts("challenge.create.request.v1", create), true);
+  assert.equal(zodAccepts("challenge.create.request.v1", { ...create, rounds: rounds.slice(0, 2) }), false, "at least three rounds");
+  assert.equal(zodAccepts("challenge.create.request.v1", { ...create, extra: 1 }), false, "producers reject unknown fields");
+  assert.equal(zodAccepts("challenge.create.request.v1", { ...create, display_name: "x".repeat(25) }), false, "name is at most 24");
+  assert.equal(zodAccepts("challenge.create.request.v1", { ...create, match_id: "s_doc" }), false, "typed match id");
+  assert.equal(zodAccepts("challenge.entry.request.v1", { score: 90, round_results: [{ ...result, verdict: "wrong", pick: null, reaction_ms: null, points: 0 }] }), true);
+  assert.equal(zodAccepts("challenge.entry.request.v1", { score: 90, round_results: [{ ...result, verdict: "lucky" }] }), false, "verdict enum");
+  assert.equal(zodAccepts("challenge.accept.request.v1", {}), true);
+  const entry = { player_id: uid, display_name: "Asha", score: null, round_results: null, outcome: null, accepted_at: "2026-10-11T10:00:00Z", played_at: null };
+  const view = {
+    id: "ch_doc", match_id: "m_doc", status: "open", video_sha256: "a".repeat(64), rematch_of: null, rounds,
+    creator: { player_id: "22222222-2222-4222-8222-222222222222", display_name: "Hetansh", score: 120, round_results: [result] },
+    entries: [entry], viewer: { player_id: uid, role: "opponent" }, created_at: "2026-10-11T09:00:00Z",
+  };
+  assert.equal(zodAccepts("challenge.v1", view), true);
+  assert.equal(jsonAccepts("challenge.v1", view), true);
+  assert.equal(zodAccepts("challenge.v1", { ...view, entries: [{ ...entry, score: 100, round_results: [result], outcome: "creator", played_at: "2026-10-11T10:05:00Z" }] }), true);
+  assert.equal(zodAccepts("challenge.v1", { ...view, status: "done" }), false, "status enum");
+  assert.equal(zodAccepts("challenge.v1", { ...view, id: "m_doc" }), false, "typed challenge id");
+  const friends = { items: [{ player_id: uid, display_name: "Asha", challenges: 3, played: 2, wins: 1, losses: 1, ties: 0, last_challenge_at: "2026-10-11T10:00:00Z" }] };
+  assert.equal(zodAccepts("friends.response.v1", friends), true);
+  assert.equal(jsonAccepts("friends.response.v1", friends), true);
+  assert.equal(zodAccepts("friends.response.v1", { items: [{ ...friends.items[0], wins: -1 }] }), false);
+});

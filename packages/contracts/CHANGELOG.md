@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.11.0
+
+Friends and challenges (D-261011-HW31): `challenge.create.request.v1`, `challenge.accept.request.v1`,
+`challenge.entry.request.v1`, `challenge.v1`, `friends.response.v1`; id prefix `ch_`. Additive: a Reflex
+challenge on a match (freeze set, score, per-round results), accepted and played by friends, with a
+head-to-head friends list.
+
 ## 1.10.0
 
 Issue #65 B6 reads (D-261011-HW16): `matches.page.v1`, `rallies.page.v1`, `rally.detail.v1`,

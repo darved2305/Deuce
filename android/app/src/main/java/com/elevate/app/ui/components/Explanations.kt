@@ -119,6 +119,18 @@ object Explanations {
     val TrainingStats = Explanation("Training", "Your best Reflex score per match and your ReadLab exact reads. Saved on this phone only.")
     val FocusAreas = Explanation("Strength and focus", "A pattern is listed only when it shows up in at least 2 matches with enough data. It says how many.")
 
+    val Challenge = Explanation(
+        "Challenge",
+        "Send a friend the same shots from your match. They play them on the same video and you both see who read the shuttle better.",
+    )
+    val HeadToHead = Explanation(
+        "Head to head",
+        "Your wins, losses and ties against one friend. A challenge counts once you have both played it.",
+    )
+    val SameVideo = Explanation(
+        "Same video",
+        "The shots are frozen on exact frames, so both players need the same video file. Elevate checks it with a fingerprint of the file.",
+    )
     val Decide = Explanation("Decide mode", "The clip freezes just before a hit. Drag the aim point onto the court and let go. You see if it is in, how open the defender left the court, and what really happened.")
     val DecideReticle = Explanation("Aim point", "Drag it where you would place the shot. It sits just above your finger so you can see it. Let go to commit. It snaps a tick when it crosses into a new zone.")
     val DecideLegal = Explanation("In or out", "Lines count as in. The shot must land inside the opponent's half. Outside the lines, or on your own half, is not a legal shot.")
@@ -135,7 +147,7 @@ object Explanations {
             ReadLab, Relaxed, ZonePicker, Reflex, ShuttleCue, Listen, Share, CourtQuality, InPieces, UploadResumes,
             Sport, Format, AddMatch, Cloud, Ball, Magnifier, TrailToggle, CourtToggle, Speed, Analysing, StageVideo, StageUpload, StageAnalyse,
             YourGame, StyleDeepHitter, StyleNetPlayer, StyleRallyBuilder, StyleShortRallies, StyleFastExchanges,
-            PlacementHeat, Trends, TrainingStats, FocusAreas,
+            PlacementHeat, Trends, TrainingStats, FocusAreas, Challenge, HeadToHead, SameVideo,
             Decide, DecideReticle, DecideLegal, DecideDefender, DecideReach, DecideCompare, DecideSimulated, DecideResults,
         )
     }
