@@ -41,6 +41,12 @@ import uploadAbortResponse from "../../../../packages/contracts/schemas/upload.a
 import uploadCompleteResponse from "../../../../packages/contracts/schemas/upload.complete.response.v1.schema.json" with {
   type: "json",
 };
+import confirmedPoint from "../../../../packages/contracts/schemas/confirmed.point.v1.schema.json" with {
+  type: "json",
+};
+import reviewConfirmRequest from "../../../../packages/contracts/schemas/review.confirm.request.v1.schema.json" with {
+  type: "json",
+};
 import uploadPartsResponse from "../../../../packages/contracts/schemas/upload.parts.response.v1.schema.json" with {
   type: "json",
 };
@@ -53,12 +59,14 @@ const schemas: Record<string, Schema> = {
   "analysis.event.v1": analysisEvent as Schema,
   "analysis.events.page.v1": analysisEventsPage as Schema,
   "analysis.get.response.v1": analysisGetResponse as Schema,
+  "confirmed.point.v1": confirmedPoint as Schema,
   "error.envelope.v1": errorEnvelope as Schema,
   "health.response.v1": healthResponse as Schema,
   "internal.artifact.request.v1": internalArtifactRequest as Schema,
   "internal.artifact.response.v1": internalArtifactResponse as Schema,
   "internal.event.request.v1": internalEventRequest as Schema,
   "match.v1": matchV1 as Schema,
+  "review.confirm.request.v1": reviewConfirmRequest as Schema,
   "session.create.response.v1": sessionCreateResponse as Schema,
   "session.get.response.v1": sessionGetResponse as Schema,
   "upload.abort.response.v1": uploadAbortResponse as Schema,

@@ -6,7 +6,8 @@ export type ErrorCode =
   | keyof typeof knownErrorCodes
   | "analysis_limit_reached"
   | "upload_parts_invalid"
-  | "storage_busy";
+  | "storage_busy"
+  | "invalid_input";
 export type ErrorStatus =
   | typeof knownErrorCodes[keyof typeof knownErrorCodes]
   | 409
@@ -17,6 +18,7 @@ const LOCAL_ERROR_CODES = {
   analysis_limit_reached: 429,
   upload_parts_invalid: 409,
   storage_busy: 503,
+  invalid_input: 422,
 } as const;
 
 const ERROR_STATUSES: Record<ErrorCode, ErrorStatus> = {
