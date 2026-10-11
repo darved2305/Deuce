@@ -361,6 +361,45 @@ class UploadCoordinatorTest {
         assertThat(api.abort(s.sessionId).status).isEqualTo("aborted")
     }
 
+    @Test fun `a stale unfinished upload blocks a new file until it is discarded, even when the server abort fails offline`() = runBlocking<Unit> {
+        repeat(4) { fake.fault(2, Fault.Status(500)) }
+        val a = file(2500)
+        val staged = tmp.newFile("staged-a.mp4").apply { writeBytes(a.readBytes()) }
+        val c = coordinator(a)
+        c.prepare(
+            TestRequests.request(TestRequests.eurogamesSource(a.length(), TestRequests.sha256(a.readBytes()))),
+            "content://media/picker/A", staged.path,
+        )
+        assertThat(c.resume()!!.phase).isEqualTo(UploadPhase.Failed)
+
+        val b = file(3100)
+        fun prepareB() = c.prepare(
+            TestRequests.request(TestRequests.eurogamesSource(b.length(), TestRequests.sha256(b.readBytes()))),
+            "content://media/picker/B",
+        )
+        // The bug: the unfinished upload of file A is still saved, so file B cannot be prepared.
+        assertThrows(IllegalStateException::class.java) { prepareB() }
+
+        fake.apiFault("/upload/abort", Fault.Throw(offline = true))
+        c.discard()
+
+        assertThat(staged.exists()).isFalse()
+        assertThat(prepareB().sourceUri).isEqualTo("content://media/picker/B")
+        assertThat(c.current()!!.sourceUri).isEqualTo("content://media/picker/B")
+        assertThat(c.current()!!.sha256).isEqualTo(TestRequests.sha256(b.readBytes()))
+    }
+
+    @Test fun `discard aborts on the server when it can, like cancel`() = runBlocking<Unit> {
+        repeat(4) { fake.fault(2, Fault.Status(500)) }
+        val f = file(2500)
+        val c = coordinator(f)
+        prepare(c, f)
+        val s = c.resume()!!
+        c.discard()
+        assertThat(fake.uploads.getValue(s.sessionId!!).status).isEqualTo("aborted")
+        assertThat(c.current()).isNull()
+    }
+
     @Test fun `cancel while parts are in flight stops the run before aborting`() = runBlocking<Unit> {
         fake.putDelayMs = 30
         val f = file(9000)

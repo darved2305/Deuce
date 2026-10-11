@@ -522,7 +522,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
      * Uploads the original file to R2 through the deployed API and starts the real analysis.
      * The session request is built only from measured facts (probe + sha256) and the user's setup.
      * The Analysing screen opens at once, before any session or analysis id exists; the upload job is
-     * started as soon as the file is identified. Starting again while an upload runs only reopens it.
+     * started as soon as the file is identified. Starting the same file again while its upload runs only
+     * reopens it; a different file replaces the running upload.
      */
     fun analyse() {
         adopted = null
@@ -531,7 +532,19 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         val setup = s.setup ?: return
         val running = _pipeline.value
         if (running == Screen.Pipeline.Uploading || running is Screen.Pipeline.StartingAnalysis) {
-            _panel.value = Screen.Panel.Analysing
+            if (AnalysingFlow.sameFile(_hero.value.sourceUri?.toString(), pipelineSha256(), s.uri.toString(), s.sha256)) {
+                _panel.value = Screen.Panel.Analysing
+                return
+            }
+            // A different file than the one still uploading (e.g. one restored after a restart): drop the
+            // old upload, then start this one. The pipeline is Idle before the retry, so it cannot loop.
+            pipelineJob?.cancel()
+            _pipeline.value = Screen.Pipeline.Idle
+            viewModelScope.launch {
+                UploadScheduler.stop(getApplication())
+                withContext(Dispatchers.IO) { runCatching { uploadRuntime.coordinator.discard() } }
+                analyse()
+            }
             return
         }
         pipelineJob?.cancel()
