@@ -152,6 +152,23 @@ Deno.test("GET match returns 409 while a visible match analysis is incomplete", 
   }
 });
 
+Deno.test("GET match returns 409, not 500, for an incomplete run whose record is not yet match.v1", async () => {
+  // Shape of a failed run seen on the deployed API: engine stopped after two windows.
+  const t = build(() => ({
+    ...matchV1("m_partial_failed", false, "failed"),
+    rallies: null,
+    capabilities: null,
+  }));
+  const res = await getMatch(t.app, "m_partial_failed");
+  assert.equal(res.status, 409, await res.clone().text());
+  const body = await res.json();
+  assert.deepEqual(body.error, {
+    code: "conflict",
+    message: "analysis not complete",
+  });
+  conforms("error.envelope.v1", body);
+});
+
 Deno.test("GET match accepts null whole-match track artifact ids", async () => {
   const expected = matchV1("m_no_tracks", false, "completed", {
     ball_track: null,
