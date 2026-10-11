@@ -6,10 +6,12 @@ export type ErrorCode =
   | keyof typeof knownErrorCodes
   | "analysis_limit_reached"
   | "upload_parts_invalid"
+  | "read_only_key"
   | "storage_busy"
   | "invalid_input";
 export type ErrorStatus =
   | typeof knownErrorCodes[keyof typeof knownErrorCodes]
+  | 403
   | 409
   | 429
   | 503;
@@ -17,6 +19,7 @@ export type ErrorStatus =
 const LOCAL_ERROR_CODES = {
   analysis_limit_reached: 429,
   upload_parts_invalid: 409,
+  read_only_key: 403,
   storage_busy: 503,
   invalid_input: 422,
 } as const;
@@ -88,6 +91,7 @@ export function fail(
 
 const STATUS_CODES: Partial<Record<number, ErrorCode>> = {
   401: "unauthorized",
+  403: "read_only_key",
   404: "not_found",
   409: "conflict",
   413: "upload_too_large",
