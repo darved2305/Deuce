@@ -14,7 +14,6 @@ Submit endpoint (contracts §3; needs Modal Secret `elevate-submit` with MODAL_S
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import modal
