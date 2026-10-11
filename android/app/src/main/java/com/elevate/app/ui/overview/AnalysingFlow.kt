@@ -4,6 +4,7 @@ import com.elevate.app.data.analysis.ArtifactAccess
 import com.elevate.app.data.upload.UploadProgress
 import com.elevate.app.domain.analysis.AnalysisState
 import com.elevate.app.domain.analysis.AnalysisUiState
+import com.elevate.app.domain.analysis.WindowCoverage
 import com.elevate.app.ui.Screen
 import com.elevate.app.ui.components.StageState
 import com.elevate.app.ui.upload.UploadText
@@ -54,6 +55,12 @@ object AnalysingFlow {
     const val DETECTIONS_NOT_SERVED = "Detections ready on the server · drawing them needs a server update"
     const val LEAVE_LINE = "You can leave. We'll keep going."
 
+    /** "Your match" value when every window covering the source is in but the engine has not finalized. */
+    const val READY_FROM_WINDOWS = "ready · from the windows"
+
+    /** Said whenever the overview is built from the windows alone: nothing of the match record is shown. */
+    const val SUMMARY_PENDING = "Match summary (score, landings) pending the engine"
+
     fun state(
         pipeline: Screen.Pipeline,
         /** Local step before the upload exists ("Identifying the file", "Preparing"), else null. */
@@ -66,7 +73,7 @@ object AnalysingFlow {
         val send = sendStage(pipeline, step, upload)
         val queue = queueStage(pipeline, serverState, analysis)
         val track = trackStage(serverState, analysis)
-        val match = matchStage(serverState)
+        val match = matchStage(serverState, analysis)
         val sending = send.state == StageState.Active || (send.state == StageState.Failed && pipeline is Screen.Pipeline.Failed)
         return AnalysingFlowState(
             stages = listOf(send, queue, track, match),
@@ -158,6 +165,7 @@ object AnalysingFlow {
 
     private fun trackStage(s: AnalysisState?, a: AnalysisUiState?): FlowStage {
         fun st(state: StageState, value: String?) = FlowStage(FlowStage.Key.TRACK, "Tracking the shuttle", state, value)
+        if (WindowCoverage.readyFromWindows(a)) return st(StageState.Done, a?.let(::tracking))
         return when (s) {
             AnalysisState.PROCESSING, AnalysisState.PARTIAL -> st(StageState.Active, a?.let(::tracking) ?: "starting")
             AnalysisState.FINALIZING, AnalysisState.COMPLETED -> st(StageState.Done, a?.let(::tracking))
@@ -180,12 +188,15 @@ object AnalysingFlow {
         return listOfNotNull(windows, time, failed).joinToString(" · ")
     }
 
-    private fun matchStage(s: AnalysisState?): FlowStage {
+    private fun matchStage(s: AnalysisState?, a: AnalysisUiState?): FlowStage {
         fun st(state: StageState, value: String?) = FlowStage(FlowStage.Key.MATCH, "Your match", state, value)
-        return when (s) {
+        return when {
+            WindowCoverage.readyFromWindows(a) -> st(StageState.Done, READY_FROM_WINDOWS)
+            else -> when (s) {
             AnalysisState.COMPLETED -> st(StageState.Done, "ready")
             AnalysisState.FINALIZING -> st(StageState.Active, "finishing")
             else -> st(StageState.Pending, "next")
+            }
         }
     }
 
@@ -197,6 +208,7 @@ object AnalysingFlow {
         a.offline -> "Offline · showing the last update"
         a.syncError != null -> "Could not update · ${a.syncError}"
         a.windowsDone > 0 && a.windowsDownloaded < a.windowsDone && artifacts is ArtifactAccess.NotServed -> DETECTIONS_NOT_SERVED
+        WindowCoverage.readyFromWindows(a) -> SUMMARY_PENDING
         else -> null
     }
 
@@ -205,6 +217,7 @@ object AnalysingFlow {
         pipeline !is Screen.Pipeline.Started -> AnalysingFlowState.Action.NONE
         s == AnalysisState.COMPLETED -> AnalysingFlowState.Action.OPEN_RESULTS
         s == AnalysisState.FAILED -> AnalysingFlowState.Action.CHECK_AGAIN
+        WindowCoverage.readyFromWindows(a) -> AnalysingFlowState.Action.OPEN_RESULTS
         a?.hasPartialResults == true -> AnalysingFlowState.Action.OPEN_PARTIAL
         a != null && (a.offline || a.syncError != null) -> AnalysingFlowState.Action.CHECK_AGAIN
         else -> AnalysingFlowState.Action.NONE
@@ -229,7 +242,7 @@ object AnalysingFlow {
             AnalysisState.COMPLETED -> "Your match is ready"
             AnalysisState.FAILED -> "Analysis stopped"
             AnalysisState.FINALIZING -> "Finishing your match"
-            AnalysisState.PROCESSING, AnalysisState.PARTIAL -> {
+            AnalysisState.PROCESSING, AnalysisState.PARTIAL -> if (WindowCoverage.readyFromWindows(analysis)) "Windows done · summary pending" else {
                 val total = analysis?.totalUs?.takeIf { it > 0 }
                 val covered = ((analysis?.coveredUs ?: 0) / 1e6).roundToInt()
                 if (total != null) "Analysing · $covered/${(total / 1e6).roundToInt()} s" else "Analysing · $covered s"
