@@ -155,7 +155,8 @@ fun ReadLabRoute(vm: ReplayViewModel, drills: List<Drill>, cueSource: CueSource?
 }
 
 private const val REVEAL_LEAD_MS = 400L
-private const val REVEAL_TAIL_MS = 300L
+/** Inside HitOverlay.WINDOW_MS (150 ms), so the held frame still shows the LANDING? mark. */
+private const val REVEAL_TAIL_MS = 80L
 private const val REVEAL_SPEED = 0.5f
 
 @UnstableApi
