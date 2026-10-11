@@ -34,6 +34,25 @@ def test_a_falling_shuttle_sent_back_up_is_a_hit():
     assert len(turns) == 1 and abs(turns[0]["t_ms"] - 200) <= 20
 
 
+def test_a_far_court_hit_is_not_mistaken_for_an_apex():
+    # Seen from behind the baseline, a far-court smash keeps its image x direction: the shuttle
+    # rises fast towards the far player (y decreasing ~15 px/frame) and comes back down fast.
+    # Fast on both sides means a contact, not the slow reversal at the top of a flight.
+    rows = [[t, 600 + 2 * t, 300 + 0.75 * abs(t - 200), 0.9, "observed"]
+            for t in range(0, 421, 20)]  # fmt: skip
+    turns = detect_direction_changes(rows)
+    assert len(turns) == 1 and abs(turns[0]["t_ms"] - 200) <= 20
+
+
+def test_a_turn_is_not_measured_across_a_tracking_gap():
+    # Two straight flights 400 ms apart with nothing observed between them: the secants would
+    # join unrelated motion (a lost track or a switch), so no turn is reported.
+    first = [[t, 100 + 4 * t, 500 - 2 * t, 0.9, "observed"] for t in range(0, 121, 20)]
+    second = [[t, 900 - 4 * (t - 520), 300 + 2 * (t - 520), 0.9, "observed"]
+              for t in range(520, 641, 20)]  # fmt: skip
+    assert detect_direction_changes(first + second) == []
+
+
 def test_direction_changes_ignore_inferred_only_motion():
     rows = [[t, 100 + t, 200, 0.9, "observed"] for t in range(0, 241, 20)]
     rows[6] = [120, 100, 400, None, "inferred"]
