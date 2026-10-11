@@ -203,8 +203,9 @@ data class MatchAnalysis(
 
 @Serializable
 data class MatchArtifacts(
-    @SerialName("ball_track") val ballTrack: String,
-    @SerialName("player_tracks") val playerTracks: String,
+    /** Null until a whole-match track artifact exists; the window results carry the tracks (contracts 1.9.0). */
+    @SerialName("ball_track") val ballTrack: String?,
+    @SerialName("player_tracks") val playerTracks: String?,
 )
 
 /** Capability tier (target) and status (verified), contracts §0. */
