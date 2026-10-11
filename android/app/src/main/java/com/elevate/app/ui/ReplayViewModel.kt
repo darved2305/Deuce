@@ -181,6 +181,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             controller.open(uri, withOverlay = !info.isHdr)
+            pendingSeekMs?.let { controller.pause(); controller.seekTo(it); pendingSeekMs = null }
             // open() may rebuild the player (SDR↔HDR), which resets the effect list; add the court
             // overlay beside the trail on every overlay-capable player (setVideoEffects may run
             // after prepare — media3 1.11.1 ExoPlayer doc). On HDR the pipeline has no overlays.
@@ -694,10 +695,39 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     fun showPanel(panel: Screen.Panel) { _panel.value = panel }
 
     /** From the overview: back to the player at the rally start. */
+    /** Seek target for a video that is still opening (rally tapped while another screen was showing). */
+    private var pendingSeekMs: Long? = null
+
+    /**
+     * From the overview: the analysed video at the rally start. If that video is not the one open,
+     * it is opened first (same file = same sha256 later, so the live trail and hits draw on it); if the
+     * phone no longer grants access to it, the home screen asks to pick it again.
+     */
     fun openRally(startMs: Long) {
         showPanel(Screen.Panel.None)
-        controller.pause()
-        controller.seekTo(startMs)
+        val s = _screen.value as? Screen.Replay
+        val analysedSha = pipelineSha256()
+        if (s != null && (analysedSha == null || s.sha256 == null || s.sha256 == analysedSha)) {
+            controller.pause()
+            controller.seekTo(startMs)
+            return
+        }
+        viewModelScope.launch {
+            val uri = withContext(Dispatchers.IO) { readableAnalysedSource() }
+            if (uri == null) {
+                _screen.value = Screen.Import(error = "Pick this match's video again to watch the rally with its trail.")
+                return@launch
+            }
+            pendingSeekMs = startMs
+            onPicked(uri)
+        }
+    }
+
+    /** The analysed video if this app can still read it (staged copy or a held read grant). */
+    private fun readableAnalysedSource(): Uri? {
+        adopted?.let { return com.elevate.app.data.history.MatchHistoryRuntime.readableSource(getApplication(), it) }
+        val uri = _hero.value.sourceUri ?: return null
+        return runCatching { getApplication<Application>().contentResolver.openFileDescriptor(uri, "r")?.use { uri } }.getOrNull()
     }
 
     fun setOverlayVisible(visible: Boolean) {
