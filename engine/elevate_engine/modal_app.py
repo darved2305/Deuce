@@ -103,7 +103,7 @@ def court_calibration(calibration_input: dict | None, size: tuple[int, int], log
     image=gpu_image,
     secrets=[internal_secret, r2_secret],
     volumes={MODELS_PATH: models, CLIPS_PATH: clips},
-    timeout=3600,
+    timeout=7200,
 )
 def analyze(
     analysis_id: str,
@@ -127,6 +127,7 @@ def analyze(
     import time
 
     from elevate_engine import finalize, pipeline
+    from elevate_engine import segments as seg
     from elevate_engine import window as win
     from elevate_engine.api import InternalApi
     from elevate_engine.log import log
@@ -144,12 +145,47 @@ def analyze(
     local = Path(CLIPS_PATH) / rel
     posted, events = [], []
     finalized = None
+    segment_result = None
     try:
         r2 = R2.from_env()
         if not r2.writes_enabled:  # kill switch (G9): fail before any GPU work
             raise WritesDisabled("R2_WRITES_ENABLED is not true")
         local.parent.mkdir(parents=True, exist_ok=True)
-        size = r2.download_original(r2_key, local)
+        if r2_key.startswith("seg/"):
+            collection = seg.collect(api, analysis_id, r2_key)
+            segment_paths, manifests = [], []
+            total_bytes, seq0_inferred = 0, False
+            refs = collection.segments
+            for i, segment in enumerate(refs):
+                segment_path = local.parent / f"segment-{segment.seq}.mp4"
+                size = r2.download_segment(segment.r2_key, segment_path)
+                total_bytes += size
+                if segment.manifest is None:
+                    # The dispatch carries only segment 0's key; the GET endpoint starts at seq 1.
+                    # Measure its real PTS span for joining, but do not claim a manifest hash check.
+                    nxt = refs[i + 1].manifest if i + 1 < len(refs) else None
+                    manifest, seq0_inferred = seg.segment0_manifest(segment_path, nxt)
+                else:
+                    seg.verify(segment_path, segment.manifest)
+                    manifest = segment.manifest
+                segment_paths.append(segment_path)
+                manifests.append(manifest)
+            found_gaps = seg.gaps(manifests)
+            seg.join(segment_paths, manifests, local)
+            for p in segment_paths:  # the joined file is the input now; don't sync pieces too
+                p.unlink(missing_ok=True)
+            segment_result = {
+                "count": len(collection.segments),
+                "final_seq": collection.final_seq,
+                "total_bytes": total_bytes,
+                "gaps": [{"seq": seq, "gap_us": gap_us} for seq, gap_us in found_gaps],
+                "sha256_unverified_seq": [0],
+                "seq0_start_inferred": seq0_inferred,
+            }
+            log("segments.collected", analysis_id=analysis_id, **segment_result)
+            size = local.stat().st_size
+        else:
+            size = r2.download_original(r2_key, local)
         clips.commit()  # make the copy visible to the window containers
         end = duration_ms(local)
         plans = pipeline.plan_windows(0, end)
@@ -221,7 +257,10 @@ def analyze(
             )  # fmt: skip
             finalized = api.finalize(analysis_id, body)
     except Exception as exc:
-        reason = f"{type(exc).__name__}: {exc}"[:200]
+        reason = (
+            str(exc) if isinstance(exc, seg.SegmentsTimeout) else f"{type(exc).__name__}: {exc}"
+        )
+        reason = reason[:200]
         log("analyze.failed", analysis_id=analysis_id, reason=reason, windows_posted=len(posted))
         try:
             api.event(analysis_id, {"type": "analysis.failed", "reason": reason})
@@ -236,6 +275,8 @@ def analyze(
               "player_track_ids": live_players.track_ids,
               "players_failed": getattr(live_players, "failed", None),
               "tracker": stats, "total_s": round(time.perf_counter() - started, 1)}  # fmt: skip
+    if segment_result is not None:
+        result["segments"] = segment_result
     log("analyze.done", **{k: v for k, v in result.items() if k != "windows"},
         windows_posted=len(posted))  # fmt: skip
     return result
