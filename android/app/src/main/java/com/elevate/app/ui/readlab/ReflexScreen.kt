@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -103,7 +104,7 @@ private const val STEP_MS = 8L
  */
 @UnstableApi
 @Composable
-fun ReflexRoute(vm: ReplayViewModel, drills: List<Drill>, matchKey: String, onBack: () -> Unit) {
+fun ReflexRoute(vm: ReplayViewModel, drills: List<Drill>, matchKey: String, cueSource: CueSource?, onBack: () -> Unit) {
     val state = vm.reflex
     val session by state.session.collectAsState()
     val settlement by state.settlement.collectAsState()
@@ -190,6 +191,12 @@ fun ReflexRoute(vm: ReplayViewModel, drills: List<Drill>, matchKey: String, onBa
         phase = Phase.Run
     }
 
+    // Shuttle cue: only while frozen and the answer is open (Armed), from real observed rows up to the freeze frame.
+    var cueOn by rememberSaveable { mutableStateOf(true) }
+    val freezeUs = s?.round?.drill?.challenge?.ladderUs?.firstOrNull()
+    val cue = remember(cueSource, freezeUs) { if (freezeUs != null) cueSource?.cueAt(freezeUs) else null }
+    val cueUi = cueSource?.let { CueUi(if (cueOn && phase == Phase.Armed) cue else null, it.imageW, it.imageH, cueOn) { cueOn = !cueOn } }
+
     // A finished run stores its best once.
     LaunchedEffect(s?.finished) { if (s?.finished == true) state.settle(SharedPrefsReflexBest(context), matchKey) }
 
@@ -201,6 +208,7 @@ fun ReflexRoute(vm: ReplayViewModel, drills: List<Drill>, matchKey: String, onBa
         paused = paused,
         timeLeft = timeLeft,
         controller = controller,
+        cueUi = cueUi,
         onPick = { z ->
             if (phase == Phase.Armed && !paused && pending == null) {
                 pending = z to stopwatch.elapsedMs()
@@ -224,6 +232,7 @@ private fun ReflexScreen(
     paused: Boolean,
     timeLeft: Float,
     controller: PlayerController,
+    cueUi: CueUi?,
     onPick: (ZoneId) -> Unit,
     onRelaxed: (Boolean) -> Unit,
     onStart: () -> Unit,
@@ -240,12 +249,12 @@ private fun ReflexScreen(
                     session == null || session.rounds.size < ReflexRounds.MIN_ROUNDS -> Column(Modifier.padding(horizontal = ScreenGutter)) {
                         Text("Reflex needs at least ${ReflexRounds.MIN_ROUNDS} shots with a known landing in this match.", style = MaterialTheme.typography.bodyMedium)
                     }
-                    !session.started -> Intro(session, settlement, onRelaxed, onStart, onBack)
+                    !session.started -> Intro(session, settlement, cueUi, onRelaxed, onStart, onBack)
                     session.finished && phase != Phase.Reveal -> End(session, settlement, onPlayAgain, onBack)
                     landscape -> Row(Modifier.fillMaxSize().padding(horizontal = ScreenGutter), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
                             Hud(session, phase, paused, onPause, onBack)
-                            Clip(session, phase, controller)
+                            Clip(session, phase, controller, cueUi)
                         }
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
                             Play(session, phase, paused, timeLeft, onPick)
@@ -256,7 +265,7 @@ private fun ReflexScreen(
                         verticalArrangement = ScreenSpacing,
                     ) {
                         Hud(session, phase, paused, onPause, onBack)
-                        Clip(session, phase, controller)
+                        Clip(session, phase, controller, cueUi)
                         Play(session, phase, paused, timeLeft, onPick)
                     }
                 }
@@ -266,7 +275,7 @@ private fun ReflexScreen(
 }
 
 @Composable
-private fun Intro(s: ReflexSession, settlement: ReflexSettlement?, onRelaxed: (Boolean) -> Unit, onStart: () -> Unit, onBack: () -> Unit) {
+private fun Intro(s: ReflexSession, settlement: ReflexSettlement?, cueUi: CueUi?, onRelaxed: (Boolean) -> Unit, onStart: () -> Unit, onBack: () -> Unit) {
     val c = Elevate.colors
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = ScreenGutter).padding(bottom = 24.dp),
@@ -288,6 +297,12 @@ private fun Intro(s: ReflexSession, settlement: ReflexSettlement?, onRelaxed: (B
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             PillChip(ReflexText.RELAXED_LABEL, s.relaxed, { onRelaxed(!s.relaxed) })
             Text(if (s.relaxed) "3 s to answer" else "1.5 s to answer", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+        }
+        if (cueUi != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ShuttleCueToggle(cueUi.on, cueUi.onToggle)
+                Text("Shows where the shuttle is and which way it moves at the freeze", style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+            }
         }
         PrimaryButton("Start", onStart, Modifier.fillMaxWidth())
         SecondaryButton("Back to the match", onBack, Modifier.fillMaxWidth())
@@ -314,10 +329,11 @@ private fun Hud(s: ReflexSession, phase: Phase, paused: Boolean, onPause: () -> 
 
 @UnstableApi
 @Composable
-private fun Clip(s: ReflexSession, phase: Phase, controller: PlayerController) {
+private fun Clip(s: ReflexSession, phase: Phase, controller: PlayerController, cueUi: CueUi?) {
     VideoCard(Modifier.aspectRatio(16f / 9f)) {
         val player by controller.playerFlow.collectAsState()
         ContentFrame(player = player, modifier = Modifier.fillMaxSize().semantics { contentDescription = "Your match video" })
+        if (cueUi != null && phase == Phase.Armed) ShuttleCueOverlay(cueUi.cue, cueUi.imageW, cueUi.imageH)
         VideoChip(
             when (phase) {
                 Phase.Run -> "Watch the rally"

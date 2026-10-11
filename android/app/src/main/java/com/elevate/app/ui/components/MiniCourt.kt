@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -60,6 +61,7 @@ fun MiniCourt(
             Modifier
                 .fillMaxWidth()
                 .height(140.dp)
+                .clipToBounds()
                 .semantics {
                     contentDescription =
                         "Badminton court from above. The shaded part is what your camera can see; the hatched part is outside the camera view."
