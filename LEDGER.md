@@ -126,3 +126,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T05:26Z | #157 | @darved2305 | p2 | android: ReadLab reveal shows the real landing; training row shows Read, Reflex  | none | 1.11.0 | Galaxy A55 `RZCY12S9LRD`, this branch installed, real h13g footage. Analysis `a_fdcb5c99c85140e898bd1c777d736cec` / matc |
 | 2026-10-11T05:33Z | #158 | @HetanshWaghela | p4 | web: dev-site API reference shows all 29 live routes | none | 1.11.0 | ``` |
 | 2026-10-11T05:35Z | #160 | @HetanshWaghela | p4 | docs: business case (market, competition, pricing, real unit costs, scenarios) + | none | 1.11.0 | ``` |
+| 2026-10-11T06:04Z | #161 | @darved2305 | p2 | android: Tactics tab (readability, opponent scout, ghost base, point autopsy), l | none (D-007 labelling; D-261011-HW32 cap noted below) | 1.11.0 | **Real engine data:** `TacticsRealDataTest` runs on Person 1's committed run `engine/eval/runs/h13g_31_91_*` (Modal `ap- |
