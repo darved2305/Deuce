@@ -106,6 +106,7 @@ def window_result(
     models: Sequence[str],
     onsets: Sequence[Sequence[int | float]] = (),
     events: Sequence[dict] = (),
+    players: Sequence[list] = (),
 ) -> dict:
     """window_result.v1 for one planned window from the tracked rows inside its range."""
     lo, hi = plan.emit
@@ -120,7 +121,7 @@ def window_result(
         "blur_index": res["blur_index"],
     }
     return win.build(analysis_id, plan.seq, plan.decode, plan.emit, inside, quality, models,
-                     onsets, events)  # fmt: skip
+                     onsets, events, players)  # fmt: skip
 
 
 def window_hits(

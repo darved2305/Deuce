@@ -68,6 +68,29 @@ WINDOW_MS = 6000
 UPLOADS = "uploads"  # per-analysis copy of the original in elevate-clips, deleted after
 
 
+def court_calibration(calibration_input: dict | None, size: tuple[int, int], log) -> dict | None:
+    """match.v1.calibration from the session's corner taps, or None (never invented) when the
+    session has none or they define no homography. A tier C result is still sent: its tier says
+    how far to trust it, and foot metres are withheld for it."""
+    from elevate_engine import calibration as cal
+
+    if not calibration_input:
+        log("calibration.none", reason="no calibration_input in session_spec")
+        return None
+    try:
+        c = cal.from_calibration_input(calibration_input, *size)
+    except cal.CalibrationError as exc:
+        log("calibration.none", reason=str(exc)[:200])
+        return None
+    record = c.to_match(
+        cal.calibration_id(calibration_input["points_px"], calibration_input["template"]),
+        method=m if isinstance(m := calibration_input.get("method"), str) else "tap",
+    )
+    log("calibration.done", calibration_id=record["calibration_id"], tier=record["tier"],
+        sigma_m=round(c.uncertainty.sigma_m, 3), visible=record["visible_fraction"])  # fmt: skip
+    return record
+
+
 @app.function(
     region="ap",
     image=gpu_image,
@@ -103,7 +126,7 @@ def analyze(
     from elevate_engine.r2 import R2, WritesDisabled, track_key, window_key
     from elevate_engine.sports import BADMINTON
     from elevate_engine.tracknet.run import sample_background
-    from elevate_engine.video import duration_ms
+    from elevate_engine.video import duration_ms, source_size
 
     started = time.perf_counter()
     api = InternalApi.from_env()
@@ -165,6 +188,13 @@ def analyze(
             # null until player tracks exist (contracts 1.9.0, HW15): no empty file, no write.
             "player_tracks": None,
         }  # fmt: skip
+        try:  # a calibration problem never fails an analysis whose windows are posted
+            calibration = court_calibration(
+                session_spec.get("calibration_input"), source_size(local), log
+            )
+        except Exception as exc:
+            log("calibration.failed", analysis_id=analysis_id, reason=repr(exc)[:200])
+            calibration = None
         if match_id is None:
             log("finalize.skipped", analysis_id=analysis_id,
                 reason="no match_id in the submit body (API dispatch #82)")  # fmt: skip
@@ -173,7 +203,7 @@ def analyze(
                 analysis_id=analysis_id, match_id=match_id, r2_key=r2_key, sid=session_id,
                 session_spec=session_spec, engine_version=ENGINE_VERSION,
                 models=["tracknet_v3"], artifacts=artifacts, window_events=events,
-                calibration=None,
+                calibration=calibration,
             )  # fmt: skip
             finalized = api.finalize(analysis_id, body)
     except Exception as exc:

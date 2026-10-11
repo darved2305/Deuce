@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "anyOf": [
+              {
+                "pattern": "^c_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_r_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "pattern": "^c_sh_[A-Za-z0-9_-]+$",
+                "type": "string"
+              }
+            ]
+          },
+          "contact_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "end_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "match_id": {
+            "pattern": "^m_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "moment_id": {
+            "pattern": "^mo_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "rally_id": {
+            "pattern": "^r_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "shot_id": {
+            "pattern": "^sh_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "start_ms": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "moment_id",
+          "rally_id",
+          "shot_id",
+          "start_ms",
+          "end_ms",
+          "contact_ms",
+          "tags",
+          "clip_id",
+          "match_id"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "next_cursor": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "items",
+    "next_cursor"
+  ],
+  "type": "object"
+}
