@@ -89,3 +89,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T02:00Z | #116 | @nikhilpravinpise | p3 | api: unhandled errors return error.envelope.v1 (#107 follow-up) | none (enforces the existing error.envelope.v1 contract) | 1.10.0 | ``` |
 | 2026-10-11T02:00Z | #115 | @nikhilpravinpise | p3 | test: artifacts route follows match-scope share RLS (HW14) | D-261011-HW14 (item 7: match-scope share grant exposes the full match.v1). No new decisions. | 1.10.0 | ``` |
 | 2026-10-11T02:00Z | #111 | @nikhilpravinpise | p3 | api: POST /v1/matches/{id}/corrections, append-only (B5) |  | 1.10.0 |  |
+| 2026-10-11T02:01Z | #112 | @nikhilpravinpise | p3 | api: DELETE /v1/matches/{id} cascade (Phase 4) | This resolves PR #112's concurrent-analysis question with the task-approved database-first order. The old R2-before-row  | 1.10.0 | Before the fix, the focused route test reproduced the bug: 8 passed and 3 failed, including a running analysis returning |
