@@ -120,3 +120,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T04:56Z | #150 | @HetanshWaghela | p4 | android: Instant Review, line calls shown with the evidence (freeze, zoom to the | none | 1.10.0 | ``` |
 | 2026-10-11T04:58Z | #151 | @HetanshWaghela | p4 | android: training games say what unlocks them instead of disappearing | none | 1.10.0 | ``` |
 | 2026-10-11T05:03Z | #152 | @HetanshWaghela | p4 | Friends and challenges end to end: challenge a friend on the same shots (contrac | D-261011-HW31 | 1.11.0 | ``` |
+| 2026-10-11T05:05Z | #153 | @HetanshWaghela | p4 | android: Record a match live (pieces upload while recording, analysis starts ear | none | 1.11.0 | ``` |
