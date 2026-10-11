@@ -106,3 +106,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T03:02Z | #131 | @nikhilpravinpise | p3 | db: fix migration version clash (segments -> 20261011152200) (#130) | none | 1.10.0 | ``` |
 | 2026-10-11T03:11Z | #134 | @VrajVed | p4 | web: developer landing page and API reference | none | 1.10.0 | ``` |
 | 2026-10-11T03:17Z | #135 | @HetanshWaghela | p4 | mcp + sdk: Ask your coach (8 read-only tools, deep links), one-command analysis, | none | 1.10.0 | ``` |
+| 2026-10-11T03:28Z | #137 | @HetanshWaghela | p4 | android: Reflex mode, read the shot against the clock on your own match | none | 1.10.0 | ``` |
