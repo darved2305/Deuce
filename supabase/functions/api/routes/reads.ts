@@ -105,6 +105,7 @@ function bearerClient(c: Context<AppEnv>) {
 const capabilityResponse = createRoute({
   method: "get",
   path: "/v1/capabilities",
+  operationId: "getCapabilities",
   responses: {
     200: {
       description: "capabilities.v1",
@@ -116,6 +117,7 @@ const capabilityResponse = createRoute({
 const listMatches = createRoute({
   method: "get",
   path: "/v1/matches",
+  operationId: "listMatches",
   request: { query: pageQuery(100) },
   responses: {
     200: {
@@ -132,6 +134,7 @@ const listMatches = createRoute({
 const listRallies = createRoute({
   method: "get",
   path: "/v1/matches/{id}/rallies",
+  operationId: "listRallies",
   request: {
     params: z.object({ id: matchIdSchema }),
     query: pageQuery(100),
@@ -151,6 +154,7 @@ const listRallies = createRoute({
 const getRally = createRoute({
   method: "get",
   path: "/v1/matches/{id}/rallies/{rid}",
+  operationId: "getRally",
   request: {
     params: z.object({ id: matchIdSchema, rid: rallyIdSchema }),
   },
@@ -169,6 +173,7 @@ const getRally = createRoute({
 const listMatchMoments = createRoute({
   method: "get",
   path: "/v1/matches/{id}/moments",
+  operationId: "listMatchMoments",
   request: {
     params: z.object({ id: matchIdSchema }),
     query: momentsQuery,
@@ -188,6 +193,7 @@ const listMatchMoments = createRoute({
 const listMoments = createRoute({
   method: "get",
   path: "/v1/moments",
+  operationId: "listMoments",
   request: { query: allMomentsQuery },
   responses: {
     200: {

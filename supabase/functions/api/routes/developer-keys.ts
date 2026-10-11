@@ -18,6 +18,7 @@ const DeveloperKeyId = developerKeyIdSchema;
 const createDeveloperKey = createRoute({
   method: "post",
   path: "/v1/developer-keys",
+  operationId: "createDeveloperKey",
   request: { headers: IdempotencyHeader },
   responses: {
     201: {
@@ -46,6 +47,7 @@ const createDeveloperKey = createRoute({
 const revokeDeveloperKey = createRoute({
   method: "delete",
   path: "/v1/developer-keys/{id}",
+  operationId: "revokeDeveloperKey",
   request: { params: z.object({ id: DeveloperKeyId }) },
   responses: {
     204: { description: "developer key revoked" },
