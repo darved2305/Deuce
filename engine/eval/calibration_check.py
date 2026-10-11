@@ -25,6 +25,7 @@ def main() -> None:
     p.add_argument("clip")
     p.add_argument("calibration_input")
     p.add_argument("out")
+    p.add_argument("--record", help="write the schema-valid match.v1.calibration object here")
     a = p.parse_args()
     ci = json.loads(Path(a.calibration_input).read_text())
     width, height = source_size(a.clip)
@@ -46,10 +47,14 @@ def main() -> None:
            f"visible {c.visible_fraction:.2f}  sigma {c.uncertainty.sigma_m:.3f} m",
            fill=(255, 255, 255))  # fmt: skip
     img.save(a.out, quality=88)
+    if a.record:
+        Path(a.record).write_text(json.dumps(record, indent=2) + "\n")
     summary = {k: v for k, v in record.items() if k != "H_cov"}
+    lines = cal.court_lines_px(c.hinv, ci["template"])
     print(json.dumps({**summary, "H_cov": "81 numbers" if record["H_cov"] else None,
                       "sigma_m": c.uncertainty.sigma_m, "geometry_problem": c.geometry_problem,
-                      "frame_t_ms": frame.t_ms, "size": [width, height]}, indent=2))  # fmt: skip
+                      "frame_t_ms": frame.t_ms, "size": [width, height],
+                      "court_lines_px": lines}, indent=2))  # fmt: skip
 
 
 if __name__ == "__main__":

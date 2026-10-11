@@ -217,3 +217,9 @@ def test_real_a55_taps_give_a_valid_tier_b_calibration():
     # Every tap lands on the template corner it names: the H direction is image px -> court m.
     for name, xy in zip(cal.CORNERS, cal.template_corners(spec["template"]), strict=True):
         assert np.allclose(cal.to_court(c.h, [spec["points_px"][name]])[0], xy, atol=1e-4)
+
+
+@pytest.mark.parametrize("spec", [None, {"plane": "court"}, {"plane": "court", "template": "x"}])
+def test_incomplete_calibration_input_raises_calibration_error(spec):
+    with pytest.raises(cal.CalibrationError):
+        cal.from_calibration_input(spec, W, H)
