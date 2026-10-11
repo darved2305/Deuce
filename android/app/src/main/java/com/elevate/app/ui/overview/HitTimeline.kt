@@ -39,21 +39,16 @@ internal object HitTimelineText {
 
     const val EMPTY = "No hit candidates yet"
 
-    /** "12 hit candidates · 3 rally candidates · from 4 of 5 windows analysed (engine, candidates)". */
-    fun caption(s: HitTimelineState): String =
-        "${s.hits.size} hit ${plural(s.hits.size, "candidate")} · " +
-            "${s.rallies.size} rally ${plural(s.rallies.size, "candidate")} · " +
-            "from ${windows(s)} analysed (engine, candidates)"
+    /** "12 hits · 3 rallies" (+ " so far" while windows are still coming in). */
+    fun caption(s: HitTimelineState): String {
+        val soFar = s.recordSource == null && (!s.totalIsExpected || s.windowsRead < s.windowsTotal)
+        return "${s.hits.size} ${if (s.hits.size == 1) "hit" else "hits"} · " +
+            "${s.rallies.size} ${if (s.rallies.size == 1) "rally" else "rallies"}" + if (soFar) " so far" else ""
+    }
 
     /** "4 of 5 windows". Without the engine's expected total, the total is the windows reported so far. */
     fun windows(s: HitTimelineState): String =
         "${s.windowsRead} of ${s.windowsTotal} window${if (s.windowsTotal == 1) "" else "s"}"
-
-    /** Shown under the caption: what the rally candidates are and what the denominator means. */
-    fun detail(s: HitTimelineState): String =
-        "Rally candidates group hits at most ${HitRallies.MAX_GAP_MS / 1000.0} s apart, " +
-            "${HitRallies.MIN_HITS}+ hits each. Not confirmed rallies." +
-            if (s.totalIsExpected) "" else " Window total so far: only windows the server has reported."
 
     /** Shown instead of the caption when there are no hits; keeps the window denominator when known. */
     fun emptyDetail(s: HitTimelineState): String? =
@@ -91,7 +86,6 @@ internal fun HitTimeline(
             return@Column
         }
         Text(HitTimelineText.caption(state), style = MaterialTheme.typography.titleMedium, color = c.ink)
-        Text(HitTimelineText.detail(state), style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
         Spacer(Modifier.height(8.dp))
         if (state.timelineMs > 0) Track(state, onOpenRally)
     }

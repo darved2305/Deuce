@@ -105,4 +105,39 @@ class MatchHistoryRecorderTest {
         val recorded = live.copy(source = AnalysisSource.Recorded("fixture_events.jsonl"), windowsDone = 9)
         assertThat(r.onAnalysisState(recorded)).isFalse()
     }
+
+    @Test fun `analysed time is when it first finished, not the last update`() {
+        val (_, r, f) = setup()
+        now = 2_000
+        r.onAnalysisState(id, "partial", 6_000, 1, "0.1.0")
+        assertThat(MatchHistory(f).get(id)!!.completedAt).isNull()
+        assertThat(MatchHistory(f).get(id)!!.cardTimeMs()).isEqualTo(1_000) // still analysing: started time
+        now = 3_000
+        r.onAnalysisState(id, "completed", 25_600, 5, "0.1.0")
+        now = 9_000
+        r.onAnalysisState(id, "completed", 25_600, 5, "0.1.1") // a later change (engine) moves updatedAt only
+        val e = MatchHistory(f).get(id)!!
+        assertThat(e.updatedAt).isEqualTo(9_000)
+        assertThat(e.completedAt).isEqualTo(3_000)
+        assertThat(e.cardTimeMs()).isEqualTo(3_000)
+        // A restart re-sends start: the completion time and kept copy stay.
+        r.onStarted(id, e.sessionId, null, e.sha256, e.title, e.sourceUri, null, e.sport, e.durationMs, e.width, e.height, "completed", localCopyPath = "/files/videos/x.mp4")
+        r.onStarted(id, e.sessionId, null, e.sha256, e.title, e.sourceUri, null, e.sport, e.durationMs, e.width, e.height, "completed")
+        val again = MatchHistory(f).get(id)!!
+        assertThat(again.completedAt).isEqualTo(3_000)
+        assertThat(again.localCopyPath).isEqualTo("/files/videos/x.mp4")
+    }
+
+    @Test fun `every window in counts as finished at that moment`() {
+        val (_, r, f) = setup()
+        now = 4_000
+        r.onAnalysisState(id, "partial", 25_600, 5, "0.1.0")
+        assertThat(MatchHistory(f).get(id)!!.completedAt).isEqualTo(4_000)
+    }
+
+    @Test fun `older entries without a completion time fall back to the last update`() {
+        val (h, _, _) = setup()
+        h.update(id) { it.copy(lastState = "completed", updatedAt = 7_000) }
+        assertThat(h.get(id)!!.cardTimeMs()).isEqualTo(7_000)
+    }
 }

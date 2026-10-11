@@ -257,6 +257,7 @@ function buildDeleteMatch(
         : Promise.resolve();
     },
     presignPart: () => Promise.resolve("url"),
+    presignPut: () => Promise.resolve("url"),
     presignGet: () => Promise.resolve("url"),
   };
   const app = makeApp(

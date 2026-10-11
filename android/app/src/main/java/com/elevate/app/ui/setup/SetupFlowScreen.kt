@@ -110,7 +110,9 @@ fun SetupFlowScreen(
     onCancel: () -> Unit,
     onDone: (SetupResult) -> Unit,
 ) {
-    val vm: SetupViewModel = viewModel(key = "setup:$uri@$frameUs")
+    // One setup ViewModel per activity: load() resets it for a new (uri, frame). A key per frame kept
+    // every grabbed frame bitmap (up to 1920 px, ~8 MB) alive until the activity died.
+    val vm: SetupViewModel = viewModel(key = "setup")
     LaunchedEffect(uri, frameUs) { vm.load(uri, facts, frameUs) }
     val frame by vm.frame.collectAsStateWithLifecycle()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -539,13 +541,12 @@ private fun SportSection(s: SetupState, dispatch: (SetupAction) -> Unit) {
     val c = Elevate.colors
     SectionTitle("Sport")
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Free play stays hidden until its ruleset version is pinned; the others show as "soon".
-        for (sport in Sport.entries.filter { it != Sport.FreePlay || s.isEnabled(it) }) {
-            val ok = s.isEnabled(sport)
+        // Only sports that can be analysed are offered: no "soon" pills.
+        for (sport in Sport.entries.filter { s.isEnabled(it) }) {
             PillChip(
-                text = if (ok) sport.label else "${sport.label} · soon",
+                text = sport.label,
                 selected = sport == s.sport,
-                enabled = ok,
+                enabled = true,
                 onClick = { dispatch(SetupAction.SelectSport(sport)) },
             )
         }

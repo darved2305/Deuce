@@ -48,6 +48,8 @@ class OverviewViewModel(
     private val sourceFrameTimesUs: LongArray? = null,
     private val fixture: Pair<String, TrailTrack>? = null,
     /** Decodes a real frame (e.g. [FrameThumbnail.load] on Dispatchers.IO); null = no hero frame. */
+    /** Per-analysis cache of window results and match.v1: reopening works offline ("analysed earlier"). */
+    windowCache: com.elevate.app.data.analysis.WindowCache? = null,
     private val thumbnailLoader: (suspend (atMs: Long) -> ThumbnailState)? = null,
     /** Built by the lead or a test; defaults to one over [client]. */
     sync: AnalysisSync? = null,
@@ -60,6 +62,7 @@ class OverviewViewModel(
         sourceDurationUs = sourceDurationUs,
         sourceWidth = sourceWidth,
         sourceHeight = sourceHeight,
+        windowCache = windowCache,
     )
 
     private var knownMatchId: String? = matchId
@@ -69,6 +72,9 @@ class OverviewViewModel(
     private val durationMs = sourceDurationUs?.let { it / 1000 }
 
     val analysis: StateFlow<AnalysisUiState> = this.sync.state
+
+    /** The served `match.v1` once loaded (landings and calibration for the replay screen). */
+    val matchRecord: StateFlow<MatchRecord?> = match.asStateFlow()
 
     /** Whether the server hands out window results yet (404 = route not deployed). */
     val artifactAccess: StateFlow<com.elevate.app.data.analysis.ArtifactAccess> = this.sync.artifactAccess
@@ -175,21 +181,19 @@ class OverviewViewModel(
 
     private fun loadMatch() {
         val id = knownMatchId ?: sync.matchId ?: run {
-            matchProblem.value = "no match id known for this analysis yet"
+            android.util.Log.w("OverviewViewModel", "no match id known for this analysis yet")
+            matchProblem.value = MATCH_LOAD_FAILED
             return
         }
         matchJob = viewModelScope.launch {
             try {
-                val m = client.getMatch(id)
+                val m = this@OverviewViewModel.sync.match(id)
                 match.value = m
                 matchProblem.value = null
                 loadThumbnail(m)
             } catch (e: AnalysisApiException) {
-                matchProblem.value = when {
-                    e.httpStatus == 404 -> "GET /v1/matches/$id answered 404 (${e.code ?: "no code"}): the match record is not served yet"
-                    e.isNetwork -> "no connection (${e.message})"
-                    else -> e.message ?: e.kind.name
-                }
+                android.util.Log.w("OverviewViewModel", "match $id load failed: ${e.httpStatus} ${e.code} ${e.message}")
+                matchProblem.value = MATCH_LOAD_FAILED
             }
         }
     }
@@ -201,6 +205,10 @@ class OverviewViewModel(
         if (current is ThumbnailState.Ready && current.atMs == at) return
         thumbJob?.cancel()
         thumbJob = viewModelScope.launch { thumbnail.value = loader(at) }
+    }
+
+    companion object {
+        const val MATCH_LOAD_FAILED = "Couldn't load the match summary. Pull to retry."
     }
 
     /** For the lead's `viewModel(factory = …)`. */

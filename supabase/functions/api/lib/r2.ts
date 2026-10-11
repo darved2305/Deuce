@@ -39,6 +39,7 @@ export type R2 = {
   head(key: string): Promise<{ bytes: number } | null>;
   deleteObject(key: string): Promise<void>;
   presignPart(key: string, uploadId: string, n: number): Promise<string>;
+  presignPut(key: string): Promise<string>;
   presignGet(key: string): Promise<string>;
 };
 
@@ -179,6 +180,9 @@ export function createR2(cfg: R2Config): R2 {
         encodeURIComponent(uploadId)
       }`;
       return presign(url, "PUT", PART_URL_TTL_S);
+    },
+    presignPut(key) {
+      return presign(objectUrl(key), "PUT", PART_URL_TTL_S);
     },
     presignGet(key) {
       return presign(objectUrl(key), "GET", GET_URL_TTL_S);

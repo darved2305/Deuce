@@ -37,7 +37,12 @@ private const val EPS_W = 1e-9
  * corners projected onto the court through the corner-tap homography — geometry only.
  */
 @Composable
-fun MiniCourt(calibration: CourtCalibration, modifier: Modifier = Modifier) {
+fun MiniCourt(
+    calibration: CourtCalibration,
+    modifier: Modifier = Modifier,
+    /** Landing candidates (x, y in the template's court metres, provenance state) from `match.v1`. */
+    landings: List<Triple<Double, Double, String>> = emptyList(),
+) {
     val c = Elevate.colors
     val bounds = CourtModel.courtBounds(calibration.template) ?: return
     val lines = remember(calibration.template) { CourtModel.lines(calibration.template) }
@@ -49,7 +54,7 @@ fun MiniCourt(calibration: CourtCalibration, modifier: Modifier = Modifier) {
             .background(c.cream)
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Text("The whole court", style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
+        Text(if (landings.isEmpty()) "The whole court" else "The whole court · ${landings.size} landing candidate${if (landings.size == 1) "" else "s"}", style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
         Spacer(Modifier.height(8.dp))
         Canvas(
             Modifier
@@ -107,10 +112,19 @@ fun MiniCourt(calibration: CourtCalibration, modifier: Modifier = Modifier) {
                     strokeWidth = if (seg.name == "net") sw * 2.5f else sw,
                 )
             }
+            // Observed = filled; candidate/inferred = hollow ring (never shown as certain).
+            val r = 3.5.dp.toPx()
+            for ((x, y, state) in landings) {
+                val p = Offset(px(x), py(y))
+                if (p.x !in 0f..size.width || p.y !in 0f..size.height) continue
+                if (state == "observed" || state == "user") drawCircle(c.orange, r, p)
+                else drawCircle(c.orange, r, p, style = Stroke(1.5.dp.toPx()))
+            }
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "Outside the camera view · from your corner taps",
+            if (landings.isEmpty()) "Outside the camera view · from your corner taps"
+            else "Rings: where the shuttle likely landed",
             style = MaterialTheme.typography.labelMedium,
             color = c.inkMuted,
         )

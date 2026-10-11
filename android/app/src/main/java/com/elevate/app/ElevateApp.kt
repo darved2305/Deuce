@@ -56,7 +56,8 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
     val screen by vm.screen.collectAsStateWithLifecycle()
     val playback by vm.controller.state.collectAsStateWithLifecycle()
     val backend by vm.backend.collectAsStateWithLifecycle()
-    val upload by vm.uploadRuntime.coordinator.progress.collectAsStateWithLifecycle()
+    // Not vm.uploadRuntime directly: building it throws on a build without cloud config.
+    val upload by vm.uploadProgress.collectAsStateWithLifecycle()
     val pipeline by vm.pipeline.collectAsStateWithLifecycle()
     val panel by vm.panel.collectAsStateWithLifecycle()
     val step by vm.pipelineStep.collectAsStateWithLifecycle()
@@ -71,27 +72,36 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
     }
 
     val pill by vm.pipelinePill.collectAsStateWithLifecycle()
+    val analysedSha by vm.analysedSha.collectAsStateWithLifecycle()
     val matches by vm.matches.collectAsStateWithLifecycle()
+    val thumbs by vm.matchThumbs.collectAsStateWithLifecycle()
     val liveHits by vm.liveHitsMs.collectAsStateWithLifecycle()
     // The analysis on record is of the open file (same sha256): don't offer to analyse it again.
     val openShaForCta = (screen as? Screen.Replay)?.sha256
     val analysedHere = pipeline != Screen.Pipeline.Idle && openShaForCta != null &&
-        remember(pipeline, openShaForCta) { vm.pipelineSha256() } == openShaForCta
+        analysedSha == openShaForCta
+    val openFacts = ((screen as? Screen.Replay)?.preflight as? PreflightState.Done)?.facts
+    val started = pipeline as? Screen.Pipeline.Started
+    // One OverviewViewModel per analysis, alive while the app is in the foreground, so the
+    // Analysing screen and the video screen's pill (vm.pipelinePill) both show the latest server state.
+    val ovm = if (started != null) rememberAnalysis(vm, started, hero, openFacts) else null
+
     val pipelineUi = PipelineUi(
         state = pipeline,
         upload = upload,
         onAnalyse = { askNotifications(); vm.analyse() },
         onRetryUpload = vm::retryPipeline,
         onCancelUpload = vm::cancelUpload,
-        onOpenAnalysis = { vm.showPanel(Screen.Panel.Analysing) },
+        onOpenAnalysis = {
+            // A finished (or every-window-in) analysis opens the overview; a running one its progress.
+            val a = ovm?.analysis?.value
+            val ready = a?.state == com.elevate.app.domain.analysis.AnalysisState.COMPLETED ||
+                com.elevate.app.domain.analysis.WindowCoverage.readyFromWindows(a)
+            vm.showPanel(if (ready) Screen.Panel.Overview else Screen.Panel.Analysing)
+        },
         pill = pill,
         analysedHere = analysedHere,
     )
-    val openFacts = ((screen as? Screen.Replay)?.preflight as? PreflightState.Done)?.facts
-    val started = pipeline as? Screen.Pipeline.Started
-    // One OverviewViewModel per analysis, alive while the app is in the foreground, so the
-    // Analysing screen and the video screen's pill (vm.pipelinePill) both show the latest server state.
-    val ovm = if (started != null) rememberAnalysis(vm, started, hero, openFacts) else null
 
     // Each downloaded window redraws the live trail on the open video (when it is the analysed file).
     val openSha = (screen as? Screen.Replay)?.sha256
@@ -107,20 +117,30 @@ fun ElevateApp(vm: ReplayViewModel = viewModel()) {
         LaunchedEffect(ovm, openSha, openW, openH) {
             ovm.sync.hits.collect { vm.onLiveHits(it) }
         }
+        LaunchedEffect(ovm, openSha, openW, openH) {
+            ovm.matchRecord.collect { vm.onMatchRecord(it) }
+        }
     }
 
     if (panel != Screen.Panel.None && pipeline != Screen.Pipeline.Idle) {
-        AnalysisPanels(vm, panel, pipeline, step, upload, ovm, hero)
+        AnalysisPanels(vm, panel, pipeline, step, upload, ovm, hero, if (analysedHere) openFacts else null)
         return
     }
 
     when (val s = screen) {
         is Screen.Import -> ImportScreen(
             opening = s.opening, error = s.error, onChoose = pickVideo, backend = backend,
-            matches = matches.map { com.elevate.app.ui.screens.matchCardOf(it) },
+            matches = matches.map { com.elevate.app.ui.screens.matchCardOf(it, thumbs[it.analysisId]) },
             onOpenMatch = vm::openHistory,
         ) {
-            if (pipeline != Screen.Pipeline.Idle) PipelineStatus(pipelineUi)
+            // The pill only while something is actually running; a finished run is the history card.
+            val running = when (val p = pipeline) {
+                Screen.Pipeline.Uploading, is Screen.Pipeline.StartingAnalysis -> true
+                is Screen.Pipeline.Started ->
+                    (ovm?.analysis?.value?.state ?: com.elevate.app.domain.analysis.AnalysisState.fromWire(p.state))?.isTerminal != true
+                else -> false
+            }
+            if (running) PipelineStatus(pipelineUi)
         }
         is Screen.Replay -> {
             if (s.setupAtUs != null && openFacts != null) {
@@ -174,6 +194,7 @@ private fun rememberAnalysis(vm: ReplayViewModel, started: Screen.Pipeline.Start
                 sourceHeight = saved?.third ?: openFacts?.displayHeight,
                 // Real frame times of the open file: rows snap to frames and counts get a frame denominator.
                 sourceFrameTimesUs = openFacts?.frameTimesUs,
+                windowCache = com.elevate.app.data.analysis.WindowCache.forAnalysis(filesDir, started.analysisId),
                 thumbnailLoader = uri?.let { u -> { atMs -> withContext(Dispatchers.IO) { FrameThumbnail.load(resolver, u, atMs) } } },
             )
         },
@@ -212,25 +233,40 @@ private fun AnalysisPanels(
     upload: UploadProgress,
     ovm: OverviewViewModel?,
     hero: ReplayViewModel.PipelineHero,
+    /** Facts of the open video when it is the analysed file; ReadLab freezes frames of that file only. */
+    analysedFacts: SourceFacts?,
 ) {
-    if (panel == Screen.Panel.Overview && ovm != null) {
+    if ((panel == Screen.Panel.Overview || panel == Screen.Panel.ReadLab) && ovm != null) {
+        val match by ovm.matchRecord.collectAsStateWithLifecycle()
+        val drills = remember(match, analysedFacts) {
+            com.elevate.app.ui.readlab.ReadLabDrills.fromMatch(match, analysedFacts?.frameTimesUs, analysedFacts?.displayWidth, analysedFacts?.displayHeight)
+        }
+        if (panel == Screen.Panel.ReadLab) {
+            com.elevate.app.ui.readlab.ReadLabRoute(vm, drills, onBack = { vm.showPanel(Screen.Panel.Overview) })
+            return
+        }
         val overview by ovm.overview.collectAsStateWithLifecycle()
         MatchOverviewScreen(
             state = overview,
             eyebrow = hero.eyebrow,
             onOpenRally = { _, startMs, _ -> vm.openRally(startMs) },
-            onBack = { vm.showPanel(Screen.Panel.Analysing) },
+            onBack = { vm.showPanel(Screen.Panel.None); vm.back() },
+            readLabDrills = drills.size,
+            onTrainRead = { vm.showPanel(Screen.Panel.ReadLab) },
         )
         return
     }
     val analysis: AnalysisUiState?
     val artifacts: ArtifactAccess
+    val cache: com.elevate.app.data.analysis.CacheInfo?
     if (ovm != null) {
         analysis = ovm.analysis.collectAsStateWithLifecycle().value
         artifacts = ovm.artifactAccess.collectAsStateWithLifecycle().value
+        cache = ovm.sync.cache.collectAsStateWithLifecycle().value
     } else {
         analysis = null
         artifacts = ArtifactAccess.Unknown
+        cache = null
     }
     val resolver = LocalContext.current.applicationContext.contentResolver
     val uri = hero.sourceUri
@@ -238,7 +274,7 @@ private fun AnalysisPanels(
     val thumbnail by produceState<ThumbnailState?>(if (uri == null) null else ThumbnailState.Loading, uri) {
         value = uri?.let { u -> withContext(Dispatchers.IO) { FrameThumbnail.load(resolver, u, (hero.durationMs ?: 0) / 2) } }
     }
-    val flow = remember(pipeline, step, upload, analysis, artifacts) { AnalysingFlow.state(pipeline, step, upload, analysis, artifacts) }
+    val flow = remember(pipeline, step, upload, analysis, artifacts, cache) { AnalysingFlow.state(pipeline, step, upload, analysis, artifacts, cache) }
     AnalysingScreen(
         flow = flow,
         hero = AnalysingHero(hero.eyebrow, thumbnail, hero.fileName),

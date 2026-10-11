@@ -2,6 +2,7 @@ package com.elevate.app.ui
 
 import com.elevate.app.data.history.status
 import android.os.Build
+import android.util.Log
 import com.elevate.app.data.analysis.AnalysisClient
 import com.elevate.app.data.analysis.HttpAnalysisClient
 import com.elevate.app.data.session.Ruleset
@@ -90,7 +91,7 @@ sealed interface Screen {
         val courtVisible: Boolean = true,
     ) : Screen
 
-    enum class Panel { None, Analysing, Overview }
+    enum class Panel { None, Analysing, Overview, ReadLab }
 
     /** Real states only: each step changes on a server answer, never on a timer. */
     sealed interface Pipeline {
@@ -156,11 +157,6 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     /** null while the first health check runs. */
     val backend: StateFlow<BackendStatus?> = _backend.asStateFlow()
 
-    init {
-        refreshBackend()
-        restorePipeline()
-    }
-
     fun refreshBackend() {
         viewModelScope.launch { _backend.value = repository.backendStatus() }
     }
@@ -169,12 +165,14 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     fun onPicked(uri: Uri?) {
         if (uri == null) return
         openJob?.cancel()
+        clearLiveHits()
         _screen.value = Screen.Import(opening = true)
         openJob = viewModelScope.launch {
             val info = try {
                 withContext(Dispatchers.IO) { inspector.info(uri) }
             } catch (e: IOException) {
-                _screen.value = Screen.Import(error = "This file can't be opened as a video. ${e.message ?: ""}".trim())
+                Log.w(TAG, "video could not be opened", e)
+                _screen.value = Screen.Import(error = "This video can't be opened. Try another file.")
                 return@launch
             } catch (e: SecurityException) {
                 _screen.value = Screen.Import(error = "Access to this file was not granted. Pick it again.")
@@ -182,6 +180,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             }
             controller.open(uri, withOverlay = !info.isHdr)
             pendingSeekMs?.let { controller.pause(); controller.seekTo(it); pendingSeekMs = null }
+            // Opened from history with the Analysing/Overview panel on top: don't play sound behind it.
+            if (_panel.value != Screen.Panel.None) controller.pause()
             // open() may rebuild the player (SDR↔HDR), which resets the effect list; add the court
             // overlay beside the trail on every overlay-capable player (setVideoEffects may run
             // after prepare — media3 1.11.1 ExoPlayer doc). On HDR the pipeline has no overlays.
@@ -196,7 +196,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                     val facts = withContext(Dispatchers.IO) { probe.probe(uri) }
                     PreflightState.Done(facts, Preflight.assess(facts))
                 } catch (e: IOException) {
-                    PreflightState.Failed(e.message ?: "could not read the file")
+                    Log.w(TAG, "preflight could not read the file", e)
+                    PreflightState.Failed("This video can't be opened. Try another file.")
                 } catch (e: SecurityException) {
                     PreflightState.Failed("access to the file was revoked")
                 }
@@ -210,9 +211,12 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             val annotations = try {
                 val fp = withContext(Dispatchers.IO) { inspector.fingerprint(uri) }
                 _screen.update { s -> if (s is Screen.Replay && s.uri == uri) s.copy(sha256 = fp.sha256) else s }
-                repository.annotationsFor(fp)
+                // Every video takes the same path: the trail comes from the live analysis of this file.
+                // The bundled hand-labelled reference (one clip) is for engine evaluation, not users.
+                if (SHOW_REFERENCE_FIXTURES) repository.annotationsFor(fp) else AnnotationState.NoneForThisVideo
             } catch (e: IOException) {
-                AnnotationState.Failed("could not read the file to identify it: ${e.message}")
+                Log.w(TAG, "could not read the file to identify it", e)
+                AnnotationState.Failed("This video can't be opened. Try another file.")
             } catch (e: SecurityException) {
                 AnnotationState.Failed("access to the file was revoked while identifying it")
             }
@@ -251,6 +255,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     fun finishSetup(result: SetupResult) {
         val court = (_screen.value as? Screen.Replay)?.let { courtCalibration(it, result) }
         courtOverlay.setCalibration(court)
+        // The screen's toggle is reset to on below; an earlier "off" must not leave the lines hidden.
+        courtOverlay.visible = court != null
         _screen.update { s ->
             if (s is Screen.Replay) {
                 s.copy(setupAtUs = null, setup = result, court = court, courtVisible = court != null)
@@ -351,6 +357,10 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** sha256 of the uploaded source (from the saved session request), to match live output to a file. */
+    /** [pipelineSha256], refreshed on IO whenever the pipeline changes: safe to read in composition. */
+    private val _analysedSha = MutableStateFlow<String?>(null)
+    val analysedSha: StateFlow<String?> = _analysedSha.asStateFlow()
+
     fun pipelineSha256(): String? = runCatching {
         adopted?.let { return it.sha256 }
         val st = uploadRuntime.coordinator.current() ?: return null
@@ -368,6 +378,11 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val uploadRuntime: UploadRuntime by lazy { UploadRuntime.get(getApplication()) }
+
+    /** Upload progress; a fixed Idle on a build without cloud config, where [uploadRuntime] throws. */
+    val uploadProgress: StateFlow<UploadProgress> by lazy {
+        if (UploadRuntime.isConfigured) uploadRuntime.coordinator.progress else MutableStateFlow(UploadProgress.Idle).asStateFlow()
+    }
 
     val analysisClient: AnalysisClient by lazy {
         HttpAnalysisClient(BuildConfig.API_BASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY, tokenProvider = { uploadRuntime.auth.accessToken() })
@@ -410,8 +425,20 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     // After _matches exists (init blocks run in declaration order).
     init { refreshMatches() }
 
+    private val _matchThumbs = MutableStateFlow<Map<String, androidx.compose.ui.graphics.ImageBitmap>>(emptyMap())
+    /** Real middle frames of remembered matches whose video is still readable, by analysisId. */
+    val matchThumbs: StateFlow<Map<String, androidx.compose.ui.graphics.ImageBitmap>> = _matchThumbs.asStateFlow()
+
     fun refreshMatches() {
-        viewModelScope.launch(Dispatchers.IO) { _matches.value = runCatching { history.history.list() }.getOrDefault(emptyList()) }
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = runCatching { history.history.list() }.getOrDefault(emptyList())
+            _matches.value = list
+            for (e in list) {
+                if (_matchThumbs.value.containsKey(e.analysisId)) continue
+                val img = runCatching { history.thumbnail(getApplication(), e) }.getOrNull() ?: continue
+                _matchThumbs.value = _matchThumbs.value + (e.analysisId to img)
+            }
+        }
     }
 
     /** A history entry being viewed (not the latest upload): source facts and sha come from it. */
@@ -421,6 +448,9 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     fun openHistory(analysisId: String) {
         val p = _pipeline.value
         if (p == Screen.Pipeline.Uploading || p is Screen.Pipeline.StartingAnalysis) { _panel.value = Screen.Panel.Analysing; return }
+        // A restore still finishing in the background must not switch the screen to its own analysis
+        // after the user picked this one (QA: restore/openHistory race).
+        pipelineJob?.cancel()
         viewModelScope.launch {
             val e = withContext(Dispatchers.IO) { history.history.get(analysisId) } ?: return@launch
             val uri = withContext(Dispatchers.IO) { com.elevate.app.data.history.MatchHistoryRuntime.readableSource(getApplication(), e) }
@@ -433,7 +463,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             )
             _pipeline.value = Screen.Pipeline.Started(e.analysisId, e.sessionId, e.matchId, dispatched = true, state = e.lastState ?: "queued")
             uri?.let { onPicked(it) }
-            _panel.value = if (e.status() == com.elevate.app.data.history.HistoryStatus.Analysing) Screen.Panel.Analysing else Screen.Panel.Overview
+            showPanel(if (e.status() == com.elevate.app.data.history.HistoryStatus.Analysing) Screen.Panel.Analysing else Screen.Panel.Overview)
         }
     }
 
@@ -441,14 +471,78 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     private val _liveHitsMs = MutableStateFlow<List<Long>>(emptyList())
     val liveHitsMs: StateFlow<List<Long>> = _liveHitsMs.asStateFlow()
 
+    private fun clearLiveHits() {
+        overlayHits = emptyList()
+        overlayLandings = emptyList()
+        _courtLandings.value = emptyList()
+        controller.setHits(emptyList())
+        _liveHitsMs.value = emptyList()
+    }
+
     fun onLiveHits(hits: List<com.elevate.app.domain.analysis.HitCandidate>) {
         val s = _screen.value as? Screen.Replay ?: return
         val facts = (s.preflight as? PreflightState.Done)?.facts
         val live = com.elevate.app.domain.analysis.LiveHits.forFile(
             hits, pipelineSha256(), s.sha256, facts?.durationMs, facts?.displayWidth, facts?.displayHeight,
         )
-        controller.setHits(live, facts?.displayWidth, facts?.displayHeight)
+        overlayHits = live
+        controller.setHits(overlayHits + overlayLandings, facts?.displayWidth, facts?.displayHeight)
         _liveHitsMs.value = live.map { it.tMs }
+    }
+
+    private var overlayHits: List<com.elevate.app.domain.analysis.LiveHit> = emptyList()
+    private var overlayLandings: List<com.elevate.app.domain.analysis.LiveHit> = emptyList()
+
+    /** A landing candidate on the court plane, from `match.v1` (metres in the calibration template's frame). */
+    data class CourtLanding(val tMs: Long, val xM: Double, val yM: Double, val state: String)
+
+    private val _courtLandings = MutableStateFlow<List<CourtLanding>>(emptyList())
+    /** Landings of the analysed match on the open file; empty for any other file. */
+    val courtLandings: StateFlow<List<CourtLanding>> = _courtLandings.asStateFlow()
+
+    /**
+     * The served `match.v1` of the analysed file: its landing candidates are drawn on the video at
+     * their frame ("LANDING?") and on the mini court; when the open video was not set up here, its
+     * calibration H draws the court lines. Nothing is drawn on a file other than the analysed one.
+     */
+    fun onMatchRecord(match: com.elevate.app.data.api.MatchRecord?) {
+        val s = _screen.value as? Screen.Replay ?: return
+        val facts = (s.preflight as? PreflightState.Done)?.facts
+        val sameFile = !s.sha256.isNullOrBlank() && pipelineSha256().equals(s.sha256, ignoreCase = true)
+        if (match == null || !sameFile) {
+            overlayLandings = emptyList()
+            _courtLandings.value = emptyList()
+            controller.setHits(overlayHits, facts?.displayWidth, facts?.displayHeight)
+            return
+        }
+        val landings = match.events.filter { it.type == "landing" }
+        overlayLandings = com.elevate.app.domain.analysis.LiveHits.forFile(
+            landings.map { e ->
+                com.elevate.app.domain.analysis.HitCandidate(
+                    e.tMs, e.tSigmaMs, e.trackId,
+                    e.imageXy?.takeIf { it.size == 2 }?.let { it[0] to it[1] }, e.cues, e.state,
+                )
+            },
+            pipelineSha256(), s.sha256, facts?.durationMs, facts?.displayWidth, facts?.displayHeight,
+        ).map { it.copy(landing = true) }
+        _courtLandings.value = landings.mapNotNull { e ->
+            val xy = e.contactXyM
+            if (xy == null || xy.size != 2 || !xy.all(Double::isFinite) || (e.plane != null && e.plane != "court")) null
+            else CourtLanding(e.tMs, xy[0], xy[1], e.state)
+        }
+        controller.setHits(overlayHits + overlayLandings, facts?.displayWidth, facts?.displayHeight)
+        val cal = match.calibration
+        val w = facts?.displayWidth
+        val h = facts?.displayHeight
+        if (s.court == null && cal != null && cal.plane == "court" && w != null && h != null) {
+            val court = Homography.fromImageToCourt(cal.h, w, h)?.let { CourtCalibration(cal.template, it, w, h) }
+            if (court != null) {
+                courtOverlay.setCalibration(court)
+                courtOverlay.visible = true
+                _screen.update { cur -> if (cur is Screen.Replay && cur.uri == s.uri) cur.copy(court = court, courtVisible = true) else cur }
+            }
+        }
+        redrawOverlay()
     }
 
     /**
@@ -456,7 +550,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
      * runs. Tapping it should call `showPanel(Screen.Panel.Analysing)` (= PipelineUi.onOpenAnalysis).
      */
     val pipelinePill: StateFlow<String?> by lazy {
-        combine(_pipeline, _pipelineStep, uploadRuntime.coordinator.progress, _lastAnalysis) { p, step, up, a ->
+        combine(_pipeline, _pipelineStep, uploadProgress, _lastAnalysis) { p, step, up, a ->
             AnalysingFlow.pill(p, step, up, a)
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     }
@@ -513,7 +607,10 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                     pipelineJob = viewModelScope.launch { finishPipeline() }
                 }
                 UploadPhase.Completed -> pipelineJob = viewModelScope.launch { finishPipeline() }
-                else -> _pipeline.value = Screen.Pipeline.Failed("upload", cur.failure?.message ?: "upload stopped; tap to resume")
+                else -> {
+                    Log.w(TAG, "restored upload had stopped: ${cur.failure?.code} ${cur.failure?.message}")
+                    _pipeline.value = Screen.Pipeline.Failed("upload", UPLOAD_STOPPED)
+                }
             }
         }
     }
@@ -522,7 +619,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
      * Uploads the original file to R2 through the deployed API and starts the real analysis.
      * The session request is built only from measured facts (probe + sha256) and the user's setup.
      * The Analysing screen opens at once, before any session or analysis id exists; the upload job is
-     * started as soon as the file is identified. Starting again while an upload runs only reopens it.
+     * started as soon as the file is identified. Starting the same file again while its upload runs only
+     * reopens it; a different file replaces the running upload.
      */
     fun analyse() {
         adopted = null
@@ -531,16 +629,28 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         val setup = s.setup ?: return
         val running = _pipeline.value
         if (running == Screen.Pipeline.Uploading || running is Screen.Pipeline.StartingAnalysis) {
-            _panel.value = Screen.Panel.Analysing
+            if (AnalysingFlow.sameFile(_hero.value.sourceUri?.toString(), pipelineSha256(), s.uri.toString(), s.sha256)) {
+                _panel.value = Screen.Panel.Analysing
+                return
+            }
+            // A different file than the one still uploading (e.g. one restored after a restart): drop the
+            // old upload, then start this one. The pipeline is Idle before the retry, so it cannot loop.
+            pipelineJob?.cancel()
+            _pipeline.value = Screen.Pipeline.Idle
+            viewModelScope.launch {
+                UploadScheduler.stop(getApplication())
+                withContext(Dispatchers.IO) { runCatching { uploadRuntime.coordinator.discard() } }
+                analyse()
+            }
             return
         }
         pipelineJob?.cancel()
         pipelineTitle = s.title
         _hero.value = heroFrom(s, facts, setup)
         _lastAnalysis.value = null
-        _panel.value = Screen.Panel.Analysing
+        showPanel(Screen.Panel.Analysing)
         if (!UploadRuntime.isConfigured) {
-            _pipeline.value = Screen.Pipeline.Failed("setup", "Elevate cloud is not configured in this build")
+            _pipeline.value = Screen.Pipeline.Failed("setup", "Upload isn't available right now. Try again later.")
             return
         }
         _pipelineStep.value = if (s.sha256 == null) "Identifying the file" else "Preparing"
@@ -551,7 +661,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 val sha = s.sha256 ?: awaitSha(s.uri)
                 if (sha == null) {
                     _pipelineStep.value = null
-                    _pipeline.value = Screen.Pipeline.Failed("upload", "This video could not be identified, so it cannot be uploaded")
+                    _pipeline.value = Screen.Pipeline.Failed("upload", "This video can't be opened. Try another file.")
                     return@launch
                 }
                 _pipelineStep.value = "Preparing"
@@ -591,7 +701,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 _pipelineStep.value = null
                 if (!UploadScheduler.start(app, facts.bytes)) {
-                    _pipeline.value = Screen.Pipeline.Failed("upload", "The system refused to start the upload")
+                    _pipeline.value = Screen.Pipeline.Failed("upload", UPLOAD_STOPPED)
                     return@launch
                 }
                 finishPipeline()
@@ -599,7 +709,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 _pipelineStep.value = null
-                _pipeline.value = Screen.Pipeline.Failed("upload", e.message ?: e.javaClass.simpleName)
+                Log.w(TAG, "upload could not start", e)
+                _pipeline.value = Screen.Pipeline.Failed("upload", UPLOAD_STOPPED)
             }
         }
     }
@@ -628,7 +739,8 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
                 when (cur.phase) {
                     UploadPhase.Completed -> break
                     UploadPhase.Failed, UploadPhase.Aborted -> if (active || waitedMs >= 30_000) {
-                        _pipeline.value = Screen.Pipeline.Failed("upload", cur.failure?.let { "${it.code}: ${it.message}" } ?: "upload stopped")
+                        Log.w(TAG, "upload stopped: ${cur.failure?.code} ${cur.failure?.message}")
+                        _pipeline.value = Screen.Pipeline.Failed("upload", UPLOAD_STOPPED)
                         return
                     }
                     else -> active = true
@@ -661,12 +773,15 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _pipeline.value = Screen.Pipeline.Failed(stage, e.message ?: e.javaClass.simpleName)
+            Log.w(TAG, "$stage failed", e)
+            _pipeline.value = Screen.Pipeline.Failed(stage, if (stage == "analysis") "Couldn't start the analysis. Tap to retry." else UPLOAD_STOPPED)
         }
     }
 
     /** Retry after a failure: resumes the saved upload (accepted parts are kept), or redoes the analysis start. */
     fun retryPipeline() {
+        // A cancel that failed (offline) is retried as a cancel, never turned into a resumed upload.
+        if ((_pipeline.value as? Screen.Pipeline.Failed)?.stage == "cancel") { cancelUpload(); return }
         val cur = runCatching { uploadRuntime.coordinator.current() }.getOrNull()
         if (cur == null || cur.phase == UploadPhase.Aborted) {
             // Nothing saved to resume (e.g. it failed before the upload existed): start from the top.
@@ -685,14 +800,31 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         pipelineJob?.cancel()
         viewModelScope.launch {
             UploadScheduler.stop(getApplication())
-            uploadRuntime.coordinator.cancel()
             _pipelineStep.value = null
+            try {
+                uploadRuntime.coordinator.cancel()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Offline or a server error on abort: the saved upload is kept (retry resumes it).
+                // Uncaught here, this exception crashed the app from viewModelScope.
+                Log.w(TAG, "cancel failed", e)
+                _pipeline.value = Screen.Pipeline.Failed("cancel", "Couldn't cancel the upload. Tap to try again.")
+                return@launch
+            }
             _pipeline.value = Screen.Pipeline.Idle
             _panel.value = Screen.Panel.None
         }
     }
 
-    fun showPanel(panel: Screen.Panel) { _panel.value = panel }
+    /** ReadLab's drill session; survives rotation and leaving to the overview and back. */
+    val readLab = com.elevate.app.ui.readlab.ReadLabState()
+
+    fun showPanel(panel: Screen.Panel) {
+        // The Analysing / Overview panels replace the video screen: no sound from a video nobody sees.
+        if (panel != Screen.Panel.None) controller.pause()
+        _panel.value = panel
+    }
 
     /** From the overview: back to the player at the rally start. */
     /** Seek target for a video that is still opening (rally tapped while another screen was showing). */
@@ -707,7 +839,7 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         showPanel(Screen.Panel.None)
         val s = _screen.value as? Screen.Replay
         val analysedSha = pipelineSha256()
-        if (s != null && (analysedSha == null || s.sha256 == null || s.sha256 == analysedSha)) {
+        if (s != null && (analysedSha == null || (s.sha256 != null && s.sha256 == analysedSha))) {
             controller.pause()
             controller.seekTo(startMs)
             return
@@ -740,7 +872,18 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
         controller.player.stop()
         controller.player.clearMediaItems()
         controller.setTrack(null)
+        clearLiveHits()
+        pendingSeekMs = null
         _screen.value = Screen.Import()
+    }
+
+    // Last in the class body: restorePipeline's IO block reads `uploadRuntime` from another thread,
+    // and its lazy delegate (like every property below the old first init block) is only assigned
+    // once the constructor reaches its declaration. Started earlier, the read raced the constructor,
+    // hit an NPE inside runCatching and silently skipped restoring the saved upload.
+    init {
+        refreshBackend()
+        restorePipeline()
     }
 
     override fun onCleared() {
@@ -749,7 +892,20 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
+        private const val TAG = "ReplayViewModel"
+        private const val UPLOAD_STOPPED = "Upload stopped. Tap to retry."
         const val FIXTURE_DIR = "fixtures"
+
+        /** Off for users: the hand-labelled reference clip and its recorded run stay out of the app. */
+        const val SHOW_REFERENCE_FIXTURES = false
         const val ENGINE_DIR = "engine_runs"
+    }
+
+    // Last in the class: it reads _pipeline, uploadRuntime and adopted, which must exist first
+    // (init blocks and property initializers run in declaration order).
+    init {
+        viewModelScope.launch {
+            _pipeline.collect { _analysedSha.value = withContext(Dispatchers.IO) { pipelineSha256() } }
+        }
     }
 }

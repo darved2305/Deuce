@@ -206,11 +206,14 @@ fun MatchOverviewScreen(
     eyebrow: String?,
     onOpenRally: (rallyId: String, startMs: Long, endMs: Long) -> Unit,
     onBack: () -> Unit,
+    readLabDrills: Int = 0,
+    onTrainRead: () -> Unit = {},
 ) {
     BackHandler(onBack = onBack)
     val hero = AnalysingHero(eyebrow, state.thumbnail, state.title)
     val play: (() -> Unit)? = when (val r = state.rallies) {
         is RalliesState.Available -> r.rows.firstOrNull()?.let { first -> { onOpenRally(first.rallyId, first.startMs, first.endMs) } }
+        is RalliesState.FromHits -> r.rows.firstOrNull()?.let { first -> { onOpenRally(first.rallyId, first.startMs, first.endMs) } }
         is RalliesState.NotAvailable ->
             state.live?.rallies?.firstOrNull()?.let { first -> { onOpenRally(first.rallyId, first.startMs, first.endMs) } }
                 ?: state.referenceRange?.let { ref -> { onOpenRally(REFERENCE_RALLY_ID, ref.first, ref.last) } }
@@ -224,6 +227,7 @@ fun MatchOverviewScreen(
                     Row(Modifier.fillMaxSize().padding(horizontal = ScreenGutter), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
                             OverviewTop(state, hero, play)
+                            com.elevate.app.ui.readlab.ReadLabEntryButton(readLabDrills, onTrainRead)
                         }
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
                             OverviewCourt(state)
@@ -237,6 +241,7 @@ fun MatchOverviewScreen(
                         verticalArrangement = ScreenSpacing,
                     ) {
                         OverviewTop(state, hero, play)
+                        com.elevate.app.ui.readlab.ReadLabEntryButton(readLabDrills, onTrainRead)
                         OverviewCourt(state)
                         OverviewRallies(state, onOpenRally)
                         OverviewHits(state, onOpenRally)
@@ -276,13 +281,17 @@ private fun OverviewTop(s: MatchOverviewState, hero: AnalysingHero, play: (() ->
         if (matchKnown) {
             Spacer(Modifier.height(10.dp))
             Text(s.selectedPlayer, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
-            Spacer(Modifier.height(8.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                s.capabilities.forEach { (name, cap) -> Pill("$name · ${cap.tier} · ${cap.status}", Color.White, c.ink) }
+            s.opponent?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted) }
+            s.score?.takeIf { it.confirmed }?.let { sc ->
+                Spacer(Modifier.height(10.dp))
+                Text(sc.headline, style = MaterialTheme.typography.titleMedium, color = c.ink)
+                sc.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted) }
             }
         }
     }
     live?.pendingLine?.let { PendingLine(it) }
+    s.matchProblem?.let { PendingLine(it) }
+    CoachSection(s)
 }
 
 /** "18/485 seconds of your video analysed": covered seconds over the known clip length, never a percentage. */
@@ -312,7 +321,12 @@ private fun AnalysedStat(a: AnalysisUiState) {
 private fun OverviewCourt(s: MatchOverviewState) {
     SectionTitle("Court")
     when (val ct = s.court) {
-        is CourtState.Badminton -> ElevateCard { MiniCourt(ct, Modifier.fillMaxWidth()) }
+        is CourtState.Badminton -> ElevateCard {
+            ct.chip?.let { Pill(it, Elevate.colors.lavender, Elevate.colors.ink) }
+            ct.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = Elevate.colors.inkMuted, modifier = Modifier.padding(top = 6.dp)) }
+            if (ct.chip != null) Spacer(Modifier.height(10.dp))
+            MiniCourt(ct, Modifier.fillMaxWidth())
+        }
         is CourtState.NotApplicable -> Text(ct.reason, style = MaterialTheme.typography.bodyMedium)
     }
 }
@@ -344,6 +358,11 @@ private fun OverviewRallies(s: MatchOverviewState, onOpenRally: (String, Long, L
                 val empty = if (live?.windowsComplete == true) "No rally candidates in the windows" else AnalysingFlow.ralliesEmpty(s.analysis)
                 Text(empty, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
             }
+        }
+        is RalliesState.FromHits -> {
+            SectionTitle("${r.rows.size} rally candidate${if (r.rows.size == 1) "" else "s"}")
+            Text(r.sourceLabel, style = MaterialTheme.typography.labelMedium, color = c.inkMuted)
+            LiveRallyList(r.rows, onOpenRally)
         }
         is RalliesState.Available -> {
             SectionTitle("${r.rows.size} rall${if (r.rows.size == 1) "y" else "ies"} · height = shots")

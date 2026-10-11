@@ -43,6 +43,7 @@ class HitOverlay : CanvasOverlay(/* useInputFrameSize = */ false) {
 
     private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = LIME; style = Paint.Style.STROKE }
     private val ringShadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = SHADOW; style = Paint.Style.STROKE }
+    private val landRing = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ORANGE; style = Paint.Style.STROKE }
     private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = LIME
         typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -91,27 +92,32 @@ class HitOverlay : CanvasOverlay(/* useInputFrameSize = */ false) {
         // Never smaller than on 1080p (same rule as the trail).
         val unit = max(canvas.height / 1080f, 1f)
         ring.strokeWidth = 3f * unit
+        landRing.strokeWidth = 3f * unit
         ringShadow.strokeWidth = 5f * unit
         if (dashUnit != unit) {
             val dash = DashPathEffect(floatArrayOf(7f * unit, 5f * unit), 0f)
             ring.pathEffect = dash
+            landRing.pathEffect = dash
             ringShadow.pathEffect = dash
             dashUnit = unit
         }
         label.textSize = 18f * unit
         val radius = 22f * unit
         for (i in near) {
-            val xy = p.hits[i].imageXy ?: continue
+            val hit = p.hits[i]
+            val xy = hit.imageXy ?: continue
             val x = xy.first * sx
             val y = xy.second * sy
+            val text = if (hit.landing) LANDING_LABEL else LABEL
+            label.color = if (hit.landing) ORANGE else LIME
             canvas.drawCircle(x, y, radius, ringShadow)
-            canvas.drawCircle(x, y, radius, ring)
+            canvas.drawCircle(x, y, radius, if (hit.landing) landRing else ring)
             val pad = 3f * unit
-            val tw = label.measureText(LABEL)
+            val tw = label.measureText(text)
             val left = x + radius * 0.75f
             val bottom = y - radius * 0.75f
             canvas.drawRect(left, bottom - label.textSize - pad, left + tw + 2 * pad, bottom + pad, labelBack)
-            canvas.drawText(LABEL, left + pad, bottom - label.descent() + pad / 2, label)
+            canvas.drawText(text, left + pad, bottom - label.descent() + pad / 2, label)
             canvasDirty = true
         }
     }
@@ -120,7 +126,10 @@ class HitOverlay : CanvasOverlay(/* useInputFrameSize = */ false) {
         const val MAX_CANVAS_LONG_SIDE = 1920
         /** A hit candidate is marked on frames within this many ms of its time. */
         const val WINDOW_MS = 150L
-        const val LABEL = "HIT?"
+        const val LABEL = "Hit"
+        /** Landing candidates from `match.v1` (contracts §7): dashed, never a verdict. */
+        const val LANDING_LABEL = "Lands"
+        private const val ORANGE = 0xFFFF7A1A.toInt()
         private const val LIME = 0xFFB6FF3B.toInt() // lime: not the trail orange, candidate cyan or net yellow
         private const val SHADOW = 0x99000000.toInt()
     }

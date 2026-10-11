@@ -361,6 +361,45 @@ class UploadCoordinatorTest {
         assertThat(api.abort(s.sessionId).status).isEqualTo("aborted")
     }
 
+    @Test fun `a stale unfinished upload blocks a new file until it is discarded, even when the server abort fails offline`() = runBlocking<Unit> {
+        repeat(4) { fake.fault(2, Fault.Status(500)) }
+        val a = file(2500)
+        val staged = tmp.newFile("staged-a.mp4").apply { writeBytes(a.readBytes()) }
+        val c = coordinator(a)
+        c.prepare(
+            TestRequests.request(TestRequests.eurogamesSource(a.length(), TestRequests.sha256(a.readBytes()))),
+            "content://media/picker/A", staged.path,
+        )
+        assertThat(c.resume()!!.phase).isEqualTo(UploadPhase.Failed)
+
+        val b = file(3100)
+        fun prepareB() = c.prepare(
+            TestRequests.request(TestRequests.eurogamesSource(b.length(), TestRequests.sha256(b.readBytes()))),
+            "content://media/picker/B",
+        )
+        // A failed upload of file A is still saved; discard() must clear it (prepare also discards
+        // failed ones itself since #121), and file B must then be the saved upload.
+
+        fake.apiFault("/upload/abort", Fault.Throw(offline = true))
+        c.discard()
+
+        assertThat(staged.exists()).isFalse()
+        assertThat(prepareB().sourceUri).isEqualTo("content://media/picker/B")
+        assertThat(c.current()!!.sourceUri).isEqualTo("content://media/picker/B")
+        assertThat(c.current()!!.sha256).isEqualTo(TestRequests.sha256(b.readBytes()))
+    }
+
+    @Test fun `discard aborts on the server when it can, like cancel`() = runBlocking<Unit> {
+        repeat(4) { fake.fault(2, Fault.Status(500)) }
+        val f = file(2500)
+        val c = coordinator(f)
+        prepare(c, f)
+        val s = c.resume()!!
+        c.discard()
+        assertThat(fake.uploads.getValue(s.sessionId!!).status).isEqualTo("aborted")
+        assertThat(c.current()).isNull()
+    }
+
     @Test fun `cancel while parts are in flight stops the run before aborting`() = runBlocking<Unit> {
         fake.putDelayMs = 30
         val f = file(9000)
@@ -422,5 +461,47 @@ class UploadCoordinatorTest {
             val remaining = p.totalBytes - p.acceptedBytes
             assertThat(p.etaSeconds).isEqualTo(Math.ceil(remaining / p.bytesPerSecond!!).toLong())
         }
+    }
+
+    @Test fun `a failed upload of another file never blocks a new one - it is discarded and aborted`() = runBlocking<Unit> {
+        repeat(4) { fake.fault(2, Fault.Status(500)) }
+        val a = file(2500)
+        val stagedA = tmp.newFile("stagedA.mp4").apply { writeBytes(a.readBytes()) }
+        val c = coordinator(a)
+        prepare(c, a, stagedA.path)
+        val failed = c.resume()!!
+        assertThat(failed.phase).isEqualTo(UploadPhase.Failed)
+
+        val b = tmp.newFile().apply { writeBytes(ByteArray(1500) { (it * 7 % 256).toByte() }) }
+        val bBytes = b.readBytes()
+        // A new instance (as after process death), with its own Idempotency-Key.
+        val c2 = coordinator(b)
+        val next = c2.prepare(TestRequests.request(TestRequests.eurogamesSource(bBytes.size.toLong(), TestRequests.sha256(bBytes))), "content://media/picker/2")
+        assertThat(next.sessionId).isNull()
+        assertThat(stagedA.exists()).isFalse()
+        assertThat(UploadStateStore(stateDir).load()!!.sourceUri).isEqualTo("content://media/picker/2")
+        // The next run frees A's multipart upload on the server first.
+        c2.resume()
+        assertThat(fake.uploads.getValue(failed.sessionId!!).status).isEqualTo("aborted")
+    }
+
+    @Test fun `an unfinished upload that has not failed still blocks a second one`() {
+        val f = file(1500)
+        val c = coordinator(f)
+        prepare(c, f)
+        assertThrows(IllegalStateException::class.java) { prepare(c, f) }
+    }
+
+    @Test fun `a confirmed upload keeps its staging copy for history, named by sha256`() = runBlocking<Unit> {
+        val f = file(2500)
+        val filesDir = tmp.newFolder("files")
+        val staged = File(File(filesDir, "upload-staging").apply { mkdirs() }, "source-1.mp4").apply { writeBytes(f.readBytes()) }
+        val c = coordinator(f)
+        val s = prepare(c, f, staged.path)
+        assertThat(c.resume()!!.phase).isEqualTo(UploadPhase.Completed)
+        assertThat(staged.exists()).isFalse()
+        val kept = File(File(filesDir, "videos"), s.sha256 + ".mp4")
+        assertThat(kept.isFile).isTrue()
+        assertThat(kept.readBytes()).isEqualTo(f.readBytes())
     }
 }

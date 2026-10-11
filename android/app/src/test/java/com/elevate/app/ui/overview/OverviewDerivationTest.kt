@@ -65,11 +65,13 @@ class OverviewDerivationTest {
     @Test fun `unconfirmed winners are model estimates`() {
         val m = example.copy(rallies = example.rallies.map { it.copy(winnerState = "candidate") })
         val row = (OverviewDerivation.rallies(m, null, null) as RalliesState.Available).rows.single()
-        assertThat(row.winner).isEqualTo("Winner candidate: opponent · MODEL ESTIMATE")
+        assertThat(row.winner).isEqualTo("Looks like their point")
         assertThat(row.winnerConfirmed).isFalse()
     }
 
     @Test fun `court draws only real landings, with counts and denominators`() {
+        // Shot landings are the fallback when the record has no landing events.
+        val example = example.copy(events = emptyList())
         val c = OverviewDerivation.court(example) as CourtState.Badminton
         assertThat(c.singles).isTrue()
         assertThat(c.marks.single().xM).isEqualTo(3.0)
@@ -79,7 +81,7 @@ class OverviewDerivationTest {
         assertThat(cf.marks).isEmpty()
         assertThat(cf.note).isEqualTo("No landings to draw from 1 shot")
         val none = OverviewDerivation.court(example.copy(shots = emptyList())) as CourtState.Badminton
-        assertThat(none.note).isEqualTo("No landings yet")
+        assertThat(none.note).isEqualTo("No landings in this match")
         assertThat(OverviewDerivation.court(example.copy(sport = "table_tennis"))).isInstanceOf(CourtState.NotApplicable::class.java)
     }
 
@@ -90,8 +92,8 @@ class OverviewDerivationTest {
     }
 
     @Test fun `source line and selected player come from the record`() {
-        assertThat(OverviewDerivation.sourceLine(example)).isEqualTo("Badminton · singles · bwf_3x21 2025-04")
-        assertThat(OverviewDerivation.selectedPlayer(example)).isEqualTo("You · 1 track · confirmed by you")
+        assertThat(OverviewDerivation.sourceLine(example)).isEqualTo("Badminton · singles")
+        assertThat(OverviewDerivation.selectedPlayer(example)).isEqualTo("You")
     }
 
     @Test fun `hand-labelled fixture is labelled as a reference, with its own counts`() {

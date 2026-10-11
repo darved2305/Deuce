@@ -6,9 +6,9 @@ import org.junit.Test
 class HitStripLogicTest {
 
     @Test fun `caption carries the real count and says candidate`() {
-        assertThat(HitStripLogic.caption(0)).isEqualTo("0 hit candidates · engine")
-        assertThat(HitStripLogic.caption(1)).isEqualTo("1 hit candidate · engine")
-        assertThat(HitStripLogic.caption(14)).isEqualTo("14 hit candidates · engine")
+        assertThat(HitStripLogic.caption(0)).isEqualTo("0 hits")
+        assertThat(HitStripLogic.caption(1)).isEqualTo("1 hit")
+        assertThat(HitStripLogic.caption(14)).isEqualTo("14 hits")
     }
 
     @Test fun `ticks are placed proportionally and clamped to the bar`() {

@@ -22,8 +22,8 @@ import kotlin.math.abs
 /** Pure parts of [HitStrip] (wording and tap hit-testing), unit-tested. */
 internal object HitStripLogic {
 
-    /** "3 hit candidates · engine" — the real count, always called candidates. */
-    fun caption(count: Int): String = "$count hit ${if (count == 1) "candidate" else "candidates"} · engine"
+    /** "3 hits": the real count. */
+    fun caption(count: Int): String = "$count ${if (count == 1) "hit" else "hits"}"
 
     /** x of [tMs] on a bar [widthPx] wide for a clip [durationMs] long. */
     fun xOf(tMs: Long, durationMs: Long, widthPx: Float): Float =

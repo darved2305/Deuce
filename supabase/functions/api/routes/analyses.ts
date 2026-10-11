@@ -6,7 +6,9 @@ import {
   analysisCreateResponseSchema,
   analysisEventsPageSchema,
   analysisGetResponseSchema,
+  analysisIdSchema,
   errorEnvelopeSchema,
+  sessionCreateRequestSchema,
 } from "../lib/contracts_vendor/index.ts";
 import { ApiFailure } from "../lib/errors.ts";
 import { appendEvent, listEvents } from "../lib/events.ts";
@@ -21,7 +23,7 @@ import { isTerminal } from "../lib/state.ts";
 const ENDPOINT = "POST /v1/analyses";
 const CreateBody = analysisCreateRequestSchema;
 const CreateResponse = analysisCreateResponseSchema;
-const AnalysisId = z.string().regex(/^a_[A-Za-z0-9_-]+$/);
+const AnalysisId = analysisIdSchema;
 const GetResponse = analysisGetResponseSchema;
 const EventsResponse = analysisEventsPageSchema;
 
@@ -40,6 +42,10 @@ const createRun = createRoute({
     202: {
       description: "new dispatch or an existing run still queued",
       content: { "application/json": { schema: CreateResponse } },
+    },
+    403: {
+      description: "read-only developer keys cannot dispatch analyses",
+      content: { "application/json": { schema: errorEnvelopeSchema } },
     },
     429: {
       description: "session has reached its analysis run limit",
@@ -101,11 +107,13 @@ async function dispatch(
   const spec = await admin.rpc("session_spec", { p_session_id: sessionId });
   if (spec.error) throw spec.error;
   if (spec.data == null) return { kind: "invalid" };
+  const sessionSpec = sessionCreateRequestSchema.safeParse(spec.data);
+  if (!sessionSpec.success) return { kind: "invalid" };
   try {
     const out = await submitToModal({
       analysis_id: run.id,
       r2_key: r2Key,
-      session_spec: spec.data as Record<string, unknown>,
+      session_spec: sessionSpec.data,
       // The run row comes from create_analysis_run (the whole analysis_runs row), so match_id is
       // the run's own match; the engine echoes it in vision_result (D-261011-HW15).
       ...(run.match_id
@@ -132,22 +140,44 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
     const admin = deps.admin();
     const ownerId = c.var.userId;
 
-    const session = await user.from("sessions").select("id")
+    const session = await user.from("sessions").select("id,upload_mode")
       .eq("id", session_id).maybeSingle();
     if (session.error) throw session.error;
     if (!session.data) {
       throw new ApiFailure(404, "not_found", "session not found");
     }
-    const upload = await user.from("uploads").select("r2_key,status")
-      .eq("session_id", session_id).maybeSingle();
-    if (upload.error) throw upload.error;
-    const up = upload.data as { r2_key: string; status: string } | null;
-    if (!up || up.status !== "completed") {
-      throw new ApiFailure(
-        409,
-        "conflict",
-        "upload is not complete",
-      );
+    const uploadMode = (session.data as { upload_mode: string }).upload_mode;
+    let r2Key: string;
+    if (uploadMode === "segments") {
+      const segment = await user.from("segments")
+        .select("r2_key,completed_at")
+        .eq("session_id", session_id).eq("seq", 0).maybeSingle();
+      if (segment.error) throw segment.error;
+      const first = segment.data as {
+        r2_key: string;
+        completed_at: string | null;
+      } | null;
+      if (!first || !first.completed_at) {
+        throw new ApiFailure(
+          409,
+          "upload_not_complete",
+          "upload is not complete",
+        );
+      }
+      r2Key = first.r2_key;
+    } else {
+      const upload = await user.from("uploads").select("r2_key,status")
+        .eq("session_id", session_id).maybeSingle();
+      if (upload.error) throw upload.error;
+      const up = upload.data as { r2_key: string; status: string } | null;
+      if (!up || up.status !== "completed") {
+        throw new ApiFailure(
+          409,
+          "upload_not_complete",
+          "upload is not complete",
+        );
+      }
+      r2Key = up.r2_key;
     }
 
     const hash = await canonicalHash({ session_id });
@@ -242,7 +272,7 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
       admin,
       run,
       session_id,
-      up.r2_key,
+      r2Key,
       deps.modal(),
     );
     if (dispatchResult.kind === "invalid") {
@@ -304,9 +334,13 @@ export function registerAnalyses(api: OpenAPIHono<AppEnv>): void {
   api.openapi(getRun, async (c) => {
     const { id } = c.req.valid("param");
     const jwt = (c.req.header("Authorization") ?? "").slice("Bearer ".length);
-    const res = await c.var.deps.user(jwt).from("analysis_runs").select(
-      "id,session_id,match_id,state,engine_version,last_seq,failure_reason,created_at,updated_at,finalized_at",
-    ).eq("id", id).maybeSingle();
+    const columns =
+      "id,session_id,match_id,state,engine_version,last_seq,failure_reason,created_at,updated_at,finalized_at";
+    const res = c.var.readOnly
+      ? await c.var.deps.admin().from("analysis_runs").select(columns)
+        .eq("id", id).eq("owner_id", c.var.userId).maybeSingle()
+      : await c.var.deps.user(jwt).from("analysis_runs").select(columns)
+        .eq("id", id).maybeSingle();
     if (res.error) throw res.error;
     if (!res.data) throw new ApiFailure(404, "not_found", "analysis not found");
     const { id: analysisId, ...rest } = res.data as Record<string, unknown> & {

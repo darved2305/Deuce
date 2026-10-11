@@ -1,6 +1,7 @@
 package com.elevate.app.ui.overview
 
 import com.elevate.app.data.analysis.ArtifactAccess
+import com.elevate.app.data.analysis.CacheInfo
 import com.elevate.app.data.upload.UploadFailure
 import com.elevate.app.data.upload.UploadProgress
 import com.elevate.app.domain.analysis.AnalysisSource
@@ -50,7 +51,7 @@ class AnalysingFlowTest {
         // A stale Completed progress from an earlier upload must not show as sent.
         val f = AnalysingFlow.state(Screen.Pipeline.Uploading, "Identifying the file", UploadProgress.Completed(1), null)
         assertThat(f.states()).containsExactly(StageState.Active, StageState.Pending, StageState.Pending, StageState.Pending).inOrder()
-        assertThat(f.stages.map { it.label }).containsExactly("Sending your video", "Queued for the engine", "Tracking the shuttle", "Your match").inOrder()
+        assertThat(f.stages.map { it.label }).containsExactly("Sending your video", "Waiting for a free analyser", "Following the shuttle", "Your match").inOrder()
         assertThat(f.send!!.note).isEqualTo("Identifying the file")
         assertThat(f.send!!.amount).isNull()
         assertThat(f.send!!.fraction).isNull()
@@ -96,14 +97,14 @@ class AnalysingFlowTest {
         val f = AnalysingFlow.state(started, null, UploadProgress.Completed(total), null)
         assertThat(f.states()).containsExactly(StageState.Done, StageState.Active, StageState.Pending, StageState.Pending).inOrder()
         assertThat(f.stages[1].value).isEqualTo("waiting")
-        assertThat(AnalysingFlow.pill(started, null, UploadProgress.Idle, null)).isEqualTo("Queued for the engine")
+        assertThat(AnalysingFlow.pill(started, null, UploadProgress.Idle, null)).isEqualTo("Waiting for a free analyser")
     }
 
     @Test fun `tracking shows windows and covered seconds of the clip length`() {
         val a = analysis(AnalysisState.PARTIAL, coveredUs = 18_000_000, windowsDone = 3, downloaded = 3, stages = listOf("analysis.queued", "analysis.started", "window.completed"))
         val f = AnalysingFlow.state(started, null, UploadProgress.Idle, a)
         assertThat(f.states()).containsExactly(StageState.Done, StageState.Done, StageState.Active, StageState.Pending).inOrder()
-        assertThat(f.stages[2].value).isEqualTo("3 windows · 18.0 of 484.5 s")
+        assertThat(f.stages[2].value).isEqualTo("18.0 of 484.5 s watched")
         assertThat(f.action).isEqualTo(AnalysingFlowState.Action.OPEN_PARTIAL)
         assertThat(f.notice).isNull()
         assertThat(AnalysingFlow.pill(started, null, UploadProgress.Idle, a)).isEqualTo("Analysing · 18/485 s")
@@ -111,7 +112,7 @@ class AnalysingFlowTest {
 
     @Test fun `unknown clip length is said, never invented`() {
         val a = analysis(AnalysisState.PROCESSING, coveredUs = 6_000_000, totalUs = null, windowsDone = 1)
-        assertThat(AnalysingFlow.tracking(a)).isEqualTo("1 window · 6.0 s · length unknown")
+        assertThat(AnalysingFlow.tracking(a)).isEqualTo("6.0 s watched · length unknown")
         assertThat(AnalysingFlow.pill(started, null, UploadProgress.Idle, a)).isEqualTo("Analysing · 6 s")
     }
 
@@ -162,7 +163,7 @@ class AnalysingFlowTest {
         val p = Screen.Pipeline.Failed("analysis", "engine_unavailable: try later")
         val f = AnalysingFlow.state(p, null, UploadProgress.Completed(total), null)
         assertThat(f.states()).containsExactly(StageState.Done, StageState.Failed, StageState.Pending, StageState.Pending).inOrder()
-        assertThat(f.notice).isEqualTo("Could not start the analysis · engine_unavailable: try later")
+        assertThat(f.notice).isEqualTo("engine_unavailable: try later")
         assertThat(f.send).isNull()
     }
 
@@ -187,5 +188,52 @@ class AnalysingFlowTest {
     @Test fun `empty rallies are one short line`() {
         assertThat(AnalysingFlow.ralliesEmpty(null)).isEqualTo("Rallies appear when the engine finishes")
         assertThat(AnalysingFlow.ralliesEmpty(analysis(AnalysisState.COMPLETED))).isEqualTo("Rallies appear when the match record is served")
+    }
+
+    @Test fun `a running pipeline is reopened only for the same file`() {
+        // Same uri, or the same sha256 in any letter case.
+        assertThat(AnalysingFlow.sameFile("content://a", null, "content://a", null)).isTrue()
+        assertThat(AnalysingFlow.sameFile("content://a", "ABC123", "content://b", "abc123")).isTrue()
+        // The demo bug: a stale upload of file A is running and file B is started.
+        assertThat(AnalysingFlow.sameFile("content://a", "abc123", "content://b", "def456")).isFalse()
+        assertThat(AnalysingFlow.sameFile(null, null, "content://b", "def456")).isFalse()
+        assertThat(AnalysingFlow.sameFile("content://a", null, "content://b", null)).isFalse()
+    }
+
+    private val utc = java.time.ZoneOffset.UTC
+    private val cached = CacheInfo(fromCache = true, cachedAtMs = 1_760_000_000_000, windowsCached = 2)
+
+    @Test fun `a finished match restored from the phone says analysed earlier with engine and the completion time`() {
+        val a = analysis(AnalysisState.COMPLETED, stages = listOf("analysis.started", "analysis.completed")).copy(engineVersion = "0.3.0")
+        val f = AnalysingFlow.state(started, null, UploadProgress.Idle, a, ArtifactAccess.Unknown, cached, utc)
+        assertThat(f.notice).isEqualTo("Analysed earlier · engine 0.3.0 · 11 Oct 2026 10:00")
+        // Offline too: the same line replaces "Offline · showing the last update".
+        val off = AnalysingFlow.state(started, null, UploadProgress.Idle, a.copy(offline = true), ArtifactAccess.Unknown, cached, utc)
+        assertThat(off.notice).isEqualTo("Analysed earlier · engine 0.3.0 · 11 Oct 2026 10:00")
+    }
+
+    @Test fun `without a completion event the cache time is used, unknown engine left out`() {
+        val a = analysis(AnalysisState.COMPLETED).copy(offline = true)
+        assertThat(AnalysingFlow.analysedEarlier(a, cached, utc)).isEqualTo("Analysed earlier · 9 Oct 2025 08:53")
+    }
+
+    @Test fun `analysed earlier is never said of fresh data or an unfinished analysis`() {
+        val done = analysis(AnalysisState.COMPLETED).copy(engineVersion = "0.3.0")
+        assertThat(AnalysingFlow.analysedEarlier(done, cached.copy(fromCache = false), utc)).isNull()
+        assertThat(AnalysingFlow.analysedEarlier(done, null, utc)).isNull()
+        val running = analysis(AnalysisState.PROCESSING, coveredUs = 6_000_000, windowsDone = 1).copy(offline = true)
+        assertThat(AnalysingFlow.analysedEarlier(running, cached, utc)).isNull()
+        val f = AnalysingFlow.state(started, null, UploadProgress.Idle, running, ArtifactAccess.Unknown, cached, utc)
+        assertThat(f.notice).isEqualTo("Offline · showing the last update")
+        // The old signature still works and never says it.
+        assertThat(AnalysingFlow.state(started, null, UploadProgress.Idle, done).notice).isNull()
+    }
+
+    @Test fun `a failed cancel says so and retry cancels, never upload stopped`() {
+        val p = Screen.Pipeline.Failed(AnalysingFlow.CANCEL_STAGE, "no network (host not resolved)")
+        val f = AnalysingFlow.state(p, null, UploadProgress.Idle, null)
+        assertThat(f.stages.first().value).isEqualTo("cancel failed")
+        assertThat(f.send!!.note).isEqualTo("Couldn't cancel the upload. Tap to try again.")
+        assertThat(AnalysingFlow.pill(p, null, UploadProgress.Idle, null)).isEqualTo("Cancel failed · tap to cancel again")
     }
 }

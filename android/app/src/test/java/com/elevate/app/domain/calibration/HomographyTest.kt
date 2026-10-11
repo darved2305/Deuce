@@ -22,6 +22,22 @@ class HomographyTest {
         }
     }
 
+    /** match.v1 serves H (image -> court); rebuilding from it reproduces the tap fit, whatever its sign. */
+    @Test fun fromImageToCourtMatchesTheTapFit() {
+        val tap = Homography.fromFourPoints(court, taps)!!
+        for (sign in listOf(1.0, -1.0)) {
+            val served = tap.hInv.map { it * sign * 3.0 }
+            val h = Homography.fromImageToCourt(served, 1920, 1080)!!
+            court.forEachIndexed { i, (x, y) ->
+                val p = h.toImage(x, y)
+                assertThat(p.x).isWithin(1e-6).of(taps[i].x)
+                assertThat(p.y).isWithin(1e-6).of(taps[i].y)
+            }
+            assertThat(h.projectToCourt(960.0, 540.0)[2]).isGreaterThan(0.0)
+        }
+        assertThat(Homography.fromImageToCourt(listOf(1.0, 0.0), 1920, 1080)).isNull()
+    }
+
     @Test fun interiorPointsRoundTrip() {
         val h = Homography.fromFourPoints(court, taps)!!
         val rnd = Random(7)

@@ -158,13 +158,63 @@ data class MatchRecord(
     val sport: String,
     val format: String,
     val ruleset: MatchRuleset,
-    val players: List<MatchPlayer>,
+    /** Lists the overview reads are lenient: absent decodes as empty (never invents an item). */
+    val players: List<MatchPlayer> = emptyList(),
     /** Null when the match is not calibrated (contracts 1.8.0). */
     val calibration: MatchCalibration?,
     val analysis: MatchAnalysis,
     val capabilities: MatchCapabilities,
-    val rallies: List<MatchRally>,
-    val shots: List<MatchShot>,
+    val rallies: List<MatchRally> = emptyList(),
+    val shots: List<MatchShot> = emptyList(),
+    /** Hit and landing events (contracts §7, 1.8.0); other types are kept and ignored by the overview. */
+    val events: List<MatchEvent> = emptyList(),
+    /** Points a person confirmed (#104); the only source of a score (D-007). */
+    @SerialName("confirmed_points") val confirmedPoints: List<MatchConfirmedPoint> = emptyList(),
+    /** Null when absent; built by the API from [confirmedPoints] only. */
+    val score: MatchScore? = null,
+)
+
+/** Subset of a `match.v1` event: what the hit timeline and the landing marks read. */
+@Serializable
+data class MatchEvent(
+    @SerialName("event_id") val eventId: String,
+    val type: String,
+    @SerialName("t_ms") val tMs: Long,
+    @SerialName("t_sigma_ms") val tSigmaMs: Long,
+    val cues: List<String>,
+    /** observed | candidate | inferred | user (contracts §0), verbatim. */
+    val state: String,
+    @SerialName("image_xy") val imageXy: List<Double>? = null,
+    @SerialName("rally_id") val rallyId: String? = null,
+    @SerialName("player_id") val playerId: String? = null,
+    @SerialName("track_id") val trackId: String? = null,
+    /** Plane of [contactXyM]; landings carry "court". */
+    val plane: String? = null,
+    /** Court metres in the calibration template's frame (x across from its left sideline, y from the near baseline). */
+    @SerialName("contact_xy_m") val contactXyM: List<Double>? = null,
+)
+
+/** Subset of a `match.v1` confirmed point. */
+@Serializable
+data class MatchConfirmedPoint(
+    @SerialName("confirmed_point_id") val confirmedPointId: String,
+    @SerialName("rally_id") val rallyId: String,
+    /** A `player_id` of [MatchRecord.players]. */
+    val winner: String,
+)
+
+@Serializable
+data class MatchScore(
+    val timeline: List<MatchScoreStep> = emptyList(),
+    /** Finished games as pairs, in the record's order. */
+    val games: List<List<Long>> = emptyList(),
+)
+
+@Serializable
+data class MatchScoreStep(
+    @SerialName("rally_id") val rallyId: String,
+    val after: List<Long>,
+    @SerialName("server_next") val serverNext: String,
 )
 
 @Serializable

@@ -6,6 +6,7 @@ import {
   secondsToNextUtcDay,
   secondsToNextUtcMonth,
   takeDownloadUrl,
+  takeSegmentUrl,
   writesEnabled,
 } from "../lib/budget.ts";
 import { ApiFailure } from "../lib/errors.ts";
@@ -108,6 +109,28 @@ Deno.test("G6: 200 download URLs per user per day (helper; wired when artifact r
     (e) =>
       e instanceof ApiFailure && e.code === "daily_download_limit" &&
       e.status === 429 && (e.retryAfterS ?? 0) > 0,
+  );
+});
+
+Deno.test("G4: segment URL issuance is atomic and capped at three per segment", async () => {
+  const calls: unknown[] = [];
+  const admin = fakeClient((c) => {
+    calls.push(c);
+    return ok(1);
+  });
+  await takeSegmentUrl(admin, "s_1", 0, "u1");
+  assert.deepEqual((calls[0] as { args: unknown }).args, {
+    p_session: "s_1",
+    p_owner: "u1",
+    p_seq: 0,
+    p_limit: 3,
+  });
+  const denied = fakeClient(() => ok(null));
+  await assert.rejects(
+    () => takeSegmentUrl(denied, "s_1", 0, "u1"),
+    (e) =>
+      e instanceof ApiFailure && e.code === "too_many_part_requests" &&
+      e.status === 429 && e.retryAfterS === 600,
   );
 });
 
