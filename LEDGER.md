@@ -68,3 +68,4 @@ Contract version in force: **contracts v1** (D-012)
 | 2026-10-11T00:06Z | #69 | @HetanshWaghela | p2 | android: Kotlin bwf_3x21 rules port, 45/45 shared vectors | none (implements contracts §10 and D-261011-HW7) | 1.8.0 | ``` |
 | 2026-10-11T00:09Z | #73 | @HetanshWaghela | p2 | android: court corners can be placed outside the frame (closes #62) | none (closes #62; points_px is unbounded in contracts, packages/contracts/src/api.ts:41) | 1.8.0 | ``` |
 | 2026-10-11T00:14Z | #78 | @darved2305 | p2 | android: integrate Phase 3 (#72, #73, #75) + retry dropped session create | none | 1.8.0 | A55, 2026-10-11 05:30, real clip `eurogames_bern_2.webm` (26.9 MiB), fresh analysis: Analysing opened at once with "Send |
+| 2026-10-11T00:19Z | #86 | @HetanshWaghela | p4 | Contracts 1.9.0: engine can build the finalize body (#77, D-261011-HW15) | D-261011-HW15 | 1.9.0 | ``` |
