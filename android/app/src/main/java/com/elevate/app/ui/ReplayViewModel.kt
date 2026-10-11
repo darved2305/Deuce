@@ -94,7 +94,7 @@ sealed interface Screen {
     /** "Your game": the profile over every analysed match on this phone. Back returns to Import. */
     data object Profile : Screen
 
-    enum class Panel { None, Analysing, Overview, ReadLab, Reflex, Decide }
+    enum class Panel { None, Analysing, Overview, ReadLab, Reflex, Review, Decide }
 
     /** Real states only: each step changes on a server answer, never on a timer. */
     sealed interface Pipeline {
@@ -861,6 +861,9 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Reflex mode's run; survives rotation and leaving to the overview and back. */
     val reflex = com.elevate.app.ui.readlab.ReflexState()
+
+    /** Instant Review's selected landing; survives rotation and leaving to the overview and back. */
+    val review = com.elevate.app.ui.review.ReviewSession()
 
     /** Decide mode's run; survives rotation and leaving to the overview and back. */
     val decide = com.elevate.app.ui.decide.DecideState()
