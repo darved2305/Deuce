@@ -233,12 +233,22 @@ function summarizeMatch(value: unknown) {
   };
 }
 
+// Every tool only reads the Elevate API: tell clients so they need not confirm each call.
+const READ_ONLY = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+} as const;
+
 export function createServer(): McpServer {
   const server = new McpServer({ name: "elevate", version: "1.0.0" });
 
   server.registerTool(
     "get_match_summary",
     {
+      title: "Get match summary",
+      annotations: READ_ONLY,
       description:
         "Read a match.v1 record and return its score, hero insight, rally count, capability tiers, and a deep link.",
       inputSchema: getMatchSummaryInput,
@@ -253,6 +263,8 @@ export function createServer(): McpServer {
   server.registerTool(
     "find_moments",
     {
+      title: "Find moments",
+      annotations: READ_ONLY,
       description:
         "Find real moments for a match or across your matches. Filtered queries are withheld until their API request schemas are defined.",
       inputSchema: findMomentsInput,
@@ -263,6 +275,8 @@ export function createServer(): McpServer {
   server.registerTool(
     "get_rally",
     {
+      title: "Get rally",
+      annotations: READ_ONLY,
       description: "Read a rally and its shots.",
       inputSchema: getRallyInput,
     },
@@ -280,6 +294,8 @@ export function createServer(): McpServer {
   server.registerTool(
     "get_capabilities",
     {
+      title: "Get capabilities",
+      annotations: READ_ONLY,
       description: "Read capability tiers and verification status.",
       inputSchema: z.object({}),
     },

@@ -247,15 +247,29 @@ Deno.test("POST /v1/sessions creates match, session, R2 upload and uploads row",
   );
 });
 
-Deno.test("segments upload mode returns 422 before creating rows or R2 uploads", async () => {
+Deno.test("segments mode creates a session without a multipart upload", async () => {
   const { app, adminLog, userLog, r2Seen } = build();
   const res = await create(app, { ...BODY, upload_mode: "segments" });
-  assert.equal(res.status, 422);
+  assert.equal(res.status, 201);
   const body = await res.json();
-  assert.equal(body.error.code, "validation_failed");
-  assert.equal(body.error.details, "segments upload not available yet");
-  assert.equal(adminLog.length, 0);
-  assert.equal(userLog.length, 0);
+  conforms("session.create.response.v1", body);
+  assert.deepEqual(body, {
+    session_id: "s_1",
+    match_id: "m_1",
+    upload_mode: "segments",
+    segments: {
+      max_segment_bytes: 300 * MIB,
+      max_concurrency: 2,
+      url_ttl_s: 600,
+    },
+  });
+  assert.ok(
+    userLog.some((c) =>
+      c.kind === "from" && c.table === "sessions" && c.op === "insert" &&
+      (c.payload as { upload_mode: string }).upload_mode === "segments"
+    ),
+  );
+  assert.ok(!adminLog.some((c) => c.kind === "from" && c.table === "uploads"));
   assert.equal(r2Seen.length, 0);
 });
 

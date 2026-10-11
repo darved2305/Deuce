@@ -91,7 +91,7 @@ sealed interface Screen {
         val courtVisible: Boolean = true,
     ) : Screen
 
-    enum class Panel { None, Analysing, Overview }
+    enum class Panel { None, Analysing, Overview, ReadLab }
 
     /** Real states only: each step changes on a server answer, never on a timer. */
     sealed interface Pipeline {
@@ -816,6 +816,9 @@ class ReplayViewModel(app: Application) : AndroidViewModel(app) {
             _panel.value = Screen.Panel.None
         }
     }
+
+    /** ReadLab's drill session; survives rotation and leaving to the overview and back. */
+    val readLab = com.elevate.app.ui.readlab.ReadLabState()
 
     fun showPanel(panel: Screen.Panel) {
         // The Analysing / Overview panels replace the video screen: no sound from a video nobody sees.

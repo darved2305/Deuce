@@ -206,6 +206,8 @@ fun MatchOverviewScreen(
     eyebrow: String?,
     onOpenRally: (rallyId: String, startMs: Long, endMs: Long) -> Unit,
     onBack: () -> Unit,
+    readLabDrills: Int = 0,
+    onTrainRead: () -> Unit = {},
 ) {
     BackHandler(onBack = onBack)
     val hero = AnalysingHero(eyebrow, state.thumbnail, state.title)
@@ -225,6 +227,7 @@ fun MatchOverviewScreen(
                     Row(Modifier.fillMaxSize().padding(horizontal = ScreenGutter), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
                             OverviewTop(state, hero, play)
+                            com.elevate.app.ui.readlab.ReadLabEntryButton(readLabDrills, onTrainRead)
                         }
                         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = ScreenSpacing) {
                             OverviewCourt(state)
@@ -238,6 +241,7 @@ fun MatchOverviewScreen(
                         verticalArrangement = ScreenSpacing,
                     ) {
                         OverviewTop(state, hero, play)
+                        com.elevate.app.ui.readlab.ReadLabEntryButton(readLabDrills, onTrainRead)
                         OverviewCourt(state)
                         OverviewRallies(state, onOpenRally)
                         OverviewHits(state, onOpenRally)
@@ -287,6 +291,7 @@ private fun OverviewTop(s: MatchOverviewState, hero: AnalysingHero, play: (() ->
     }
     live?.pendingLine?.let { PendingLine(it) }
     s.matchProblem?.let { PendingLine(it) }
+    CoachSection(s)
 }
 
 /** "18/485 seconds of your video analysed": covered seconds over the known clip length, never a percentage. */

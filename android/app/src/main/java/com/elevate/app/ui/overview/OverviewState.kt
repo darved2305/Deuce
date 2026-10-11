@@ -10,6 +10,8 @@ import com.elevate.app.domain.analysis.HitCandidate
 import com.elevate.app.domain.analysis.HitRallies
 import com.elevate.app.domain.analysis.RallyCandidate
 import com.elevate.app.domain.calibration.CourtModel
+import com.elevate.app.domain.coach.LandingEvidence
+import com.elevate.app.domain.coach.LandingPoint
 import com.elevate.app.domain.model.TrailTrack
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -138,6 +140,8 @@ data class MatchOverviewState(
     val opponent: String? = null,
     /** Score from confirmed points only; null without a match record. */
     val score: ScoreLine? = null,
+    /** Landing events with court metres, the coach report's input; none without a match record. */
+    val landings: LandingEvidence = LandingEvidence.NONE,
 )
 
 /** The score as people confirmed it (D-007): never from a model estimate. */
@@ -194,7 +198,22 @@ object OverviewDerivation {
             live = live.takeIf { match == null },
             opponent = opponent(match),
             score = match?.let(::score),
+            landings = landingEvidence(match),
         )
+    }
+
+    /** Landing events with a finite court position (plane court, calibrated on the court plane); none otherwise. */
+    fun landingEvidence(match: MatchRecord?): LandingEvidence {
+        if (match == null || match.sport != "badminton") return LandingEvidence.NONE
+        val events = match.events.filter { it.type == "landing" }
+        val cal = match.calibration
+        val usable = cal != null && cal.plane == "court"
+        val points = if (!usable) emptyList() else events.mapNotNull { e ->
+            val xy = e.contactXyM
+            if (xy == null || xy.size != 2 || !xy.all(Double::isFinite) || (e.plane != null && e.plane != "court")) null
+            else LandingPoint(xy[0], xy[1])
+        }
+        return LandingEvidence(events.size, points, cal?.template, cal?.tier, events.all { it.state == "candidate" })
     }
 
     /**
