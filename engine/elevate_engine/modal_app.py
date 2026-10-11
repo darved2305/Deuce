@@ -132,7 +132,7 @@ def analyze(
     from elevate_engine.log import log
     from elevate_engine.players import LivePlayers
     from elevate_engine.r2 import R2, WritesDisabled, track_key, window_key
-    from elevate_engine.sports import BADMINTON
+    from elevate_engine.sports import BADMINTON, STABILISE
     from elevate_engine.tracknet.run import sample_background
     from elevate_engine.video import duration_ms, source_size
 
@@ -168,7 +168,7 @@ def analyze(
         live_players = LivePlayers(cal, fmt)
         models_ = Models()
         bg = sample_background(local, 0, end)  # on this CPU container, not a T4
-        args = [(rel, list(p.decode), list(p.emit), bg) for p in plans]
+        args = [(rel, list(p.decode), list(p.emit), bg, STABILISE.enabled) for p in plans]
         results: list[dict] = []
 
         def post(k: int) -> None:
@@ -556,16 +556,28 @@ class Models:
         return tracknet_run.sample_background(Path(CLIPS_PATH) / clip, start_ms, end_ms)
 
     @modal.method()
-    def candidates(self, clip: str, decode_ms: list, emit_ms: list, background) -> dict:
+    def candidates(
+        self, clip: str, decode_ms: list, emit_ms: list, background, stabilise: bool = False
+    ) -> dict:
         """One window of the whole-video pipeline: TrackNet candidates (source px), measured
         camera motion / blur and audio onsets for the emitted range, using the shared
         background; plus D-FINE-S person boxes [t_ms, x1, y1, x2, y2, score] (source px) on
         the emitted frames sampled at about PERSON_FPS. One decode serves both models: a
-        sampled frame is kept at full size only until its batch of 8 is detected."""
+        sampled frame is kept at full size only until its batch of 8 is detected.
+
+        stabilise (sports.STABILISE.enabled): a window whose measured camera_motion_px passes
+        the gate is warped onto its middle frame, gets its own valid-pixel median background
+        instead of the shared one, and its candidates are mapped back to original source px
+        (elevate_engine.stabilise). Steady windows are untouched. window_result.v1 quality has
+        no room for extra fields, so stabilised / residual are logged only."""
+        import dataclasses
+
         from elevate_engine import audio
+        from elevate_engine import stabilise as stab
         from elevate_engine import window as win
         from elevate_engine.dfine import run as dfine
         from elevate_engine.log import log
+        from elevate_engine.sports import STABILISE
         from elevate_engine.tracknet import infer
         from elevate_engine.tracknet import run as tracknet_run
         from elevate_engine.video import Frame, frames_in_range, source_size
@@ -592,18 +604,38 @@ class Models:
         if batch:
             detect_batch()
         frames = [f.image for f in decoded]
-        blobs = list(tracknet_run.track(model, seq_len, frames, background))
         src_w, src_h = source_size(path)
         sx, sy = src_w / infer.WIDTH, src_h / infer.HEIGHT
         emitted = [i for i, f in enumerate(decoded) if lo <= f.t_ms < hi]
-        q = win.quality([frames[i] for i in emitted], 0, sx)
+        q = win.quality([frames[i] for i in emitted], 0, sx)  # measured on the camera as it was
+        stabilised = stab.StabilisedWindow(False, frames, None, [], {"stabilised": False})
+        if stabilise:
+            cfg = dataclasses.replace(STABILISE, enabled=True)
+            usable = None  # person boxes are only known for the emitted, sampled frames
+            if persons:
+                usable = [
+                    stab.person_mask(
+                        [p[1:5] for p in persons if abs(p[0] - f.t_ms) <= cfg.person_window_ms],
+                        (infer.HEIGHT, infer.WIDTH), (sx, sy), cfg.person_pad_px)
+                    for f in decoded
+                ]  # fmt: skip
+            stabilised = stab.stabilise_window(frames, q["camera_motion_px"], cfg, usable)
+        log("window.stabilise", emit=[lo, hi], **stabilised.report)
+        blobs = list(tracknet_run.track(
+            model, seq_len, stabilised.frames, stabilised.background if stabilised.applied
+            else background))  # fmt: skip
+
+        def source_xy(i: int, b) -> list:
+            """Candidate centre in original source px (through the inverse path if stabilised)."""
+            if not stabilised.applied:
+                return [round(b.cx * sx, 1), round(b.cy * sy, 1)]
+            x, y = stab.map_back(b.cx, b.cy, stabilised.homographies[i], (sx, sy))
+            return [round(float(x), 1), round(float(y), 1)]
+
         out = {
             "emit": [lo, hi],
             "t_ms": [decoded[i].t_ms for i in emitted],
-            "cands": [
-                [[round(b.cx * sx, 1), round(b.cy * sy, 1), round(b.peak, 4)] for b in blobs[i]]
-                for i in emitted
-            ],
+            "cands": [[[*source_xy(i, b), round(b.peak, 4)] for b in blobs[i]] for i in emitted],
             "camera_motion_px": q["camera_motion_px"],
             "blur_index": q["blur_index"],
             "onsets": audio.onsets(path, lo, hi),
@@ -703,12 +735,13 @@ def window_clip(
 @app.local_entrypoint()
 def run_clip(
     clip: str, start_s: float, end_s: float, out_dir: str, analysis_id: str = "a_offline",
-    calibration_input: str = "", format: str = "singles",
+    calibration_input: str = "", format: str = "singles", stabilise: bool = False,
 ) -> None:  # fmt: skip
     """Whole-video pipeline on [start_s, end_s) of a clip: parallel windows on T4s, one shared
     background, tracking across windows; every window validated and saved in order.
     calibration_input: optional path to a session_spec.calibration_input JSON (real taps), so
-    player rows carry foot metres; without it their feet are null."""
+    player rows carry foot metres; without it their feet are null. stabilise: warp windows
+    whose measured camera motion passes the gate (sports.StabiliseConfig); off by default."""
     import time
 
     from elevate_engine import pipeline
@@ -722,7 +755,7 @@ def run_clip(
     models_ = Models()
     bg = models_.background.remote(clip, lo, hi)
     t_bg = time.perf_counter() - t0
-    args = [(clip, list(p.decode), list(p.emit), bg) for p in plans]
+    args = [(clip, list(p.decode), list(p.emit), bg, stabilise) for p in plans]
     per_window = list(models_.candidates.starmap(args))
     t_win = time.perf_counter() - t0 - t_bg
     cal_record, cal = None, None
