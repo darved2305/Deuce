@@ -998,3 +998,33 @@ Template (copy to the end of the file):
   cap, Class B per issued URL) in this PR; a live curl that a re-fetch does not increment and a
   201st distinct artifact is allowed is owed after deploy (#159 asks for it).
 - **PRs:** this PR.
+
+## D-261103-NP1 · Prepare the repository for going public: new README, community files, repo name `deuce`
+- **Status:** accepted
+- **Date:** 2026-11-03 · **Owner:** @nikhilpravinpise (Person 3, by request of the team owner) · **Supersedes:** none
+- **In one line:** In the context of making the repository public, facing a README that was written
+  for the hackathon judges and had gone stale, we decided to rewrite it from the merged evidence,
+  add SECURITY, CONTRIBUTING and issue templates, and rename the repository to `deuce`, and rejected
+  adding a LICENSE or editing the legal and footage questions without the owners, to achieve a public
+  face that matches what is actually proven, accepting that the owners still decide licence and footage.
+- **Context:** The README listed work as open that issues #79, #80, #82, #83 and #84 had closed, did
+  not mention about 120 later pull requests, and said the hosted backend was live. On 2026-11-03 the
+  Supabase hostname no longer resolved in DNS. A private-repo note about branch protection does not
+  hold for public repositories.
+- **Decision:** (1) The README states only what a linked pull request, issue or document shows, and
+  says the hosted backend is gone. (2) The repository is renamed `deuce` by @darved2305 (admin); the
+  Android app stays "Elevate" and packages stay `@elevate/*`. (3) No LICENSE is added here; the
+  owners choose one and settle the footage question in the admin checklist before the visibility flip.
+- **Alternatives:** (a) keep the judge-facing README, rejected because it overstates a backend that is
+  not reachable; (b) rename the app and packages too, rejected because those are other lanes' code and
+  a rename there is its own slice; (c) add an MIT licence now, rejected because TrackNetV3 declares no
+  licence and the demo clip is a YouTube video with no tracked licence.
+- **Blast radius:**
+  - Contracts: none; version bump none
+  - People and folders: Person 4 (repo root, `.github/`, `docs/`) approves the cross-lane PR (label
+    `cross-lane`). Nobody else changes: no code, no contracts, no generated SDK, no lockfiles.
+  - Data/infra: none in this PR. The repository rename and settings are admin steps.
+  - Containment: docs and templates only, additive; old `ggw_elevate` URLs redirect after the rename.
+- **Exit:** revert the pull request; the rename is reversible by the admin.
+- **Proof / evidence:** this pull request's `## Proof` section (link check output, gitleaks run, CI).
+- **PRs:** this PR.
